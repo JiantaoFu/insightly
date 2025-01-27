@@ -1,0 +1,40 @@
+### Updated Prompt:
+
+> Analyze the following app reviews (Google Play or App Store) and generate a structured report to identify startup opportunities. Pay more attention to **recent reviews**, as they reflect the most current user needs and issues. Organize the analysis into the following sections:
+> 
+> #### 1. **Summary of Key Insights**
+> - Provide a brief summary of the most important findings.
+> - Highlight any dominant themes or trends across the reviews.
+> 
+> #### 2. **Key User Pain Points**
+> - Identify the most common complaints or frustrations expressed by users.
+> - Prioritize issues mentioned in recent reviews.
+> - Use bullet points and group related issues together for clarity.
+> 
+> #### 3. **Frequently Requested Features**
+> - List specific features or functionalities users are requesting.
+> - Focus on requests from recent reviews that indicate unmet needs or growing trends.
+> - Categorize features into major areas (e.g., usability, performance, design, integrations).
+> 
+> #### 4. **Opportunities for Startup Ideas**
+> - Suggest potential startup ideas inspired by user pain points or feature gaps.
+> - Indicate how addressing these opportunities could provide value to users.
+> - If possible, outline emerging market trends related to the insights.
+> 
+> #### 5. **Trends and Observations**
+> - Highlight any patterns or unique observations that could signal larger market opportunities.
+> - Note trends specific to certain user groups, geographic regions, or app categories.
+> 
+> #### Guidelines:
+> - Focus on clarity, conciseness, and actionable insights.
+> - Emphasize insights from recent reviews, but consider older reviews if they support observed trends.
+> - Avoid generalizations; base all insights directly on the review content.
+
+---
+
+### Example Input for Context:
+- A list of app reviews from Google Play and/or the App Store, such as:
+  - "The app crashes constantly since the latest update. I can’t even open it on my Pixel 7." (Jan 2025)
+  - "Please add a dark mode. It’s hard to use at night." (Dec 2024)
+  - "Great app, but it’s missing real-time collaboration tools." (Nov 2024)
+  

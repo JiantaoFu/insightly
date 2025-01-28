@@ -4,6 +4,13 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { 
+  searchApps, 
+  getAppDetails, 
+  getAppReviews,
+  processAppStoreUrl,
+  extractAppStoreId 
+} from './appStoreScraper.js';
 
 dotenv.config();
 
@@ -12,6 +19,90 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST'],
+  credentials: false
+}));
+app.use(express.json());
+
+// App Store Routes
+app.get('/app-store/search', async (req, res) => {
+  try {
+    const { query, limit, country } = req.query;
+    const results = await searchApps(query, { limit, country });
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to search apps' });
+  }
+});
+
+app.get('/app-store/app/:id', async (req, res) => {
+  try {
+    const appId = req.params.id;
+    const details = await getAppDetails(appId);
+    res.json(details);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch app details' });
+  }
+});
+
+app.get('/app-store/reviews/:id', async (req, res) => {
+  try {
+    const appId = req.params.id;
+    const { page, country } = req.query;
+    const reviews = await getAppReviews(appId, { page, country });
+    res.json(reviews);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch app reviews' });
+  }
+});
+
+// New route to process full App Store URL
+app.post('/app-store/process-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+    
+    const result = await processAppStoreUrl(url);
+    res.json(result);
+  } catch (error) {
+    console.error('Error processing App Store URL:', error);
+    
+    if (error.message === 'Invalid App Store URL') {
+      return res.status(400).json({ error: 'Invalid App Store URL' });
+    }
+    
+    res.status(500).json({ error: 'Failed to process App Store URL' });
+  }
+});
+
+// New route to extract App Store ID from URL
+app.post('/app-store/extract-id', async (req, res) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+    
+    const appId = extractAppStoreId(url);
+    res.json({ appId });
+  } catch (error) {
+    console.error('Error extracting App Store ID:', error);
+    
+    if (error.message === 'Invalid App Store URL') {
+      return res.status(400).json({ error: 'Invalid App Store URL' });
+    }
+    
+    res.status(500).json({ error: 'Failed to extract App Store ID' });
+  }
+});
 
 // LLM Configuration
 const LLM_PROVIDERS = {
@@ -125,15 +216,6 @@ const LLM_PROVIDERS = {
     }
   }
 };
-
-// Configure CORS
-app.use(cors({
-  origin: 'http://localhost:5173',
-  methods: ['GET', 'POST'],
-  credentials: false
-}));
-
-app.use(express.json());
 
 // Mock reviews data
 const mockReviews = [

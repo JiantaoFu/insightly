@@ -27,61 +27,145 @@ function App() {
     setReport('');
 
     try {
-      const response = await fetch('http://localhost:3000/api/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          url,
-          provider,
-          model: model || undefined
-        }),
-        signal: abortControllerRef.current.signal
-      });
+      // First, check if it's an App Store URL
+      const appStoreMatch = url.match(/https?:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[^/]+\/id(\d+)/);
+      
+      if (appStoreMatch) {
+        // Process App Store URL first
+        const appStoreResponse = await fetch('http://localhost:3000/app-store/process-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url }),
+          signal: abortControllerRef.current.signal
+        });
 
-      if (!response.body) {
-        throw new Error('No response body');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullReport = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          console.log('Stream completed');
-          setLoading(false);
-          break;
+        if (!appStoreResponse.ok) {
+          throw new Error('Failed to process App Store URL');
         }
 
-        const chunk = decoder.decode(value, { stream: true });
-        console.log('Received chunk:', chunk);
+        const appData = await appStoreResponse.json();
 
-        // Split chunk into lines and parse
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-        
-        lines.forEach(line => {
-          try {
-            console.log('Parsing line:', line);
-            const parsedChunk = JSON.parse(line);
-            
-            if (parsedChunk.report) {
-              fullReport += parsedChunk.report;
-              setReport(fullReport);
-              console.log('Updated report:', fullReport);
+        // Prepare data for analysis
+        const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url,
+            provider,
+            model: model || undefined,
+            appData: {
+              details: appData.details,
+              reviews: appData.reviews
             }
-
-            if (parsedChunk.done) {
-              console.log('Streaming fully completed');
-              setLoading(false);
-            }
-          } catch (parseError) {
-            console.error('Error parsing chunk:', parseError, 'Raw line:', line);
-          }
+          }),
+          signal: abortControllerRef.current.signal
         });
+
+        if (!analysisResponse.body) {
+          throw new Error('No response body');
+        }
+
+        const reader = analysisResponse.body.getReader();
+        const decoder = new TextDecoder();
+        let fullReport = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('Stream completed');
+            setLoading(false);
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          console.log('Received chunk:', chunk);
+
+          // Split chunk into lines and parse
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+          
+          lines.forEach(line => {
+            try {
+              console.log('Parsing line:', line);
+              const parsedChunk = JSON.parse(line);
+              
+              if (parsedChunk.report) {
+                fullReport += parsedChunk.report;
+                setReport(fullReport);
+                console.log('Updated report:', fullReport);
+              }
+
+              if (parsedChunk.done) {
+                console.log('Streaming fully completed');
+                setLoading(false);
+              }
+            } catch (parseError) {
+              console.error('Error parsing chunk:', parseError, 'Raw line:', line);
+            }
+          });
+        }
+      } else {
+        // Existing logic for other URLs
+        const response = await fetch('http://localhost:3000/api/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url,
+            provider,
+            model: model || undefined
+          }),
+          signal: abortControllerRef.current.signal
+        });
+
+        if (!response.body) {
+          throw new Error('No response body');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullReport = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('Stream completed');
+            setLoading(false);
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          console.log('Received chunk:', chunk);
+
+          // Split chunk into lines and parse
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+          
+          lines.forEach(line => {
+            try {
+              console.log('Parsing line:', line);
+              const parsedChunk = JSON.parse(line);
+              
+              if (parsedChunk.report) {
+                fullReport += parsedChunk.report;
+                setReport(fullReport);
+                console.log('Updated report:', fullReport);
+              }
+
+              if (parsedChunk.done) {
+                console.log('Streaming fully completed');
+                setLoading(false);
+              }
+            } catch (parseError) {
+              console.error('Error parsing chunk:', parseError, 'Raw line:', line);
+            }
+          });
+        }
       }
     } catch (err) {
       if (err.name === 'AbortError') {

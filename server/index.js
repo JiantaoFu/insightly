@@ -232,7 +232,7 @@ app.post('/api/analyze', async (req, res) => {
   console.log('Full request body:', JSON.stringify(req.body, null, 2));
   
   try {
-    const { url, model, provider } = req.body;
+    const { url, provider, model, appData } = req.body;
     
     console.log('Received parameters:', { url, model, provider });
     
@@ -248,17 +248,40 @@ app.post('/api/analyze', async (req, res) => {
       });
     }
 
-    const prompt = `Analyze these app reviews and create a structured markdown report with the following sections:
-    1. Summary of Key Insights
-    2. Key User Pain Points
-    3. Frequently Requested Features
-    4. Opportunities for Startup Ideas
-    5. Trends and Observations
+    // Prepare prompt based on whether app data is provided
+    let prompt = `Analyze the following URL: ${url}`;
+    
+    if (appData && appData.reviews && appData.reviews.reviews) {
+      // If App Store reviews are provided, include them in the prompt
+      const reviewsText = appData.reviews.reviews
+        .map(review => `Review (Score: ${review.score}): ${review.text}`)
+        .join('\n');
 
-    Reviews:
-    ${mockReviews.join('\n')}
+      prompt += `\n\nApp Details:
+- Title: ${appData.details.title}
+- Description: ${appData.details.description}
+- Developer: ${appData.details.developer}
+- Version: ${appData.details.version}
 
-    Format the response in markdown with appropriate headers and bullet points.`;
+Reviews Summary:
+- Total Reviews: ${appData.reviews.total}
+- Score Distribution: ${JSON.stringify(appData.reviews.scoreDistribution)}
+
+Detailed Reviews:
+${reviewsText}
+
+Analyze these app reviews and create a structured markdown report with the following sections:
+1. Summary of Key Insights
+2. Key User Pain Points
+3. Frequently Requested Features
+4. Opportunities for Startup Ideas
+5. Trends and Observations
+
+Format the response in markdown with appropriate headers and bullet points.`;
+    } else {
+      // Fallback to existing logic if no app data
+      prompt += '\n\nPlease analyze this URL and provide insights.';
+    }
 
     console.log('Prompt length:', prompt.length);
 

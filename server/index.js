@@ -12,6 +12,7 @@ import {
   extractAppStoreId 
 } from './appStoreScraper.js';
 import { processGooglePlayUrl } from './googlePlayScraper.js';
+import Markdown from 'react-markdown';
 
 dotenv.config();
 
@@ -27,7 +28,13 @@ app.use(cors({
   methods: ['GET', 'POST'],
   credentials: false
 }));
-app.use(express.json());
+app.use(express.json({
+  limit: '50mb'
+}));
+app.use(express.urlencoded({
+  limit: '50mb',
+  extended: true
+}));
 
 // App Store Routes
 app.get('/app-store/search', async (req, res) => {
@@ -291,7 +298,19 @@ Analyze these app reviews and create a structured markdown report with the follo
 4. Opportunities for Startup Ideas
 5. Trends and Observations
 
-Format the response in markdown with appropriate headers and bullet points.`;
+Format the response in markdown with appropriate headers and bullet points.
+But do NOT wrap it inside triple backticks.
+
+Expect something like this:
+
+# This is a title
+
+NOT something like this:
+
+\`\`\`Markdown
+# This is a title
+\`\`\`
+`;
     } else {
       // Fallback to existing logic if no app data
       prompt += '\n\nPlease analyze this URL and provide insights.';
@@ -319,11 +338,10 @@ Format the response in markdown with appropriate headers and bullet points.`;
       });
 
       console.timeEnd('generateResponse');
+      console.log('Final report:', finalReport);
 
-      // Send final report with done flag
-      streamResponse({ report: finalReport, done: true });
+      // Directly end the response after streaming is complete
       res.end();
-
     } catch (generateError) {
       console.error('Generate Response Error:', {
         message: generateError.message,

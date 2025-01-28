@@ -106,12 +106,7 @@ function App() {
             if (parsedChunk.report) {
               fullReport += parsedChunk.report;
               setReport(fullReport);
-              console.log('Updated report:', fullReport);
-            }
-
-            if (parsedChunk.done) {
-              console.log('Streaming fully completed');
-              setLoading(false);
+              //console.log('Updated report:', fullReport);
             }
           } catch (parseError) {
             console.error('Error parsing chunk:', parseError, 'Raw line:', line);
@@ -125,6 +120,7 @@ function App() {
         console.error('Error:', err);
         setError(err.message || 'Failed to analyze the app. Please try again.');
       }
+    } finally {
       setLoading(false);
     }
   };

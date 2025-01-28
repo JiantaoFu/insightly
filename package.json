@@ -9,7 +9,15 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "mocha",
-    "test:watch": "mocha --watch"
+    "test:watch": "mocha --watch",
+    "test:google-play:id": "mocha server/googlePlayScraper.test.js -g 'extractGooglePlayId'",
+    "test:google-play:details": "mocha server/googlePlayScraper.test.js -g 'fetchAppDetails'",
+    "test:google-play:reviews": "mocha server/googlePlayScraper.test.js -g 'getAppReviews'",
+    "test:google-play:process-url": "mocha server/googlePlayScraper.test.js -g 'processGooglePlayUrl'",
+    "test:app-store:id": "mocha server/appStoreScraper.test.js -g 'extractAppStoreId'",
+    "test:app-store:details": "mocha server/appStoreScraper.test.js -g 'getAppDetails'",
+    "test:app-store:reviews": "mocha server/appStoreScraper.test.js -g 'getAppReviews'",
+    "test:app-store:process-url": "mocha server/appStoreScraper.test.js -g 'processAppStoreUrl'"
   },
   "dependencies": {
     "app-store-scraper": "^0.18.0",
@@ -17,6 +25,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
+    "google-play-scraper": "^10.0.1",
     "lucide-react": "^0.344.0",
     "openai": "^4.28.4",
     "react": "^18.3.1",
@@ -48,6 +57,8 @@
   },
   "mocha": {
     "spec": "server/**/*.test.js",
-    "require": ["chai/register-expect.js"]
+    "require": [
+      "chai/register-expect.js"
+    ]
   }
 }

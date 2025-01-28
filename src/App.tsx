@@ -27,152 +27,103 @@ function App() {
     setReport('');
 
     try {
-      // First, check if it's an App Store URL
+      let processUrlEndpoint = '';
+      
+      // Detect URL type
       const appStoreMatch = url.match(/https?:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[^/]+\/id(\d+)/);
+      const googlePlayMatch = url.match(/https?:\/\/play\.google\.com\/store\/apps\/details\?id=([^&]+)/);
       
       if (appStoreMatch) {
-        // Process App Store URL first
-        const appStoreResponse = await fetch('http://localhost:3000/app-store/process-url', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ url }),
-          signal: abortControllerRef.current.signal
-        });
-
-        if (!appStoreResponse.ok) {
-          throw new Error('Failed to process App Store URL');
-        }
-
-        const appData = await appStoreResponse.json();
-
-        // Prepare data for analysis
-        const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            url,
-            provider,
-            model: model || undefined,
-            appData: {
-              details: appData.details,
-              reviews: appData.reviews
-            }
-          }),
-          signal: abortControllerRef.current.signal
-        });
-
-        if (!analysisResponse.body) {
-          throw new Error('No response body');
-        }
-
-        const reader = analysisResponse.body.getReader();
-        const decoder = new TextDecoder();
-        let fullReport = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            console.log('Stream completed');
-            setLoading(false);
-            break;
-          }
-
-          const chunk = decoder.decode(value, { stream: true });
-          console.log('Received chunk:', chunk);
-
-          // Split chunk into lines and parse
-          const lines = chunk.split('\n').filter(line => line.trim() !== '');
-          
-          lines.forEach(line => {
-            try {
-              console.log('Parsing line:', line);
-              const parsedChunk = JSON.parse(line);
-              
-              if (parsedChunk.report) {
-                fullReport += parsedChunk.report;
-                setReport(fullReport);
-                console.log('Updated report:', fullReport);
-              }
-
-              if (parsedChunk.done) {
-                console.log('Streaming fully completed');
-                setLoading(false);
-              }
-            } catch (parseError) {
-              console.error('Error parsing chunk:', parseError, 'Raw line:', line);
-            }
-          });
-        }
+        processUrlEndpoint = 'http://localhost:3000/app-store/process-url';
+      } else if (googlePlayMatch) {
+        processUrlEndpoint = 'http://localhost:3000/google-play/process-url';
       } else {
-        // Existing logic for other URLs
-        const response = await fetch('http://localhost:3000/api/analyze', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            url,
-            provider,
-            model: model || undefined
-          }),
-          signal: abortControllerRef.current.signal
-        });
+        throw new Error('Unsupported app store URL');
+      }
 
-        if (!response.body) {
-          throw new Error('No response body');
-        }
+      // Process URL
+      const processResponse = await fetch(processUrlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url }),
+        signal: abortControllerRef.current.signal
+      });
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullReport = '';
+      if (!processResponse.ok) {
+        throw new Error(`Failed to process URL: ${processUrlEndpoint}`);
+      }
 
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            console.log('Stream completed');
-            setLoading(false);
-            break;
+      const appData = await processResponse.json();
+
+      // Prepare data for analysis
+      const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url,
+          provider,
+          model: model || undefined,
+          appData: {
+            details: appData.details,
+            reviews: appData.reviews
           }
+        }),
+        signal: abortControllerRef.current.signal
+      });
 
-          const chunk = decoder.decode(value, { stream: true });
-          console.log('Received chunk:', chunk);
+      if (!analysisResponse.body) {
+        throw new Error('No response body');
+      }
 
-          // Split chunk into lines and parse
-          const lines = chunk.split('\n').filter(line => line.trim() !== '');
-          
-          lines.forEach(line => {
-            try {
-              console.log('Parsing line:', line);
-              const parsedChunk = JSON.parse(line);
-              
-              if (parsedChunk.report) {
-                fullReport += parsedChunk.report;
-                setReport(fullReport);
-                console.log('Updated report:', fullReport);
-              }
+      const reader = analysisResponse.body.getReader();
+      const decoder = new TextDecoder();
+      let fullReport = '';
 
-              if (parsedChunk.done) {
-                console.log('Streaming fully completed');
-                setLoading(false);
-              }
-            } catch (parseError) {
-              console.error('Error parsing chunk:', parseError, 'Raw line:', line);
-            }
-          });
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('Stream completed');
+          setLoading(false);
+          break;
         }
+
+        const chunk = decoder.decode(value, { stream: true });
+        console.log('Received chunk:', chunk);
+
+        // Split chunk into lines and parse
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        lines.forEach(line => {
+          try {
+            console.log('Parsing line:', line);
+            const parsedChunk = JSON.parse(line);
+            
+            if (parsedChunk.report) {
+              fullReport += parsedChunk.report;
+              setReport(fullReport);
+              console.log('Updated report:', fullReport);
+            }
+
+            if (parsedChunk.done) {
+              console.log('Streaming fully completed');
+              setLoading(false);
+            }
+          } catch (parseError) {
+            console.error('Error parsing chunk:', parseError, 'Raw line:', line);
+          }
+        });
       }
     } catch (err) {
       if (err.name === 'AbortError') {
         console.log('Request canceled');
       } else {
         console.error('Error:', err);
-        setError('Failed to analyze the app. Please try again.');
+        setError(err.message || 'Failed to analyze the app. Please try again.');
       }
       setLoading(false);
     }

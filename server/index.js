@@ -11,6 +11,7 @@ import {
   processAppStoreUrl,
   extractAppStoreId 
 } from './appStoreScraper.js';
+import { processGooglePlayUrl } from './googlePlayScraper.js';
 
 dotenv.config();
 
@@ -57,6 +58,19 @@ app.get('/app-store/reviews/:id', async (req, res) => {
     res.json(reviews);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch app reviews' });
+  }
+});
+
+// Google Play Routes
+app.post('/google-play/process-url', async (req, res) => {
+  const { url } = req.body;
+
+  try {
+    const appData = await processGooglePlayUrl(url);
+    res.json(appData);
+  } catch (error) {
+    console.error('Google Play URL processing error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

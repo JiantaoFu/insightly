@@ -14,21 +14,131 @@ import {
 import { processGooglePlayUrl } from './googlePlayScraper.js';
 import Markdown from 'react-markdown';
 import { promptConfig } from './promptConfig.js';
+import Stripe from 'stripe';
 
+// Ensure environment variables are loaded
 dotenv.config();
+
+console.log('Webhook secret loaded:', process.env.STRIPE_WEBHOOK_SECRET ? 'Present' : 'Missing');
+
+// Log environment variables for debugging
+console.log('Environment Variables:', {
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY 
+    ? '[REDACTED]' 
+    : 'NOT SET',
+  NODE_ENV: process.env.NODE_ENV
+});
+
+// Determine which key to use based on environment
+const stripeSecretKey = 
+  process.env.NODE_ENV === 'production' 
+    ? process.env.STRIPE_SECRET_KEY 
+    : process.env.STRIPE_TEST_SECRET_KEY;
+
+// Defensive initialization with error logging
+const stripe = stripeSecretKey 
+  ? new Stripe(stripeSecretKey, {
+      apiVersion: '2023-10-16',
+      typescript: true
+    })
+  : null;
+
+// Add error handling if Stripe is not initialized
+if (!stripe) {
+  console.error('CRITICAL: Stripe cannot be initialized. Check Stripe keys in .env file.');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;
+const frontendUrl = 
+  process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL 
+    : process.env.FRONTEND_DEV_URL;
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173',  // Vite dev server
+    frontendUrl,  // Allow frontend URL
+  ],
   methods: ['GET', 'POST'],
   credentials: false
 }));
+
+// Webhook endpoint
+app.post('/webhook', express.raw({type: 'application/json'}), async (req, res) => {
+  console.log('Webhook received at:', new Date().toISOString());
+  console.log('Request headers:', req.headers);
+
+  // Log the content type
+  console.log('Content-Type:', req.headers['content-type']);
+
+  // Verify we have a raw body
+  console.log('Body type:', typeof req.body);
+  console.log('Is Buffer?', Buffer.isBuffer(req.body));
+
+  const sig = req.headers['stripe-signature'];
+  
+  // Log signature details
+  console.log('Stripe signature components:');
+  if (sig) {
+    const components = sig.split(',');
+    components.forEach(component => {
+      const [key, value] = component.split('=');
+      console.log(`  ${key}: ${value}`);
+    });
+  }
+  // console.log('Webhook body:', req.body instanceof Buffer ? req.body.toString() : req.body);
+
+  try {
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      sig, 
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+
+    console.log('Webhook event type:', event.type);
+    // console.log('Event data:', JSON.stringify(event.data, null, 2));
+
+    switch (event.type) {
+      case 'checkout.session.completed':
+        const session = event.data.object;
+        console.log('Checkout session completed:', session.id);
+        
+        // Log session details
+        console.log('Session metadata:', session.metadata);
+        console.log('Customer email:', session.customer_email);
+        console.log('Payment status:', session.payment_status);
+
+        // Optional: Process payment
+        if (session.payment_status === 'paid') {
+          console.log('Payment processed successfully');
+          const session = event.data.object;
+          const queryCount = parseInt(session.metadata.queryCount, 10);
+          
+          // Here you can implement your logic to grant query credits
+          console.log(`Granted ${queryCount} Query Credits`);
+        }
+        break;
+
+      case 'payment_intent.payment_failed':
+        console.log('Payment failed:', event.data.object);
+        break;
+
+      default:
+        console.log(`Unhandled event type ${event.type}`);
+    }
+
+    res.json({received: true});
+  } catch (err) {
+    console.error('Webhook Error:', err);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+});
+
 app.use(express.json({
   limit: '50mb'
 }));
@@ -125,6 +235,133 @@ app.post('/app-store/extract-id', async (req, res) => {
     res.status(500).json({ error: 'Failed to extract App Store ID' });
   }
 });
+
+// Stripe checkout route with enhanced error handling
+app.post('/create-checkout-session', async (req, res) => {
+  // Detailed logging of incoming request
+  console.log('Stripe Checkout Request Received:', {
+    body: req.body,
+    headers: req.headers,
+    timestamp: new Date().toISOString()
+  });
+
+  // Validate Stripe initialization
+  if (!stripe) {
+    console.error('Stripe is not properly initialized');
+    return res.status(500).json({ 
+      error: 'Payment service is currently unavailable',
+      details: 'Stripe initialization failed'
+    });
+  }
+
+  try {
+    // Validate request body
+    const { queryCount } = req.body;
+    if (!queryCount || typeof queryCount !== 'number' || queryCount <= 0) {
+      return res.status(400).json({ 
+        error: 'Invalid query count',
+        details: 'Query count must be a positive number'
+      });
+    }
+
+    // Create Stripe checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `${queryCount} Query Credits`,
+            description: 'Insightly Query Credits Package'
+          },
+          unit_amount: queryCount * 100, // $1 per query credit
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${frontendUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}/cancel`,
+      metadata: {
+        queryCount: queryCount,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    // Log successful session creation
+    console.log('Stripe Checkout Session Created:', {
+      sessionId: session.id,
+      queryCount: queryCount
+    });
+
+    res.json({ 
+      sessionId: session.id,
+      message: 'Checkout session created successfully'
+    });
+
+  } catch (err) {
+    // Comprehensive error logging
+    console.error('Stripe Checkout Session Error:', {
+      message: err.message,
+      type: err.type,
+      code: err.code,
+      param: err.param,
+      stack: err.stack
+    });
+
+    // Send detailed error response
+    res.status(500).json({ 
+      error: 'Failed to create checkout session',
+      details: err.message,
+      type: err.type
+    });
+  }
+});
+
+// Verify Stripe checkout session
+app.get('/api/verify-session/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    // Retrieve the session from Stripe
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    
+    if (session.payment_status === 'paid') {
+      // Extract query credits from metadata
+      const queryCount = session.metadata?.queryCount;
+      
+      // TODO: Update user's query credits in your database
+      // await updateUserCredits(session.customer_email, queryCount);
+      
+      res.json({ 
+        success: true, 
+        queryCount: queryCount 
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: 'Payment not completed' 
+      });
+    }
+  } catch (error) {
+    console.error('Session verification error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error verifying session' 
+    });
+  }
+});
+
+const rawBody = (req, res, next) => {
+  req.setEncoding('utf8');
+  let data = '';
+  req.on('data', (chunk) => {
+    data += chunk;
+  });
+  req.on('end', () => {
+    req.rawBody = data;
+    next();
+  });
+};
 
 // LLM Configuration
 const LLM_PROVIDERS = {

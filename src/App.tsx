@@ -1,6 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Loader2, Download } from 'lucide-react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { Send, Loader2, Download, CreditCard, ChevronDown, CheckCircle2, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { loadStripe } from '@stripe/stripe-js';
 
 // Configuration for providers and models
 const PROVIDERS_CONFIG = {
@@ -23,11 +24,41 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [appData, setAppData] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [showNotification, setShowNotification] = useState(false);
 
   // Update model when provider changes
   useEffect(() => {
     setModel(PROVIDERS_CONFIG[provider].defaultModel);
   }, [provider]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const sessionId = searchParams.get('session_id');
+  
+    if (sessionId) {
+      const verifyPayment = async () => {
+        const response = await fetch(`http://localhost:3000/api/verify-session/${sessionId}`);
+        const result = await response.json();
+        
+        setPaymentStatus(result.success 
+          ? `Added ${result.queryCount} credits` 
+          : 'Payment verification failed'
+        );
+
+        setShowNotification(true);
+        
+        // Auto-dismiss notification after 5 seconds
+        const timer = setTimeout(() => {
+          setShowNotification(false);
+        }, 5000);
+
+        return () => clearTimeout(timer);
+      };
+  
+      verifyPayment();
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,9 +304,206 @@ function App() {
     );
   }
 
+  // Elegant Notification Component
+  const PaymentNotification = () => {
+    return (
+      <div 
+        className={`
+          fixed top-4 right-4 z-50 
+          transition-all duration-300 ease-in-out
+          ${showNotification 
+            ? 'opacity-100 translate-x-0' 
+            : 'opacity-0 translate-x-full'
+          }
+        `}
+      >
+        <div className="
+          bg-gradient-to-r from-green-400 to-green-600 
+          text-white 
+          px-6 py-4 
+          rounded-lg 
+          shadow-2xl 
+          flex 
+          items-center 
+          space-x-4
+        ">
+          <CheckCircle2 className="w-6 h-6" />
+          <div>
+            <p className="font-semibold">{paymentStatus}</p>
+            <p className="text-sm opacity-75">Your account has been credited successfully</p>
+          </div>
+          <button 
+            onClick={() => setShowNotification(false)}
+            className="ml-4 hover:bg-green-500 rounded-full p-1 transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  function StripeCheckoutButton() {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [error, setError] = useState(null);
+
+    // Ensure Stripe key is loaded correctly
+    const stripePromise = useMemo(() => {
+      const key = 
+      import.meta.env.MODE === 'production'
+        ? import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+        : import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY;
+    
+      return key ? loadStripe(key) : null;
+    }, []);
+
+    const creditPackages = [
+      { 
+        name: 'Starter', 
+        queries: 10, 
+        price: 5, 
+        recommended: false,
+        description: 'Perfect for occasional users' 
+      },
+      { 
+        name: 'Pro', 
+        queries: 25, 
+        price: 10, 
+        recommended: true,
+        description: 'Best value for regular users' 
+      },
+      { 
+        name: 'Enterprise', 
+        queries: 50, 
+        price: 20, 
+        recommended: false,
+        description: 'Ideal for power users' 
+      }
+    ];
+
+    const handleCheckout = async (packageDetails) => {
+      try {
+        // Validate Stripe is initialized
+        if (!stripePromise) {
+          throw new Error('Stripe is not properly initialized');
+        }
+
+        const response = await fetch('http://localhost:3000/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ queryCount: packageDetails.queries })
+        });
+
+        // Check if response is OK
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Server error: ${errorText}`);
+        }
+
+        const { sessionId } = await response.json();
+        const stripe = await stripePromise;
+        
+        const { error } = await stripe.redirectToCheckout({ sessionId });
+        
+        if (error) {
+          setError(error.message);
+          console.error('Checkout failed', error);
+        }
+      } catch (error) {
+        setError(error.message);
+        console.error('Purchase failed', error);
+      }
+    };
+
+    return (
+      <div className="w-full max-w-4xl mx-auto mt-6 px-4">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+        
+        <div className="bg-white shadow-xl rounded-2xl border border-gray-200 overflow-hidden">
+          <div 
+            className="bg-gradient-to-r from-blue-600 to-blue-400 
+                     p-6 flex items-center justify-between 
+                     text-white cursor-pointer hover:opacity-90 
+                     transition-opacity duration-300"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            <div className="flex items-center space-x-4">
+              <CreditCard className="w-8 h-8" />
+              <h2 className="text-xl font-bold">
+                Purchase Query Credits
+              </h2>
+            </div>
+            <ChevronDown 
+              className={`w-6 h-6 transform transition-transform duration-300 
+                          ${isExpanded ? 'rotate-180' : ''}`} 
+            />
+          </div>
+
+          {isExpanded && (
+            <div className="p-6 space-y-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                {creditPackages.map((pkg) => (
+                  <div 
+                    key={pkg.queries}
+                    className={`
+                      border rounded-xl p-5 transition-all duration-300 
+                      hover:shadow-lg cursor-pointer relative
+                      ${pkg.recommended 
+                        ? 'border-blue-500 bg-blue-50 scale-105 z-10' 
+                        : 'border-gray-200 hover:border-blue-300'
+                      }
+                    `}
+                    onClick={() => handleCheckout(pkg)}
+                  >
+                    {pkg.recommended && (
+                      <span className="absolute top-2 right-2 text-xs bg-blue-500 
+                                       text-white px-2 py-1 rounded-full">
+                        Most Popular
+                      </span>
+                    )}
+                    <div className="text-center">
+                      <h3 className="text-lg font-bold text-gray-800 mb-2">
+                        {pkg.name}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        {pkg.description}
+                      </p>
+                      <div className="mb-4">
+                        <p className="text-3xl font-bold text-blue-600">
+                          ${pkg.price}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          ${(pkg.price / pkg.queries).toFixed(2)} per query
+                        </p>
+                      </div>
+                      <div className="text-gray-700">
+                        <strong>{pkg.queries}</strong> Query Credits
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-center text-xs text-gray-500 mt-4">
+                Secure checkout powered by <span className="font-semibold">Stripe</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="max-w-4xl mx-auto px-4 py-12">
+        <PaymentNotification />
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             App Review Analyzer
@@ -388,6 +616,7 @@ function App() {
           setUrl={setUrl} 
           handleSubmit={handleSubmit} 
         />
+        <StripeCheckoutButton />
       </div>
     </div>
   );

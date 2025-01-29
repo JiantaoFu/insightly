@@ -1,16 +1,33 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Loader2, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
+// Configuration for providers and models
+const PROVIDERS_CONFIG = {
+  ollama: {
+    defaultModel: 'deepseek-r1:7b',
+    models: ['llama2', 'mistral', 'deepseek-r1:7b']
+  },
+  openai: {
+    defaultModel: 'gpt-3.5-turbo',
+    models: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+  }
+};
+
 function App() {
   const [url, setUrl] = useState('');
+  const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('ollama');
+  const [model, setModel] = useState(PROVIDERS_CONFIG.ollama.defaultModel);
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [provider, setProvider] = useState('ollama');
-  const [model, setModel] = useState('');
   const [appData, setAppData] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Update model when provider changes
+  useEffect(() => {
+    setModel(PROVIDERS_CONFIG[provider].defaultModel);
+  }, [provider]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,21 +287,32 @@ function App() {
 
         <form onSubmit={handleSubmit} className="mb-12">
           <div className="flex gap-4 mb-4">
-            <select
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              className="px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="ollama">Ollama</option>
-              <option value="openai">OpenAI</option>
-            </select>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Optional: Specify model (e.g. deepseek-r1:7b)"
-              className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-            />
+            {false && (
+              <div className="flex gap-4 mb-4">
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value as keyof typeof PROVIDERS_CONFIG)}
+                  className="px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                >
+                  {Object.keys(PROVIDERS_CONFIG).map(providerKey => (
+                    <option key={providerKey} value={providerKey}>
+                      {providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                >
+                  {PROVIDERS_CONFIG[provider].models.map(modelName => (
+                    <option key={modelName} value={modelName}>
+                      {modelName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <div className="flex gap-4">
             <input

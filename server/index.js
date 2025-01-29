@@ -13,6 +13,7 @@ import {
 } from './appStoreScraper.js';
 import { processGooglePlayUrl } from './googlePlayScraper.js';
 import Markdown from 'react-markdown';
+import { promptConfig } from './promptConfig.js';
 
 dotenv.config();
 
@@ -291,12 +292,7 @@ Reviews Summary:
 Detailed Reviews:
 ${reviewsText}
 
-Analyze these app reviews and create a structured markdown report with the following sections:
-1. Summary of Key Insights
-2. Key User Pain Points
-3. Frequently Requested Features
-4. Opportunities for Startup Ideas
-5. Trends and Observations
+${promptConfig.appReviewAnalysis}
 
 Format the response in markdown with appropriate headers and bullet points.
 But do NOT wrap it inside triple backticks.

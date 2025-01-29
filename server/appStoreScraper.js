@@ -44,7 +44,7 @@ export async function searchApps(query, options = {}) {
       icon: app.icon,
       developer: app.developer,
       price: app.price,
-      rating: app.score
+      score: app.score
     }));
   } catch (error) {
     console.error('Error searching App Store:', error);
@@ -62,7 +62,7 @@ export async function getAppDetails(appId) {
       icon: app.icon,
       developer: app.developer,
       price: app.price,
-      rating: app.score,
+      score: app.score,
       reviews: app.reviews,
       version: app.version,
       size: app.size,

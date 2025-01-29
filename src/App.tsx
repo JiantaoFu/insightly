@@ -9,6 +9,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState('ollama');
   const [model, setModel] = useState('');
+  const [appData, setAppData] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,7 +56,8 @@ function App() {
         throw new Error(`Failed to process URL: ${processUrlEndpoint}`);
       }
 
-      const appData = await processResponse.json();
+      const data = await processResponse.json();
+      setAppData(data);
 
       // Prepare data for analysis
       const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
@@ -67,10 +69,7 @@ function App() {
           url,
           provider,
           model: model || undefined,
-          appData: {
-            details: appData.details,
-            reviews: appData.reviews
-          }
+          appData: data
         }),
         signal: abortControllerRef.current.signal
       });
@@ -151,6 +150,30 @@ function App() {
     }
   }, [report]);
 
+  const downloadReviews = useCallback(() => {
+    if (!appData?.reviews?.reviews) {
+      setError('No reviews available to download');
+      return;
+    }
+
+    // Prepare CSV
+    const csvHeader = 'Date,Score,User,Review\n';
+    const csvContent = appData.reviews.reviews.map(review => 
+      `"${review.date || ''}","${review.score || 0}","${(review.userName || 'Anonymous').replace(/"/g, '""')}","${(review.text || '').replace(/"/g, '""')}"`)
+      .join('\n');
+    const csvBlob = new Blob([csvHeader + csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    // Create download link
+    const csvLink = document.createElement('a');
+    csvLink.href = URL.createObjectURL(csvBlob);
+    csvLink.download = `${appData.details?.title || 'app'}_reviews.csv`;
+
+    // Trigger download
+    document.body.appendChild(csvLink);
+    csvLink.click();
+    document.body.removeChild(csvLink);
+  }, [appData]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="max-w-4xl mx-auto px-4 py-12">
@@ -216,14 +239,31 @@ function App() {
 
         {report && (
           <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={handleDownload}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="flex items-center space-x-4 mb-4">
+              <button 
+                onClick={() => {
+                  const blob = new Blob([report], { type: 'text/markdown' });
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = 'analysis_report.md';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-4 h-4 mr-2" />
                 Download Report
               </button>
+              {console.log('AppData:', appData)}
+              {appData?.reviews?.reviews && (
+                <button 
+                  onClick={downloadReviews} 
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
+                >
+                  <Download className="mr-2" /> Download Reviews
+                </button>
+              )}
             </div>
             <div className="prose prose-sm max-w-none">
               <ReactMarkdown>{report}</ReactMarkdown>

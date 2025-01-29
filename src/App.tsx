@@ -174,6 +174,88 @@ function App() {
     document.body.removeChild(csvLink);
   }, [appData]);
 
+  const demoApps = [
+    {
+      name: "Instagram",
+      placeholder: "https://apps.apple.com/us/app/instagram/id389801252",
+      description: "Social Media Networking App"
+    },
+    {
+      name: "Spotify",
+      placeholder: "https://play.google.com/store/apps/details?id=com.spotify.music",
+      description: "Music Streaming Platform"
+    },
+    {
+      name: "Duolingo",
+      placeholder: "https://apps.apple.com/us/app/duolingo/id570060128",
+      description: "Language Learning App"
+    }
+  ];
+
+  function DemoSelector({ 
+    url, 
+    setUrl, 
+    handleSubmit 
+  }: { 
+    url: string, 
+    setUrl: (url: string) => void, 
+    handleSubmit: (e: React.FormEvent) => Promise<void> 
+  }) {
+    const [selectedDemo, setSelectedDemo] = useState<string | null>(null);
+
+    const handleDemoSelect = (demoApp: typeof demoApps[0]) => {
+      setSelectedDemo(demoApp.name);
+      setUrl(demoApp.placeholder);
+    };
+
+    return (
+      <div className="mt-8 bg-white rounded-xl shadow-md p-6">
+        <h2 className="text-xl font-bold mb-4">Try a Demo Report</h2>
+        <div className="space-y-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            {demoApps.map((app) => (
+              <button
+                key={app.name}
+                onClick={() => handleDemoSelect(app)}
+                className={`p-4 rounded-lg border transition-all ${
+                  selectedDemo === app.name 
+                    ? 'bg-blue-500 text-white border-blue-600' 
+                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                }`}
+              >
+                <h3 className="font-semibold">{app.name}</h3>
+                <p className="text-sm mt-2">{app.description}</p>
+              </button>
+            ))}
+          </div>
+          
+          {selectedDemo && (
+            <div className="mt-4">
+              <label className="block mb-2 text-sm font-medium text-gray-700">
+                App Store / Google Play URL
+              </label>
+              <div className="flex">
+                <input
+                  type="text"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="Confirm or modify the URL"
+                  className="flex-grow p-2 border rounded-l-lg"
+                />
+                <button
+                  onClick={handleSubmit}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600"
+                >
+                  Generate Report
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="max-w-4xl mx-auto px-4 py-12">
@@ -238,7 +320,7 @@ function App() {
         </form>
 
         {report && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
             <div className="flex items-center space-x-4 mb-4">
               <button 
                 onClick={() => {
@@ -270,6 +352,14 @@ function App() {
             </div>
           </div>
         )}
+        
+        <div className="border-t border-gray-200 my-8"></div>
+        
+        <DemoSelector 
+          url={url} 
+          setUrl={setUrl} 
+          handleSubmit={handleSubmit} 
+        />
       </div>
     </div>
   );

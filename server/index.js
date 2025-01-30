@@ -15,6 +15,8 @@ import { processGooglePlayUrl } from './googlePlayScraper.js';
 import Markdown from 'react-markdown';
 import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { LLM_PROVIDERS } from './llmProviders.js';
 
 dotenv.config();
 
@@ -23,6 +25,9 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Get math challenge configuration from environment
+const ENABLE_MATH_CHALLENGE = process.env.ENABLE_MATH_CHALLENGE === 'true';
 
 // Middleware
 app.use(cors({
@@ -49,6 +54,11 @@ const apiLimiter = rateLimit({
 
 // Middleware to verify math challenge
 const verifyMathChallenge = (req, res, next) => {
+  // Skip verification if math challenge is disabled
+  if (!ENABLE_MATH_CHALLENGE) {
+    return next();
+  }
+
   const challenge = req.headers['x-math-challenge'];
   
   if (!challenge) {
@@ -200,119 +210,6 @@ app.post('/app-store/extract-id', async (req, res) => {
   }
 });
 
-// LLM Configuration
-const LLM_PROVIDERS = {
-  ollama: {
-    url: process.env.OLLAMA_API_URL || 'http://localhost:11434/api/generate',
-    defaultModel: process.env.OLLAMA_DEFAULT_MODEL || 'deepseek-r1:7b',
-    async generateResponse(model, prompt, options = {}) {
-      const selectedModel = model || this.defaultModel;
-      const onChunk = options.onChunk || (() => {});
-      
-      console.log('Ollama generateResponse called with:', { 
-        url: this.url, 
-        model: selectedModel, 
-        promptLength: prompt.length,
-        options: JSON.stringify(options)
-      });
-
-      return new Promise((resolve, reject) => {
-        let fullResponse = '';
-
-        try {
-          const request = axios.post(this.url, {
-            model: selectedModel,
-            prompt: prompt,
-            stream: true,
-            options: {
-              temperature: options.temperature || 0.7,
-              max_tokens: options.max_tokens || 1000
-            }
-          }, {
-            timeout: 300000,  // 5-minute timeout
-            responseType: 'stream'
-          });
-
-          request.then(response => {
-            response.data.on('data', (chunk) => {
-              try {
-                const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
-                lines.forEach(line => {
-                  try {
-                    const parsedChunk = JSON.parse(line);
-                    if (parsedChunk.response) {
-                      fullResponse += parsedChunk.response;
-                      onChunk(parsedChunk.response);
-                      console.log('Streaming chunk:', parsedChunk.response);
-                    }
-                    
-                    if (parsedChunk.done) {
-                      console.log('Stream completed. Total response length:', fullResponse.length);
-                      resolve(fullResponse);
-                    }
-                  } catch (parseError) {
-                    console.error('Error parsing chunk:', parseError);
-                  }
-                });
-              } catch (chunkError) {
-                console.error('Error processing chunk:', chunkError);
-              }
-            });
-
-            response.data.on('error', (error) => {
-              console.error('Stream error:', error);
-              reject(error);
-            });
-
-            response.data.on('end', () => {
-              if (fullResponse) {
-                resolve(fullResponse);
-              } else {
-                reject(new Error('No response generated'));
-              }
-            });
-          }).catch(error => {
-            console.error('Axios request error:', error);
-            reject(error);
-          });
-        } catch (error) {
-          console.error('Ollama API error:', {
-            message: error.message,
-            stack: error.stack
-          });
-          reject(error);
-        }
-      });
-    }
-  },
-  openai: {
-    url: process.env.OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions',
-    apiKey: process.env.OPENAI_API_KEY,
-    defaultModel: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-    async generateResponse(model, prompt, options = {}) {
-      const response = await axios.post(
-        this.url, 
-        {
-          model: model || this.defaultModel,
-          messages: [
-            { role: "system", content: "You are an expert app review analyzer." },
-            { role: "user", content: prompt }
-          ],
-          temperature: options.temperature || 0.7,
-          max_tokens: options.max_tokens || 1000
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      return response.data.choices[0].message.content;
-    }
-  }
-};
-
 // Mock reviews data
 const mockReviews = [
   "Great app but crashes frequently on my iPhone 12",
@@ -324,7 +221,9 @@ const mockReviews = [
   "Keeps crashing after the latest update",
 ];
 
-app.post('/api/analyze', verifyMathChallenge, async (req, res) => {
+app.post('/api/analyze', 
+  ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
+  async (req, res) => {
   console.log('Full request body:', JSON.stringify(req.body, null, 2));
   
   try {
@@ -393,7 +292,7 @@ NOT something like this:
     res.setHeader('Transfer-Encoding', 'chunked');
 
     try {
-      console.time('generateResponse');
+      console.time('streamResponse');
       
       // Create a streaming response
       const streamResponse = (data) => {
@@ -401,13 +300,16 @@ NOT something like this:
         res.write(JSON.stringify(data) + '\n');
       };
 
-      const finalReport = await selectedProvider.generateResponse(model, prompt, {
-        onChunk: (chunk) => {
+      const finalReport = await selectedProvider.streamResponse(
+        model, 
+        prompt, 
+        (chunk) => {
           streamResponse({ report: chunk });
-        }
-      });
+        },
+        {}
+      );
 
-      console.timeEnd('generateResponse');
+      console.timeEnd('streamResponse');
       console.log('Final report:', finalReport);
 
       // Directly end the response after streaming is complete
@@ -419,14 +321,17 @@ NOT something like this:
         responseData: generateError.response ? generateError.response.data : 'No response data'
       });
 
-      res.status(500).json({ 
-        error: 'Failed to generate response', 
-        details: generateError.message,
-        providerDetails: {
-          url: selectedProvider.url,
-          model: model || selectedProvider.defaultModel
-        }
-      });
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Failed to generate response', 
+          details: generateError.message,
+          providerDetails: {
+            url: selectedProvider.url,
+            model: model || selectedProvider.defaultModel
+          }
+        });
+      }
+      res.end();
     }
   } catch (error) {
     console.error('Unexpected Error in /api/analyze:', {
@@ -434,10 +339,13 @@ NOT something like this:
       stack: error.stack
     });
 
-    res.status(500).json({ 
-      error: 'Unexpected error analyzing reviews', 
-      details: error.message 
-    });
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Unexpected error analyzing reviews', 
+        details: error.message 
+      });
+    }
+    res.end();
   }
 });
 

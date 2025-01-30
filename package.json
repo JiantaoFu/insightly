@@ -20,6 +20,7 @@
     "test:app-store:process-url": "mocha server/appStoreScraper.test.js -g 'processAppStoreUrl'"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "app-store-scraper": "^0.18.0",
     "axios": "^1.6.7",
     "cors": "^2.8.5",

@@ -2,6 +2,9 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Loader2, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
+// Get math challenge configuration from environment
+const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
+
 // Generate a math challenge
 const generateMathChallenge = (): { 
   question: string, 
@@ -46,20 +49,24 @@ const PROVIDERS_CONFIG = {
   openai: {
     defaultModel: 'gpt-3.5-turbo',
     models: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
+  },
+  gemini: {
+    defaultModel: 'gemini-1.5-flash',
+    models: ['gemini-1.5-flash', 'gemini-pro', 'gemini-pro-vision']
   }
 };
 
 function App() {
   const [url, setUrl] = useState('');
-  const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('ollama');
-  const [model, setModel] = useState(PROVIDERS_CONFIG.ollama.defaultModel);
+  const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('gemini');
+  const [model, setModel] = useState(PROVIDERS_CONFIG.gemini.defaultModel);
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appData, setAppData] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(new AbortController());
 
-  // Add state for math challenge
+  // Add state for math challenge configuration
   const [mathChallenge, setMathChallenge] = useState<{ 
     question: string, 
     answer: number, 
@@ -80,7 +87,6 @@ function App() {
     document.head.appendChild(adScript);
   }, []);
 
-  // Generate math challenge before submission
   const prepareChallengeAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -97,30 +103,33 @@ function App() {
     setError('');
     setReport('');
 
-    // Generate math challenge if not already present
-    if (!mathChallenge) {
-      const newChallenge = generateMathChallenge();
-      setMathChallenge(newChallenge);
-      setLoading(false);
-      return;
-    }
+    // Math challenge logic (only if enabled)
+    if (ENABLE_MATH_CHALLENGE) {
+      // Generate math challenge if not already present
+      if (!mathChallenge) {
+        const newChallenge = generateMathChallenge();
+        setMathChallenge(newChallenge);
+        setLoading(false);
+        return;
+      }
 
-    // Verify math challenge
-    const challengeAnswer = parseInt(userAnswer, 10);
-    if (challengeAnswer !== mathChallenge.answer) {
-      setError('Incorrect answer. Please solve the math challenge.');
-      setLoading(false);
-      // Regenerate challenge
-      const newChallenge = generateMathChallenge();
-      setMathChallenge(newChallenge);
+      // Verify math challenge
+      const challengeAnswer = parseInt(userAnswer, 10);
+      if (challengeAnswer !== mathChallenge.answer) {
+        setError('Incorrect answer. Please solve the math challenge.');
+        setLoading(false);
+        // Regenerate challenge
+        const newChallenge = generateMathChallenge();
+        setMathChallenge(newChallenge);
+        setUserAnswer('');
+        return;
+      }
+
+      // Immediately dismiss math challenge after correct answer
+      const currentChallenge = mathChallenge;
+      setMathChallenge(null);
       setUserAnswer('');
-      return;
     }
-
-    // Immediately dismiss math challenge after correct answer
-    const currentChallenge = mathChallenge;
-    setMathChallenge(null);
-    setUserAnswer('');
 
     try {
       let processUrlEndpoint = '';
@@ -136,12 +145,18 @@ function App() {
         return;
       }
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      // Add math challenge header only if enabled
+      if (ENABLE_MATH_CHALLENGE && mathChallenge) {
+        headers['X-Math-Challenge'] = mathChallenge.challenge;
+      }
+
       const processResponse = await fetch(processUrlEndpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Math-Challenge': currentChallenge.challenge
-        },
+        headers,
         body: JSON.stringify({ url }),
         signal: abortControllerRef.current.signal
       });
@@ -156,10 +171,7 @@ function App() {
       // Prepare data for analysis
       const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Math-Challenge': currentChallenge.challenge
-        },
+        headers,
         body: JSON.stringify({
           url,
           provider,
@@ -467,8 +479,8 @@ function App() {
           handleSubmit={prepareChallengeAndSubmit} 
         />
         
-        {/* Math Challenge Modal */}
-        {mathChallenge && (
+        {/* Math Challenge Modal (only render if enabled and challenge exists) */}
+        {ENABLE_MATH_CHALLENGE && mathChallenge && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl">
               <h2 className="text-xl font-bold mb-4">Human Verification</h2>

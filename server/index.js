@@ -15,6 +15,11 @@ import { processGooglePlayUrl } from './googlePlayScraper.js';
 import Markdown from 'react-markdown';
 import { promptConfig } from './promptConfig.js';
 import Stripe from 'stripe';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import session from 'express-session';
+import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
 
 // Ensure environment variables are loaded
 dotenv.config();
@@ -57,16 +62,58 @@ const frontendUrl =
   process.env.NODE_ENV === 'production' 
     ? process.env.FRONTEND_URL 
     : process.env.FRONTEND_DEV_URL;
+const backendUrl = 
+  process.env.NODE_ENV === 'production' 
+    ? process.env.BACKEND_URL 
+    : process.env.BACKEND_DEV_URL;
 
-// Middleware
+app.set('trust proxy', 1);  // Required when using HTTPS via ngrok
+
+// Configure session middleware BEFORE other middleware
+const sessionMiddleware = session({
+  secret: process.env.SESSION_SECRET || 'your_secret_key',
+  resave: true,
+  saveUninitialized: true, // Changed to true for debugging
+  cookie: { 
+    secure: true,
+    httpOnly: true,
+    sameSite: 'none', 
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    domain: new URL(backendUrl).hostname // Use backend hostname
+  },
+  store: new session.MemoryStore() // Explicitly use memory store for testing
+});
+
+// Apply session middleware
+app.use(sessionMiddleware);
+
+// Initialize Passport and restore authentication state, if any
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Debugging middleware
+app.use((req, res, next) => {
+  console.log('Middleware Debug:');
+  console.log('Session ID:', req.sessionID);
+  console.log('Session:', req.session);
+  console.log('Is Authenticated:', req.isAuthenticated());
+  console.log('User:', req.user);
+  next();
+});
+
+// Add CORS configuration
 app.use(cors({
   origin: [
-    'http://localhost:5173',  // Vite dev server
     frontendUrl,  // Allow frontend URL
   ],
-  methods: ['GET', 'POST'],
-  credentials: false
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
+
+// Add cookie parser middleware
+app.use(cookieParser());
 
 // Webhook endpoint
 app.post('/webhook', express.raw({type: 'application/json'}), async (req, res) => {
@@ -611,6 +658,170 @@ app.get('/', (req, res) => {
     availableProviders: Object.keys(LLM_PROVIDERS),
     currentProvider: process.env.LLM_PROVIDER || 'ollama'
   });
+});
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: `${backendUrl}/auth/google/callback`
+  },
+  (accessToken, refreshToken, profile, done) => {
+    console.log('Google OAuth Profile:', profile);
+    
+    // Minimal user handling - pass the full profile
+    return done(null, profile);
+  }
+));
+
+// Serialize and deserialize user for passport session
+passport.serializeUser((user, done) => {
+  console.log('Serializing full user:', user);
+  
+  // Explicitly create a minimal user object
+  const userData = {
+    id: user.id || user.sub,
+    displayName: user.displayName,
+    email: (user.emails && user.emails.length > 0) 
+      ? user.emails[0].value 
+      : null,
+    photo: (user.photos && user.photos.length > 0) 
+      ? user.photos[0].value 
+      : null,
+    provider: user.provider
+  };
+
+  console.log('Serialized user data:', userData);
+  done(null, userData);
+});
+
+passport.deserializeUser((userData, done) => {
+  console.log('Deserializing user data:', userData);
+  
+  // Simply pass back the stored user data
+  if (userData) {
+    done(null, userData);
+  } else {
+    console.error('No user data found during deserialization');
+    done(new Error('User not found in session'));
+  }
+});
+
+// JWT secret
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  const token = req.headers['authorization']?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(403).json({ error: 'No token provided' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+// Google OAuth routes
+app.get('/auth/google',
+  (req, res, next) => {
+    // Log the request for debugging
+    console.log('Google OAuth Request Received');
+    console.log('Frontend URL:', frontendUrl);
+    console.log('Backend URL:', backendUrl);
+
+    // Create a state parameter to prevent CSRF
+    const state = Math.random().toString(36).substring(7);
+    
+    // Store state in a cookie with more explicit settings
+    res.cookie('oauth_state', state, { 
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none', // Allows cross-site requests from same site
+      domain: new URL(backendUrl).hostname, // Use backend hostname
+      path: '/', // Ensure cookie is available across routes
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+
+    console.log('State cookie set:', state);
+
+    // Authenticate with additional options
+    passport.authenticate('google', { 
+      scope: ['profile', 'email'],
+      state: state,
+      prompt: 'select_account' // Force account selection
+    })(req, res, next);
+  }
+);
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { session: false }),
+  (req, res) => {
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: req.user.id, 
+        email: req.user.emails[0].value,
+        displayName: req.user.displayName
+      }, 
+      JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+
+    // Redirect to frontend with token in query parameter
+    res.redirect(`${frontendUrl}?token=${token}`);
+  }
+);
+
+// Add a route to validate the token
+app.get('/auth/validate', verifyToken, (req, res) => {
+  res.json({ 
+    authenticated: true, 
+    user: {
+      id: req.user.id,
+      email: req.user.email,
+      displayName: req.user.displayName
+    }
+  });
+});
+
+// Update logout route
+app.get('/logout', (req, res) => {
+  // Invalidate token on client-side
+  res.json({ message: 'Logged out successfully' });
+});
+
+app.get('/api/check-login', (req, res) => {
+  console.log('Check Login Request Received');
+  console.log('Is Authenticated:', req.isAuthenticated());
+  console.log('Session:', req.session);
+  console.log('User:', req.user);
+
+  if (req.isAuthenticated()) {
+    // Extract relevant user information
+    const userInfo = {
+      id: req.user.id,
+      displayName: req.user.displayName || 'User',
+      email: req.user.emails && req.user.emails.length > 0 
+        ? req.user.emails[0].value 
+        : null,
+      photo: req.user.photos && req.user.photos.length > 0
+        ? req.user.photos[0].value
+        : null,
+      provider: req.user.provider
+    };
+
+    res.json(userInfo);
+  } else {
+    res.status(401).json({ 
+      message: 'Not authenticated', 
+      isLoggedIn: false 
+    });
+  }
 });
 
 app.listen(port, () => {

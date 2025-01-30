@@ -1,7 +1,17 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Send, Loader2, Download, CreditCard, ChevronDown, CheckCircle2, X } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+  LogIn, 
+  LogOut, 
+  User,
+  Send,
+  CheckCircle2,
+  X,
+  Loader2,
+  CreditCard,
+  ChevronDown,
+  Download
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { loadStripe } from '@stripe/stripe-js';
 
 // Configuration for providers and models
 const PROVIDERS_CONFIG = {
@@ -15,6 +25,62 @@ const PROVIDERS_CONFIG = {
   }
 };
 
+// Authentication Component
+interface User {
+  id: string;
+  email: string;
+  displayName: string;
+}
+
+const AuthSection = ({ 
+  isLoggedIn, 
+  user, 
+  onLogin, 
+  onLogout 
+}: { 
+  isLoggedIn: boolean, 
+  user: User | null, 
+  onLogin: () => void, 
+  onLogout: () => void 
+}) => {
+  return (
+    <header className="absolute top-0 left-0 right-0 z-10 bg-white/80 backdrop-blur-md shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl font-bold text-gray-800">Insightly</h1>
+        </div>
+        <div className="flex items-center space-x-4">
+          {isLoggedIn ? (
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <User className="w-5 h-5 text-gray-600" />
+                <span className="text-gray-800 font-medium">
+                  {user?.displayName || 'User'}
+                </span>
+              </div>
+              <button 
+                onClick={onLogout}
+                className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 transition-colors duration-200"
+              >
+                <LogOut className="w-5 h-5 inline-block mr-2" />
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={onLogin}
+              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors duration-200"
+            >
+              <LogIn className="w-6 h-6 inline-block mr-2" />
+              Login with Google
+            </button>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+};
+
 function App() {
   const [url, setUrl] = useState('');
   const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('ollama');
@@ -26,11 +92,118 @@ function App() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [showNotification, setShowNotification] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const backendUrl = useMemo(() => {
+    // Computation happens only once
+    const url = import.meta.env.NODE_ENV === 'production'
+      ? import.meta.env.VITE_BACKEND_URL
+      : import.meta.env.VITE_BACKEND_DEV_URL;
+    
+    // Log only once in development
+    if (import.meta.env.DEV) {
+      console.log('Backend URL:', url);
+    }
+    
+    return url;
+  }, []); // Empty dependency array
+
+  const frontendUrl = useMemo(() => {
+    // Computation happens only once
+    const url = import.meta.env.NODE_ENV === 'production'
+      ? import.meta.env.VITE_FRONTEND_URL
+      : import.meta.env.VITE_FRONTEND_DEV_URL;
+    
+    // Log only once in development
+    if (import.meta.env.DEV) {
+      console.log('Frontend URL:', url);
+    }
+    
+    return url;
+  }, []); // Empty dependency array
 
   // Update model when provider changes
   useEffect(() => {
     setModel(PROVIDERS_CONFIG[provider].defaultModel);
   }, [provider]);
+
+  const checkLoginStatus = async () => {
+    try {
+      const token = localStorage.getItem('jwt_token');
+      
+      if (!token) {
+        console.log('No token found');
+        setIsLoggedIn(false);
+        setUser(null);
+        return;
+      }
+
+      const response = await fetch(`${backendUrl}/auth/validate`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setIsLoggedIn(true);
+        setUser({
+          id: userData.user.id,
+          email: userData.user.email,
+          displayName: userData.user.displayName
+        });
+      } else {
+        console.log('Not authenticated');
+        localStorage.removeItem('jwt_token');
+        setIsLoggedIn(false);
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Failed to check login status', error);
+      localStorage.removeItem('jwt_token');
+      setIsLoggedIn(false);
+      setUser(null);
+    }
+  };
+
+  useEffect(() => {
+    // Check for token in URL on initial load
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+
+    if (tokenFromUrl) {
+      // Store token in localStorage
+      localStorage.setItem('jwt_token', tokenFromUrl);
+      // Remove token from URL to prevent reuse
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    checkLoginStatus();
+  }, []);
+
+  const handleGoogleLogin = () => {
+    // Use full backend URL for Google login
+    const backendLoginUrl = `${backendUrl}/auth/google`;
+    window.location.href = backendLoginUrl;
+  };
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch(`${backendUrl}/logout`, { method: 'GET' });
+      if (response.ok) {
+        localStorage.removeItem('jwt_token');
+        setIsLoggedIn(false);
+        setUser(null);
+        window.location.href = `${frontendUrl}`; // Redirect to home page
+      }
+    } catch (error) {
+      console.error('Logout failed', error);
+    }
+  };
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -38,7 +211,7 @@ function App() {
   
     if (sessionId) {
       const verifyPayment = async () => {
-        const response = await fetch(`http://localhost:3000/api/verify-session/${sessionId}`);
+        const response = await fetch(`${backendUrl}/api/verify-session/${sessionId}`);
         const result = await response.json();
         
         setPaymentStatus(result.success 
@@ -83,9 +256,9 @@ function App() {
       const googlePlayMatch = url.match(/https?:\/\/play\.google\.com\/store\/apps\/details\?id=([^&]+)/);
       
       if (appStoreMatch) {
-        processUrlEndpoint = 'http://localhost:3000/app-store/process-url';
+        processUrlEndpoint = `${backendUrl}/app-store/process-url`;
       } else if (googlePlayMatch) {
-        processUrlEndpoint = 'http://localhost:3000/google-play/process-url';
+        processUrlEndpoint = `${backendUrl}/google-play/process-url`;
       } else {
         throw new Error('Unsupported app store URL');
       }
@@ -108,7 +281,7 @@ function App() {
       setAppData(data);
 
       // Prepare data for analysis
-      const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
+      const analysisResponse = await fetch(`${backendUrl}/api/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -179,7 +352,7 @@ function App() {
     }
   };
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = () => {
     if (!report) return;
     
     try {
@@ -196,9 +369,9 @@ function App() {
       console.error('Error downloading report:', err);
       setError('Failed to download the report. Please try again.');
     }
-  }, [report]);
+  };
 
-  const downloadReviews = useCallback(() => {
+  const downloadReviews = () => {
     if (!appData?.reviews?.reviews) {
       setError('No reviews available to download');
       return;
@@ -220,7 +393,7 @@ function App() {
     document.body.appendChild(csvLink);
     csvLink.click();
     document.body.removeChild(csvLink);
-  }, [appData]);
+  };
 
   const demoApps = [
     {
@@ -240,71 +413,6 @@ function App() {
     }
   ];
 
-  function DemoSelector({ 
-    url, 
-    setUrl, 
-    handleSubmit 
-  }: { 
-    url: string, 
-    setUrl: (url: string) => void, 
-    handleSubmit: (e: React.FormEvent) => Promise<void> 
-  }) {
-    const [selectedDemo, setSelectedDemo] = useState<string | null>(null);
-
-    const handleDemoSelect = (demoApp: typeof demoApps[0]) => {
-      setSelectedDemo(demoApp.name);
-      setUrl(demoApp.placeholder);
-    };
-
-    return (
-      <div className="mt-8 bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-xl font-bold mb-4">Try a Demo Report</h2>
-        <div className="space-y-4">
-          <div className="grid md:grid-cols-3 gap-4">
-            {demoApps.map((app) => (
-              <button
-                key={app.name}
-                onClick={() => handleDemoSelect(app)}
-                className={`p-4 rounded-lg border transition-all ${
-                  selectedDemo === app.name 
-                    ? 'bg-blue-500 text-white border-blue-600' 
-                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                }`}
-              >
-                <h3 className="font-semibold">{app.name}</h3>
-                <p className="text-sm mt-2">{app.description}</p>
-              </button>
-            ))}
-          </div>
-          
-          {selectedDemo && (
-            <div className="mt-4">
-              <label className="block mb-2 text-sm font-medium text-gray-700">
-                App Store / Google Play URL
-              </label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="Confirm or modify the URL"
-                  className="flex-grow p-2 border rounded-l-lg"
-                />
-                <button
-                  onClick={handleSubmit}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600"
-                >
-                  Generate Report
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Elegant Notification Component
   const PaymentNotification = () => {
     return (
       <div 
@@ -343,19 +451,19 @@ function App() {
     );
   };
 
-  function StripeCheckoutButton() {
+  const StripeCheckoutButton = () => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [error, setError] = useState(null);
 
     // Ensure Stripe key is loaded correctly
-    const stripePromise = useMemo(() => {
+    const stripePromise = () => {
       const key = 
       import.meta.env.MODE === 'production'
         ? import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
         : import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY;
     
       return key ? loadStripe(key) : null;
-    }, []);
+    };
 
     const creditPackages = [
       { 
@@ -384,11 +492,11 @@ function App() {
     const handleCheckout = async (packageDetails) => {
       try {
         // Validate Stripe is initialized
-        if (!stripePromise) {
+        if (!stripePromise()) {
           throw new Error('Stripe is not properly initialized');
         }
 
-        const response = await fetch('http://localhost:3000/create-checkout-session', {
+        const response = await fetch(`${backendUrl}/create-checkout-session`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -403,7 +511,7 @@ function App() {
         }
 
         const { sessionId } = await response.json();
-        const stripe = await stripePromise;
+        const stripe = await stripePromise();
         
         const { error } = await stripe.redirectToCheckout({ sessionId });
         
@@ -498,51 +606,31 @@ function App() {
         </div>
       </div>
     );
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-      <div className="max-w-4xl mx-auto px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 relative">
+      <AuthSection 
+        isLoggedIn={isLoggedIn}
+        user={user}
+        onLogin={handleGoogleLogin}
+        onLogout={handleLogout}
+      />
+      <main className="pt-20 max-w-4xl mx-auto px-4 py-12">
         <PaymentNotification />
+        
+        {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             App Review Analyzer
           </h1>
-          <p className="text-lg text-gray-600">
-            Get instant insights from your app's reviews
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Gain deep insights into your app's performance and user sentiment
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="mb-12">
           <div className="flex gap-4 mb-4">
-            {false && (
-              <div className="flex gap-4 mb-4">
-                <select
-                  value={provider}
-                  onChange={(e) => setProvider(e.target.value as keyof typeof PROVIDERS_CONFIG)}
-                  className="px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
-                >
-                  {Object.keys(PROVIDERS_CONFIG).map(providerKey => (
-                    <option key={providerKey} value={providerKey}>
-                      {providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
-                >
-                  {PROVIDERS_CONFIG[provider].models.map(modelName => (
-                    <option key={modelName} value={modelName}>
-                      {modelName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-          <div className="flex gap-4">
             <input
               type="url"
               value={url}
@@ -555,7 +643,7 @@ function App() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 flex items-center gap-2"
+                className="px-6 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 flex items-center gap-2"
               >
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Cancel
@@ -579,21 +667,12 @@ function App() {
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
             <div className="flex items-center space-x-4 mb-4">
               <button 
-                onClick={() => {
-                  const blob = new Blob([report], { type: 'text/markdown' });
-                  const link = document.createElement('a');
-                  link.href = URL.createObjectURL(blob);
-                  link.download = 'analysis_report.md';
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }}
+                onClick={handleDownload} 
                 className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download Report
               </button>
-              {console.log('AppData:', appData)}
               {appData?.reviews?.reviews && (
                 <button 
                   onClick={downloadReviews} 
@@ -611,13 +690,25 @@ function App() {
         
         <div className="border-t border-gray-200 my-8"></div>
         
-        <DemoSelector 
-          url={url} 
-          setUrl={setUrl} 
-          handleSubmit={handleSubmit} 
-        />
+        <div className="mt-8 bg-white rounded-xl shadow-md p-6">
+          <h2 className="text-xl font-bold mb-4">Try a Demo Report</h2>
+          <div className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              {demoApps.map((app) => (
+                <button
+                  key={app.name}
+                  onClick={() => setUrl(app.placeholder)}
+                  className="p-4 rounded-lg border transition-all hover:bg-gray-200"
+                >
+                  <h3 className="font-semibold">{app.name}</h3>
+                  <p className="text-sm mt-2">{app.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         <StripeCheckoutButton />
-      </div>
+      </main>
     </div>
   );
 }

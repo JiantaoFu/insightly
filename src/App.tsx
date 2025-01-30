@@ -5,6 +5,9 @@ import ReactMarkdown from 'react-markdown';
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
 
+// Get server URL from environment
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+
 // Generate a math challenge
 const generateMathChallenge = (): { 
   question: string, 
@@ -136,9 +139,9 @@ function App() {
       
       // Detect URL type
       if (url.includes('apps.apple.com')) {
-        processUrlEndpoint = 'http://localhost:3000/app-store/process-url';
+        processUrlEndpoint = `${SERVER_URL}/app-store/process-url`;
       } else if (url.includes('play.google.com')) {
-        processUrlEndpoint = 'http://localhost:3000/google-play/process-url';
+        processUrlEndpoint = `${SERVER_URL}/google-play/process-url`;
       } else {
         setError('Unsupported app store URL');
         setLoading(false);
@@ -169,7 +172,7 @@ function App() {
       setAppData(data);
 
       // Prepare data for analysis
-      const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
+      const analysisResponse = await fetch(`${SERVER_URL}/api/analyze`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

@@ -29,9 +29,12 @@ const port = process.env.PORT || 3000;
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = process.env.ENABLE_MATH_CHALLENGE === 'true';
 
+// Get client origin from environment
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: CLIENT_ORIGIN,
   methods: ['GET', 'POST'],
   credentials: false
 }));

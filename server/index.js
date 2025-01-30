@@ -14,6 +14,7 @@ import {
 import { processGooglePlayUrl } from './googlePlayScraper.js';
 import Markdown from 'react-markdown';
 import { promptConfig } from './promptConfig.js';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
@@ -36,6 +37,79 @@ app.use(express.urlencoded({
   limit: '50mb',
   extended: true
 }));
+
+// Configure rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Middleware to verify math challenge
+const verifyMathChallenge = (req, res, next) => {
+  const challenge = req.headers['x-math-challenge'];
+  
+  if (!challenge) {
+    console.warn('No math challenge provided', { 
+      path: req.path, 
+      method: req.method 
+    });
+    return res.status(403).json({ error: 'No math challenge provided' });
+  }
+
+  try {
+    // Validate math challenge format
+    const challengeRegex = /^(\d+)([+\-*])(\d+)$/;
+    const match = challenge.match(challengeRegex);
+    
+    if (!match) {
+      console.warn('Invalid math challenge format', { 
+        challenge,
+        path: req.path 
+      });
+      return res.status(403).json({ error: 'Invalid math challenge' });
+    }
+
+    const [, a, operation, b] = match;
+    const numA = parseInt(a, 10);
+    const numB = parseInt(b, 10);
+
+    // Verify challenge
+    let expectedAnswer;
+    switch (operation) {
+      case '+':
+        expectedAnswer = numA + numB;
+        break;
+      case '-':
+        expectedAnswer = numA - numB;
+        break;
+      case '*':
+        expectedAnswer = numA * numB;
+        break;
+      default:
+        return res.status(403).json({ error: 'Invalid math operation' });
+    }
+
+    // Log successful verification
+    console.log('Math challenge verified successfully', { 
+      challenge,
+      path: req.path 
+    });
+
+    next();
+  } catch (error) {
+    console.error('Math challenge verification failed', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ error: 'Math challenge verification failed' });
+  }
+};
+
+// Apply rate limiter to all routes
+app.use('/api', apiLimiter);
 
 // App Store Routes
 app.get('/app-store/search', async (req, res) => {
@@ -250,7 +324,7 @@ const mockReviews = [
   "Keeps crashing after the latest update",
 ];
 
-app.post('/api/analyze', async (req, res) => {
+app.post('/api/analyze', verifyMathChallenge, async (req, res) => {
   console.log('Full request body:', JSON.stringify(req.body, null, 2));
   
   try {

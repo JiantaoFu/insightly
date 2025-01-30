@@ -2,6 +2,41 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Loader2, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
+// Generate a math challenge
+const generateMathChallenge = (): { 
+  question: string, 
+  answer: number, 
+  challenge: string 
+} => {
+  const operations = ['+', '-', '*'];
+  const operation = operations[Math.floor(Math.random() * operations.length)];
+  
+  let a, b, answer;
+  switch (operation) {
+    case '+':
+      a = Math.floor(Math.random() * 10) + 1;
+      b = Math.floor(Math.random() * 10) + 1;
+      answer = a + b;
+      break;
+    case '-':
+      a = Math.floor(Math.random() * 20) + 10;
+      b = Math.floor(Math.random() * 10) + 1;
+      answer = a - b;
+      break;
+    case '*':
+      a = Math.floor(Math.random() * 5) + 2;
+      b = Math.floor(Math.random() * 5) + 2;
+      answer = a * b;
+      break;
+  }
+
+  return {
+    question: `What is ${a} ${operation} ${b}?`,
+    answer,
+    challenge: `${a}${operation}${b}`
+  };
+};
+
 // Configuration for providers and models
 const PROVIDERS_CONFIG = {
   ollama: {
@@ -22,14 +57,31 @@ function App() {
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appData, setAppData] = useState<any>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(new AbortController());
+
+  // Add state for math challenge
+  const [mathChallenge, setMathChallenge] = useState<{ 
+    question: string, 
+    answer: number, 
+    challenge: string 
+  } | null>(null);
+  const [userAnswer, setUserAnswer] = useState('');
 
   // Update model when provider changes
   useEffect(() => {
     setModel(PROVIDERS_CONFIG[provider].defaultModel);
   }, [provider]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    // Load Google AdSense script
+    const adScript = document.createElement('script');
+    adScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+    adScript.async = true;
+    document.head.appendChild(adScript);
+  }, []);
+
+  // Generate math challenge before submission
+  const prepareChallengeAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Cancel any ongoing request
@@ -40,30 +92,55 @@ function App() {
     // Create new abort controller
     abortControllerRef.current = new AbortController();
     
+    // Reset previous states
     setLoading(true);
-    setError(null);
+    setError('');
     setReport('');
+
+    // Generate math challenge if not already present
+    if (!mathChallenge) {
+      const newChallenge = generateMathChallenge();
+      setMathChallenge(newChallenge);
+      setLoading(false);
+      return;
+    }
+
+    // Verify math challenge
+    const challengeAnswer = parseInt(userAnswer, 10);
+    if (challengeAnswer !== mathChallenge.answer) {
+      setError('Incorrect answer. Please solve the math challenge.');
+      setLoading(false);
+      // Regenerate challenge
+      const newChallenge = generateMathChallenge();
+      setMathChallenge(newChallenge);
+      setUserAnswer('');
+      return;
+    }
+
+    // Immediately dismiss math challenge after correct answer
+    const currentChallenge = mathChallenge;
+    setMathChallenge(null);
+    setUserAnswer('');
 
     try {
       let processUrlEndpoint = '';
       
       // Detect URL type
-      const appStoreMatch = url.match(/https?:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[^/]+\/id(\d+)/);
-      const googlePlayMatch = url.match(/https?:\/\/play\.google\.com\/store\/apps\/details\?id=([^&]+)/);
-      
-      if (appStoreMatch) {
+      if (url.includes('apps.apple.com')) {
         processUrlEndpoint = 'http://localhost:3000/app-store/process-url';
-      } else if (googlePlayMatch) {
+      } else if (url.includes('play.google.com')) {
         processUrlEndpoint = 'http://localhost:3000/google-play/process-url';
       } else {
-        throw new Error('Unsupported app store URL');
+        setError('Unsupported app store URL');
+        setLoading(false);
+        return;
       }
 
-      // Process URL
       const processResponse = await fetch(processUrlEndpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Math-Challenge': currentChallenge.challenge
         },
         body: JSON.stringify({ url }),
         signal: abortControllerRef.current.signal
@@ -80,7 +157,8 @@ function App() {
       const analysisResponse = await fetch('http://localhost:3000/api/analyze', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Math-Challenge': currentChallenge.challenge
         },
         body: JSON.stringify({
           url,
@@ -129,12 +207,12 @@ function App() {
           }
         });
       }
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        console.log('Request canceled');
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        setError('Request was cancelled');
       } else {
-        console.error('Error:', err);
-        setError(err.message || 'Failed to analyze the app. Please try again.');
+        console.error('Error:', error);
+        setError(error.message || 'Failed to analyze the app. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -285,7 +363,7 @@ function App() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="mb-12">
+        <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
           <div className="flex gap-4 mb-4">
             {false && (
               <div className="flex gap-4 mb-4">
@@ -386,8 +464,44 @@ function App() {
         <DemoSelector 
           url={url} 
           setUrl={setUrl} 
-          handleSubmit={handleSubmit} 
+          handleSubmit={prepareChallengeAndSubmit} 
         />
+        
+        {/* Math Challenge Modal */}
+        {mathChallenge && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl">
+              <h2 className="text-xl font-bold mb-4">Human Verification</h2>
+              <p className="mb-4">{mathChallenge.question}</p>
+              <input 
+                type="number" 
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+                placeholder="Your answer"
+              />
+              <button 
+                onClick={prepareChallengeAndSubmit}
+                className="mt-4 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Google AdSense Ad Placement */}
+        <ins 
+          className="adsbygoogle"
+          style={{ display: 'block' }}
+          data-ad-client={import.meta.env.VITE_AD_CLIENT_ID}
+          data-ad-slot={import.meta.env.VITE_AD_SLOT_ID}
+          data-ad-format="auto"
+          data-full-width-responsive="true"
+        ></ins>
+        <script>
+          (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
       </div>
     </div>
   );

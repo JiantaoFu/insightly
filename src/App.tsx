@@ -85,14 +85,6 @@ function App() {
     setModel(PROVIDERS_CONFIG[provider].defaultModel);
   }, [provider]);
 
-  useEffect(() => {
-    // Load Google AdSense script
-    const adScript = document.createElement('script');
-    adScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
-    adScript.async = true;
-    document.head.appendChild(adScript);
-  }, []);
-
   const prepareChallengeAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -507,19 +499,6 @@ function App() {
             </div>
           </div>
         )}
-        
-        {/* Google AdSense Ad Placement */}
-        <ins 
-          className="adsbygoogle"
-          style={{ display: 'block' }}
-          data-ad-client={import.meta.env.VITE_AD_CLIENT_ID}
-          data-ad-slot={import.meta.env.VITE_AD_SLOT_ID}
-          data-ad-format="auto"
-          data-full-width-responsive="true"
-        ></ins>
-        <script>
-          (adsbygoogle = window.adsbygoogle || []).push({});
-        </script>
       </div>
     </div>
   );

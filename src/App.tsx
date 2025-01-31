@@ -7,6 +7,9 @@ const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'tr
 
 // Get server URL from environment
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+console.log('Resolved SERVER_URL:', SERVER_URL);
+console.log('VITE_SERVER_URL from env:', import.meta.env.VITE_SERVER_URL);
+console.log('VITE_ENABLE_MATH_CHALLENGE from env:', import.meta.env.VITE_ENABLE_MATH_CHALLENGE);
 
 // Generate a math challenge
 const generateMathChallenge = (): { 

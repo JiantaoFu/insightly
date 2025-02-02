@@ -17,6 +17,7 @@ import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { LLM_PROVIDERS } from './llmProviders.js';
+import { LRUCache } from 'lru-cache';
 
 dotenv.config();
 
@@ -224,14 +225,41 @@ const mockReviews = [
   "Keeps crashing after the latest update",
 ];
 
+const ANALYSIS_CACHE_MAX_SIZE = 100;
+const analysisCache = new LRUCache({
+  max: ANALYSIS_CACHE_MAX_SIZE,
+  maxAge: 1000 * 60 * 60 * 24 // 24 hours
+});
+
 app.post('/api/analyze', 
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
   async (req, res) => {
-  console.log('Full request body:', JSON.stringify(req.body, null, 2));
+  const { url } = req.body;
   
+  // Check if report is in cache
+  const cachedReport = analysisCache.get(url);
+  if (cachedReport) {
+    // If cached, stream the report
+    const chunks = cachedReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
+    chunks.forEach((chunk, index) => {
+      res.write(JSON.stringify({ report: chunk }) + '\n');
+      
+      if (index === chunks.length - 1) {
+        res.end();
+      }
+    });
+    return;
+  }
+
   try {
-    const { url, provider, model, appData } = req.body;
+    console.log('Full request body:', JSON.stringify(req.body, null, 2));
     
+    const { provider, model, appData } = req.body;
+    
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
     console.log('Received parameters:', { url, model, provider });
     
     const selectedProvider = LLM_PROVIDERS[provider || process.env.LLM_PROVIDER || 'ollama'];
@@ -290,30 +318,24 @@ NOT something like this:
 
     console.log('Prompt length:', prompt.length);
 
-    // Set headers for streaming
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Transfer-Encoding', 'chunked');
-
+    let finalReport = '';
     try {
-      console.time('streamResponse');
-      
-      // Create a streaming response
-      const streamResponse = (data) => {
-        console.log('Streaming:', JSON.stringify(data)); // Log each streamed chunk
-        res.write(JSON.stringify(data) + '\n');
-      };
-
-      const finalReport = await selectedProvider.streamResponse(
+      await selectedProvider.streamResponse(
         model, 
         prompt, 
         (chunk) => {
-          streamResponse({ report: chunk });
-        },
-        {}
+          // Accumulate the report for caching
+          finalReport += chunk;
+
+          // Stream the response
+          res.write(JSON.stringify({ report: chunk }) + '\n');
+        }
       );
 
-      console.timeEnd('streamResponse');
       console.log('Final report:', finalReport);
+
+      // Store in cache
+      analysisCache.set(url, finalReport);
 
       // Directly end the response after streaming is complete
       res.end();
@@ -350,6 +372,14 @@ NOT something like this:
     }
     res.end();
   }
+});
+
+// Optional: Add a route to clear or inspect the cache (for debugging)
+app.get('/api/cache-stats', (req, res) => {
+  res.json({
+    size: analysisCache.size,
+    keys: Array.from(analysisCache.keys())
+  });
 });
 
 // Health check endpoint

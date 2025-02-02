@@ -98,6 +98,68 @@ const FeatureCard: React.FC<{
   </div>
 );
 
+// Pricing Component
+const PricingCard: React.FC<{
+  title: string;
+  price: string;
+  features: string[];
+  isMostPopular?: boolean;
+}> = ({ title, price, features, isMostPopular = false }) => (
+  <div 
+    className={`
+      bg-white rounded-2xl shadow-lg p-6 
+      transform transition duration-300 
+      hover:scale-[1.02] 
+      ${isMostPopular ? 'border-2 border-indigo-600 scale-105' : 'border border-gray-200'}
+    `}
+  >
+    {isMostPopular && (
+      <div className="text-center mb-4">
+        <span className="bg-indigo-100 text-indigo-800 text-xs font-semibold px-3 py-1 rounded-full">
+          Most Popular
+        </span>
+      </div>
+    )}
+    <h3 className="text-2xl font-bold text-gray-800 mb-4">{title}</h3>
+    <div className="text-4xl font-extrabold text-gray-900 mb-6">
+      {price}
+      <span className="text-base text-gray-500 font-normal">/month</span>
+    </div>
+    <ul className="space-y-3 mb-8">
+      {features.map((feature, index) => (
+        <li key={index} className="flex items-center">
+          <svg 
+            className="w-5 h-5 text-indigo-600 mr-2" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M5 13l4 4L19 7" 
+            />
+          </svg>
+          {feature}
+        </li>
+      ))}
+    </ul>
+    <button 
+      className={`
+        w-full py-3 rounded-lg font-semibold transition duration-300
+        ${isMostPopular 
+          ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+        }
+      `}
+    >
+      {isMostPopular ? 'Get Started' : 'Choose Plan'}
+    </button>
+  </div>
+);
+
 function App() {
   const [url, setUrl] = useState('');
   const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('gemini');
@@ -555,7 +617,68 @@ function App() {
           handleSubmit={prepareChallengeAndSubmit} 
         />
 
-<div className="border-t border-gray-200 my-8"></div>
+        <div 
+          id="pricing"
+          className="bg-gray-50 py-16 px-4 sm:px-6 lg:px-8"
+        >
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-extrabold text-gray-900 mb-4">
+                Simple, Transparent Pricing
+              </h2>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                Start for free. Scale with your needs.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <PricingCard 
+                title="Free"
+                price="$0"
+                features={[
+                  'Up to 100 review analysis',
+                  'Basic AI insights',
+                  'Single app monitoring',
+                  'Community support'
+                ]}
+              />
+              
+              <PricingCard 
+                title="Pro"
+                price="$29"
+                features={[
+                  'Up to 1,000 review analysis',
+                  'Advanced AI insights',
+                  'Multiple app monitoring',
+                  'Priority email support',
+                  'Trend and sentiment tracking'
+                ]}
+                isMostPopular={true}
+              />
+              
+              <PricingCard 
+                title="Enterprise"
+                price="$99"
+                features={[
+                  'Unlimited review analysis',
+                  'Custom AI models',
+                  'Unlimited app monitoring',
+                  'Dedicated account manager',
+                  'Advanced reporting',
+                  'API access'
+                ]}
+              />
+            </div>
+            
+            <div className="text-center mt-12">
+              <p className="text-gray-600">
+                Need a custom solution? <a href="#contact" className="text-indigo-600 hover:underline">Contact Sales</a>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-200 my-8"></div>
 
         {/* Product Hunt Badge */}
         <div className="flex justify-center mb-16">

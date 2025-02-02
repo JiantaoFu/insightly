@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Loader2, Download } from 'lucide-react';
+import { Search,Zap,TrendingUp,Rocket } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 // Get math challenge configuration from environment
@@ -365,11 +366,11 @@ function App() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            App Review Analyzer
+        <h1 className="text-5xl font-bold text-gray-800 mb-6 leading-tight">
+            Transform App Reviews into Actionable Insights
           </h1>
-          <p className="text-base sm:text-lg text-gray-600">
-            Get instant insights from your app's reviews
+          <p className="text-xl text-gray-600 mb-10">
+            Leverage AI to understand your users, improve your product, and drive growth
           </p>
         </div>
 
@@ -468,14 +469,53 @@ function App() {
             </div>
           </div>
         )}
-        
-        <div className="border-t border-gray-200 my-8"></div>
+
+        {/* Features Section */}
+        <div className="grid md:grid-cols-4 gap-8">
+          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
+            <Search className="mx-auto text-indigo-600 mb-4" size={48} />
+            <h3 className="text-xl font-semibold mb-3">Deep Analysis</h3>
+            <p className="text-gray-600">Comprehensive review insights using advanced AI</p>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
+            <Zap className="mx-auto text-indigo-600 mb-4" size={48} />
+            <h3 className="text-xl font-semibold mb-3">Instant Results</h3>
+            <p className="text-gray-600">Get actionable insights in seconds</p>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
+            <TrendingUp className="mx-auto text-indigo-600 mb-4" size={48} />
+            <h3 className="text-xl font-semibold mb-3">Growth Insights</h3>
+            <p className="text-gray-600">Identify opportunities for product improvement</p>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
+            <Rocket className="mx-auto text-indigo-600 mb-4" size={48} />
+            <h3 className="text-xl font-semibold mb-3">Scalable</h3>
+            <p className="text-gray-600">Works for apps of all sizes and categories</p>
+          </div>
+        </div>
         
         <DemoSelector 
           url={url} 
           setUrl={setUrl} 
           handleSubmit={prepareChallengeAndSubmit} 
         />
+        
+        <div className="border-t border-gray-200 my-8"></div>
+
+        {/* Product Hunt Badge */}
+        <div className="flex justify-center mb-16">
+          <a 
+            href="https://www.producthunt.com/posts/insightly-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-insightly&#0045;3" 
+            target="_blank" 
+            rel="noopener noreferrer"
+          >
+            <img 
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=838886&theme=light&t=1738479256775" 
+              alt="Insightly - Get instant insights from your app's reviews" 
+              className="w-64 h-14"
+            />
+          </a>
+        </div>
         
         {/* Math Challenge Modal (only render if enabled and challenge exists) */}
         {ENABLE_MATH_CHALLENGE && mathChallenge && (

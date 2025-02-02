@@ -63,6 +63,41 @@ const PROVIDERS_CONFIG = {
   }
 };
 
+// Enhanced FeatureCard with more elegant design
+const FeatureCard: React.FC<{ 
+  icon: React.ElementType; 
+  title: string; 
+  description: string 
+}> = ({ icon: Icon, title, description }) => (
+  <div 
+    className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl 
+      shadow-lg border border-gray-100 
+      transition duration-300 transform hover:-translate-y-3 
+      hover:scale-[1.02] cursor-pointer group 
+      hover:shadow-xl hover:border-indigo-100
+      flex flex-col items-center text-center"
+  >
+    <div className="bg-indigo-50 p-4 rounded-full w-20 h-20 
+      flex items-center justify-center mb-4 
+      group-hover:bg-indigo-100 transition duration-300">
+      <Icon 
+        className="text-indigo-600 group-hover:text-indigo-800 
+        transition duration-300" 
+        size={40} 
+      />
+    </div>
+    <h3 className="text-xl font-semibold mb-3 text-gray-800 
+      group-hover:text-indigo-700 transition duration-300 
+      tracking-tight">
+      {title}
+    </h3>
+    <p className="text-gray-600 group-hover:text-gray-800 
+      transition duration-300 leading-relaxed">
+      {description}
+    </p>
+  </div>
+);
+
 function App() {
   const [url, setUrl] = useState('');
   const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('gemini');
@@ -363,15 +398,57 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+    <div 
+      className="relative min-h-screen bg-cover bg-center bg-no-repeat 
+        py-16 px-4 md:px-8 lg:px-16"
+      style={{
+        backgroundImage: `
+          linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)), 
+          url('https://images.unsplash.com/photo-1522252234503-e356532cafd5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1925&q=80')
+        `,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
+      <div className="container mx-auto">
+        <div className="text-center max-w-4xl mx-auto mb-16">
+          <h1 className="text-5xl font-extrabold text-gray-900 mb-6 
+            bg-clip-text text-transparent bg-gradient-to-r 
+            from-indigo-600 to-purple-600 leading-tight 
+            tracking-tight">
+            Uncover Deep Insights from App Reviews
+          </h1>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto 
+            leading-relaxed tracking-wide">
+            Leverage AI to Drive Product Growth
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <FeatureCard 
+            icon={Search}
+            title="Deep Analysis"
+            description="Comprehensive review insights using advanced AI algorithms"
+          />
+          <FeatureCard 
+            icon={Zap}
+            title="Instant Results"
+            description="Get actionable insights in seconds, not hours"
+          />
+          <FeatureCard 
+            icon={TrendingUp}
+            title="Growth Insights"
+            description="Uncover hidden opportunities for product enhancement"
+          />
+          <FeatureCard 
+            icon={Rocket}
+            title="Performance Intelligence"
+            description="AI that turns user feedback into actionable strategy"
+          />
+        </div>
+      </div>
       <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-        <h1 className="text-5xl font-bold text-gray-800 mb-6 leading-tight">
-            Transform App Reviews into Actionable Insights
-          </h1>
-          <p className="text-xl text-gray-600 mb-10">
-            Leverage AI to understand your users, improve your product, and drive growth
-          </p>
         </div>
 
         <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
@@ -448,6 +525,7 @@ function App() {
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
+                  window.URL.revokeObjectURL(downloadUrl);
                 }}
                 className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
               >
@@ -470,37 +548,14 @@ function App() {
           </div>
         )}
 
-        {/* Features Section */}
-        <div className="grid md:grid-cols-4 gap-8">
-          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
-            <Search className="mx-auto text-indigo-600 mb-4" size={48} />
-            <h3 className="text-xl font-semibold mb-3">Deep Analysis</h3>
-            <p className="text-gray-600">Comprehensive review insights using advanced AI</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
-            <Zap className="mx-auto text-indigo-600 mb-4" size={48} />
-            <h3 className="text-xl font-semibold mb-3">Instant Results</h3>
-            <p className="text-gray-600">Get actionable insights in seconds</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
-            <TrendingUp className="mx-auto text-indigo-600 mb-4" size={48} />
-            <h3 className="text-xl font-semibold mb-3">Growth Insights</h3>
-            <p className="text-gray-600">Identify opportunities for product improvement</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300">
-            <Rocket className="mx-auto text-indigo-600 mb-4" size={48} />
-            <h3 className="text-xl font-semibold mb-3">Scalable</h3>
-            <p className="text-gray-600">Works for apps of all sizes and categories</p>
-          </div>
-        </div>
-        
+        {/* Demo Selector */}
         <DemoSelector 
           url={url} 
           setUrl={setUrl} 
           handleSubmit={prepareChallengeAndSubmit} 
         />
-        
-        <div className="border-t border-gray-200 my-8"></div>
+
+<div className="border-t border-gray-200 my-8"></div>
 
         {/* Product Hunt Badge */}
         <div className="flex justify-center mb-16">

@@ -70,29 +70,29 @@ const FeatureCard: React.FC<{
   description: string 
 }> = ({ icon: Icon, title, description }) => (
   <div 
-    className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl 
-      shadow-lg border border-gray-100 
-      transition duration-300 transform hover:-translate-y-3 
+    className="bg-white/90 backdrop-blur-sm p-4 md:p-6 rounded-xl 
+      shadow-md border border-gray-100 
+      transition duration-300 transform hover:-translate-y-2 
       hover:scale-[1.02] cursor-pointer group 
-      hover:shadow-xl hover:border-indigo-100
+      hover:shadow-lg hover:border-indigo-100
       flex flex-col items-center text-center"
   >
-    <div className="bg-indigo-50 p-4 rounded-full w-20 h-20 
-      flex items-center justify-center mb-4 
+    <div className="bg-indigo-50 p-3 md:p-4 rounded-full w-16 h-16 md:w-20 md:h-20 
+      flex items-center justify-center mb-3 
       group-hover:bg-indigo-100 transition duration-300">
       <Icon 
         className="text-indigo-600 group-hover:text-indigo-800 
         transition duration-300" 
-        size={40} 
+        size={32} 
       />
     </div>
-    <h3 className="text-xl font-semibold mb-3 text-gray-800 
+    <h3 className="text-base md:text-xl font-semibold mb-2 text-gray-800 
       group-hover:text-indigo-700 transition duration-300 
       tracking-tight">
       {title}
     </h3>
-    <p className="text-gray-600 group-hover:text-gray-800 
-      transition duration-300 leading-relaxed">
+    <p className="text-sm md:text-base text-gray-600 group-hover:text-gray-800 
+      transition duration-300 leading-snug">
       {description}
     </p>
   </div>
@@ -400,7 +400,7 @@ function App() {
   return (
     <div 
       className="relative min-h-screen bg-cover bg-center bg-no-repeat 
-        py-16 px-4 md:px-8 lg:px-16"
+        py-8 md:py-16 px-4"
       style={{
         backgroundImage: `
           linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)), 
@@ -411,20 +411,20 @@ function App() {
       }}
     >
       <div className="container mx-auto">
-        <div className="text-center max-w-4xl mx-auto mb-16">
-          <h1 className="text-5xl font-extrabold text-gray-900 mb-6 
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 mb-4 
             bg-clip-text text-transparent bg-gradient-to-r 
             from-indigo-600 to-purple-600 leading-tight 
             tracking-tight">
             Uncover Deep Insights from App Reviews
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto 
+          <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto 
             leading-relaxed tracking-wide">
             Leverage AI to Drive Product Growth
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           <FeatureCard 
             icon={Search}
             title="Deep Analysis"

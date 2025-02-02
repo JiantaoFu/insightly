@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://insightly.top/sitemap.xml
+
+# Directories to exclude
+Disallow: /private/
+Disallow: /admin/
+
+# Crawl-delay to be respectful of server resources
+Crawl-delay: 10

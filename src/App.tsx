@@ -1,8 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Send, Loader2, Download } from 'lucide-react';
 import { Search,Zap,TrendingUp,Rocket } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ShareButton from './components/ShareButton';
+import ShareReportView from './components/ShareReportView'; // Corrected import statement
 
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -161,7 +163,7 @@ const PricingCard: React.FC<{
   </div>
 );
 
-function App() {
+const App: React.FC = () => {
   const [url, setUrl] = useState('');
   const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('gemini');
   const [model, setModel] = useState(PROVIDERS_CONFIG.gemini.defaultModel);
@@ -460,7 +462,7 @@ function App() {
     );
   }
 
-  return (
+  const MainContent = () => (
     <div 
       className="relative min-h-screen bg-cover bg-center bg-no-repeat 
         py-8 md:py-16 px-4"
@@ -511,8 +513,6 @@ function App() {
         </div>
       </div>
       <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-        </div>
 
         <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -578,7 +578,7 @@ function App() {
 
         {report && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <div className="flex items-center space-x-4 mb-4">
+            <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
               <button 
                 onClick={() => {
                   const blob = new Blob([report], { type: 'text/markdown' });
@@ -590,21 +590,22 @@ function App() {
                   document.body.removeChild(link);
                   window.URL.revokeObjectURL(downloadUrl);
                 }}
-                className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
+                className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download Report
               </button>
-              {console.log('AppData:', appData)}
               {appData?.reviews?.reviews && (
                 <button 
                   onClick={downloadReviews} 
-                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
+                  className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
                 >
-                  <Download className="mr-2" /> Download Reviews
+                  <Download className="w-4 h-4 mr-2" /> Download Reviews
                 </button>
               )}
-              <ShareButton url={url} />
+              <div className="w-full sm:w-auto">
+                <ShareButton url={url} />
+              </div>
             </div>
             <div className="prose prose-sm max-w-none">
               <ReactMarkdown>{report}</ReactMarkdown>
@@ -721,6 +722,15 @@ function App() {
         )}
       </div>
     </div>
+  );
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<MainContent />} />
+        <Route path="/share/:shareId" element={<ShareReportView />} />
+      </Routes>
+    </Router>
   );
 }
 

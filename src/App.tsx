@@ -4,7 +4,8 @@ import { Send, Loader2, Download } from 'lucide-react';
 import { Search,Zap,TrendingUp,Rocket } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ShareButton from './components/ShareButton';
-import ShareReportView from './components/ShareReportView'; // Corrected import statement
+import ShareReportView from './components/ShareReportView';
+import CachedAnalysesList from './components/CachedAnalysesList';
 
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -434,29 +435,6 @@ const App: React.FC = () => {
               </button>
             ))}
           </div>
-          
-          {selectedDemo && (
-            <div className="mt-4">
-              <label className="block mb-2 text-sm font-medium text-gray-700">
-                App Store / Google Play URL
-              </label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="Confirm or modify the URL"
-                  className="flex-grow p-2 border rounded-l-lg"
-                />
-                <button
-                  onClick={handleSubmit}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600"
-                >
-                  Generate Report
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -512,7 +490,15 @@ const App: React.FC = () => {
           />
         </div>
       </div>
+
       <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+
+        {/* Demo Selector */}
+      <DemoSelector 
+        url={url} 
+        setUrl={setUrl} 
+        handleSubmit={prepareChallengeAndSubmit} 
+      />
 
         <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -613,12 +599,11 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Demo Selector */}
-        <DemoSelector 
-          url={url} 
-          setUrl={setUrl} 
-          handleSubmit={prepareChallengeAndSubmit} 
-        />
+        {!loading && (
+            <CachedAnalysesList />
+        )}
+
+        <div className="border-t border-gray-200 my-8"></div>
 
         <div 
           id="pricing"

@@ -213,21 +213,33 @@ app.post('/app-store/extract-id', async (req, res) => {
   }
 });
 
-// Mock reviews data
-const mockReviews = [
-  "Great app but crashes frequently on my iPhone 12",
-  "Love the interface but needs dark mode",
-  "Customer support is amazing and responsive",
-  "App is slow on older devices",
-  "Would be great to have offline functionality",
-  "Dark mode please!",
-  "Keeps crashing after the latest update",
-];
-
 const ANALYSIS_CACHE_MAX_SIZE = 100;
 const analysisCache = new LRUCache({
   max: ANALYSIS_CACHE_MAX_SIZE,
   maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+});
+
+// Modify the cache entry structure
+const createCacheEntry = (finalReport, appData) => ({
+  finalReport,
+  timestamp: Date.now(),
+  appDetails: {
+    title: appData.details.title,
+    description: appData.details.description,
+    developer: appData.details.developer,
+    version: appData.details.version,
+    url: appData.details.url,
+    score: appData.details.score,
+    reviews: appData.details.reviews,
+    icon: appData.details.icon
+  },
+  reviewsSummary: {
+    totalReviews: appData.reviews.total,
+    averageRating: appData.reviews.averageRating,
+    scoreDistribution: appData.reviews.scoreDistribution,
+    topInsights: appData.reviews.topInsights
+  },
+  shareLink: `http://localhost:3000/api/shared-report?shareLink=${encodeURIComponent(finalReport)}`
 });
 
 app.post('/api/analyze', 
@@ -239,7 +251,7 @@ app.post('/api/analyze',
   const cachedReport = analysisCache.get(url);
   if (cachedReport) {
     // If cached, stream the report
-    const chunks = cachedReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
+    const chunks = cachedReport.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
     chunks.forEach((chunk, index) => {
       res.write(JSON.stringify({ report: chunk }) + '\n');
       
@@ -333,8 +345,9 @@ NOT something like this:
 
       console.log('Final report:', finalReport);
 
-      // Store in cache
-      analysisCache.set(url, finalReport);
+      // Store in cache with comprehensive metadata
+      const cacheEntry = createCacheEntry(finalReport, appData);
+      analysisCache.set(url, cacheEntry);
 
       // Directly end the response after streaming is complete
       res.end();
@@ -373,6 +386,61 @@ NOT something like this:
   }
 });
 
+// Update existing routes that fetch cached reports
+app.get('/api/check-cache', (req, res) => {
+  const { url } = req.query;
+  const cachedReport = analysisCache.get(url);
+  
+  if (cachedReport) {
+    res.json({
+      cached: true,
+      finalReport: cachedReport.finalReport,
+      appDetails: cachedReport.appDetails,
+      reviewsSummary: cachedReport.reviewsSummary,
+      timestamp: cachedReport.timestamp
+    });
+  } else {
+    res.json({ cached: false });
+  }
+});
+
+// Update the cached analyses endpoint to return more comprehensive data
+app.get('/api/cached-analyses', (req, res) => {
+  try {
+    // Explicitly clear any existing headers
+    res.removeHeader('Content-Type');
+    
+    const cachedResults = Array.from(analysisCache.entries())
+      .sort((a, b) => b[1].timestamp - a[1].timestamp)
+      .map(([url, entry]) => {
+        // Ensure all fields are defined and sanitized
+        return {
+          shareLink: `${process.env.CLIENT_ORIGIN}/share/${encodeURIComponent(url)}`,
+          appDetails: entry.appDetails,
+          reviewsSummary: entry.reviewsSummary,
+          analysisDate: new Date(entry.timestamp || Date.now()).toLocaleString(),
+          finalReport: entry.finalReport || ''
+        };
+      });
+
+    // Explicitly set JSON content type
+    res.contentType('application/json');
+
+    console.log('Sending cached results:', cachedResults);
+    
+    // Send JSON response
+    res.json(cachedResults);
+  } catch (error) {
+    console.error('Error retrieving cached analyses:', error);
+    res.status(500)
+       .contentType('application/json')
+       .json({ 
+         error: 'Failed to retrieve cached analyses', 
+         details: error.message 
+       });
+  }
+});
+
 // Add after existing routes
 app.get('/api/share', (req, res) => {
   const { url } = req.query;
@@ -390,11 +458,8 @@ app.get('/api/share', (req, res) => {
     });
   }
 
-  // Generate a shareable link
-  const shareLink = `${process.env.CLIENT_ORIGIN}/share/${encodeURIComponent(url)}`;
-
   res.json({ 
-    shareLink,
+    shareLink: cachedReport.shareLink,
     expiresAt: Date.now() + analysisCache.maxAge
   });
 });
@@ -419,7 +484,7 @@ app.get('/api/shared-report', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Transfer-Encoding', 'chunked');
   
-  const chunks = cachedReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
+  const chunks = cachedReport.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
   chunks.forEach((chunk, index) => {
     res.write(JSON.stringify({ report: chunk }) + '\n');
     

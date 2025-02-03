@@ -1,5 +1,6 @@
 import store from 'app-store-scraper';
 import axios from 'axios';
+import { calculateAverageRating, calculateScoreDistribution } from './utils.js';
 
 // Function to extract App Store app ID from a URL
 export function extractAppStoreId(url) {
@@ -122,6 +123,7 @@ export async function getAppReviews(appId, options = {}) {
       total: allReviews.length,
       reviews: allReviews,
       // Additional metadata
+      averageRating: calculateAverageRating(allReviews),
       scoreDistribution: calculateScoreDistribution(allReviews)
     };
   } catch (error) {
@@ -130,28 +132,15 @@ export async function getAppReviews(appId, options = {}) {
   }
 }
 
-// Helper function to calculate score distribution
-function calculateScoreDistribution(reviews) {
-  const distribution = {
-    1: 0, 2: 0, 3: 0, 4: 0, 5: 0
-  };
-
-  reviews.forEach(review => {
-    if (review.score >= 1 && review.score <= 5) {
-      distribution[review.score]++;
-    }
-  });
-
-  return distribution;
-}
-
 // Convenience function to handle full workflow from URL
 export async function processAppStoreUrl(url) {
   try {
     const appId = extractAppStoreId(url);
     const details = await getAppDetails(appId);
     const reviews = await getAppReviews(appId);
-    
+
+    console.log('App Details:', details);
+
     return {
       details,
       reviews

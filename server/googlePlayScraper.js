@@ -1,4 +1,5 @@
 import gplay from 'google-play-scraper';
+import { calculateAverageRating, calculateScoreDistribution } from './utils.js';
 
 export function extractGooglePlayId(url) {
   const match = url.match(/https?:\/\/play\.google\.com\/store\/apps\/details\?.*?id=([^&]+)/);
@@ -39,22 +40,6 @@ export async function getAppReviews(appId, options = {}) {
     // Extract the reviews from the data property
     const reviews = reviewsResult.data || [];
 
-    // Calculate score distribution
-    const scoreDistribution = {
-      1: 0,
-      2: 0,
-      3: 0,
-      4: 0,
-      5: 0
-    };
-
-    // Safely iterate over reviews
-    reviews.forEach(review => {
-      if (review.score && review.score >= 1 && review.score <= 5) {
-        scoreDistribution[review.score]++;
-      }
-    });
-
     return {
       total: reviews.length,
       reviews: reviews.map(review => ({
@@ -63,7 +48,8 @@ export async function getAppReviews(appId, options = {}) {
         date: review.date,
         userName: review.userName || ''
       })),
-      scoreDistribution
+      averageRating: calculateAverageRating(reviews),
+      scoreDistribution: calculateScoreDistribution(reviews)
     };
   } catch (error) {
     console.error('Error fetching app reviews:', error);

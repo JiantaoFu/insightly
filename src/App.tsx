@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Send, Loader2, Download } from 'lucide-react';
 import { Search,Zap,TrendingUp,Rocket } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import ShareButton from './components/ShareButton';
 
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -603,6 +604,7 @@ function App() {
                   <Download className="mr-2" /> Download Reviews
                 </button>
               )}
+              <ShareButton url={url} />
             </div>
             <div className="prose prose-sm max-w-none">
               <ReactMarkdown>{report}</ReactMarkdown>

@@ -15,7 +15,6 @@ import { processGooglePlayUrl } from './googlePlayScraper.js';
 import Markdown from 'react-markdown';
 import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { LRUCache } from 'lru-cache';
 
@@ -228,7 +227,7 @@ const mockReviews = [
 const ANALYSIS_CACHE_MAX_SIZE = 100;
 const analysisCache = new LRUCache({
   max: ANALYSIS_CACHE_MAX_SIZE,
-  maxAge: 1000 * 60 * 60 * 24 // 24 hours
+  maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
 });
 
 app.post('/api/analyze', 
@@ -372,6 +371,62 @@ NOT something like this:
     }
     res.end();
   }
+});
+
+// Add after existing routes
+app.get('/api/share', (req, res) => {
+  const { url } = req.query;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  const cachedReport = analysisCache.get(url);
+  
+  if (!cachedReport) {
+    return res.status(404).json({ 
+      error: 'Report not found. Please re-run the analysis.',
+      shouldReanalyze: true
+    });
+  }
+
+  // Generate a shareable link
+  const shareLink = `${process.env.CLIENT_ORIGIN}/share/${encodeURIComponent(url)}`;
+
+  res.json({ 
+    shareLink,
+    expiresAt: Date.now() + analysisCache.maxAge
+  });
+});
+
+app.get('/api/shared-report', (req, res) => {
+  const { url } = req.query;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  const cachedReport = analysisCache.get(url);
+  
+  if (!cachedReport) {
+    return res.status(404).json({ 
+      error: 'Report expired. Please re-run the analysis.',
+      shouldReanalyze: true
+    });
+  }
+
+  // Set headers for streaming
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  
+  const chunks = cachedReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
+  chunks.forEach((chunk, index) => {
+    res.write(JSON.stringify({ report: chunk }) + '\n');
+    
+    if (index === chunks.length - 1) {
+      res.end();
+    }
+  });
 });
 
 // Optional: Add a route to clear or inspect the cache (for debugging)

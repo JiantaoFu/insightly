@@ -1,11 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Send, Loader2, Download } from 'lucide-react';
-import { Search,Zap,TrendingUp,Rocket } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { Send, Loader2, Download, Zap, Home as HomeIcon, BarChart2, TrendingUp, Rocket } from 'lucide-react';
+import { Search,Zap as ZapIcon,TrendingUp as TrendingUpIcon,Rocket as RocketIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ShareButton from './components/ShareButton';
 import ShareReportView from './components/ShareReportView';
 import CachedAnalysesList from './components/CachedAnalysesList';
+import Home from './pages/Home';
+import Navigation from './components/Navigation';
 
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -99,68 +101,6 @@ const FeatureCard: React.FC<{
       transition duration-300 leading-snug">
       {description}
     </p>
-  </div>
-);
-
-// Pricing Component
-const PricingCard: React.FC<{
-  title: string;
-  price: string;
-  features: string[];
-  isMostPopular?: boolean;
-}> = ({ title, price, features, isMostPopular = false }) => (
-  <div 
-    className={`
-      bg-white rounded-2xl shadow-lg p-6 
-      transform transition duration-300 
-      hover:scale-[1.02] 
-      ${isMostPopular ? 'border-2 border-indigo-600 scale-105' : 'border border-gray-200'}
-    `}
-  >
-    {isMostPopular && (
-      <div className="text-center mb-4">
-        <span className="bg-indigo-100 text-indigo-800 text-xs font-semibold px-3 py-1 rounded-full">
-          Most Popular
-        </span>
-      </div>
-    )}
-    <h3 className="text-2xl font-bold text-gray-800 mb-4">{title}</h3>
-    <div className="text-4xl font-extrabold text-gray-900 mb-6">
-      {price}
-      <span className="text-base text-gray-500 font-normal">/month</span>
-    </div>
-    <ul className="space-y-3 mb-8">
-      {features.map((feature, index) => (
-        <li key={index} className="flex items-center">
-          <svg 
-            className="w-5 h-5 text-indigo-600 mr-2" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24" 
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M5 13l4 4L19 7" 
-            />
-          </svg>
-          {feature}
-        </li>
-      ))}
-    </ul>
-    <button 
-      className={`
-        w-full py-3 rounded-lg font-semibold transition duration-300
-        ${isMostPopular 
-          ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-        }
-      `}
-    >
-      {isMostPopular ? 'Get Started' : 'Choose Plan'}
-    </button>
   </div>
 );
 
@@ -441,270 +381,187 @@ const App: React.FC = () => {
   }
 
   const MainContent = () => (
-    <div 
-      className="relative min-h-screen bg-cover bg-center bg-no-repeat 
-        py-8 md:py-16 px-4"
-      style={{
-        backgroundImage: `
-          linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)), 
-          url('https://images.unsplash.com/photo-1522252234503-e356532cafd5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1925&q=80')
-        `,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      }}
-    >
-      <div className="container mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 mb-4 
-            bg-clip-text text-transparent bg-gradient-to-r 
-            from-indigo-600 to-purple-600 leading-tight 
-            tracking-tight">
-            Uncover Deep Insights from App Reviews
-          </h1>
-          <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto 
-            leading-relaxed tracking-wide">
-            Leverage AI to Drive Product Growth
-          </p>
+    <div className="pt-20">
+      <Navigation />
+      <div 
+        className="relative min-h-screen bg-cover bg-center bg-no-repeat 
+          py-8 md:py-16 px-4"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)), 
+            url('https://images.unsplash.com/photo-1522252234503-e356532cafd5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1925&q=80')
+          `,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        <div className="container mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 mb-4 
+              bg-clip-text text-transparent bg-gradient-to-r 
+              from-indigo-600 to-purple-600 leading-tight 
+              tracking-tight">
+              Uncover Deep Insights from App Reviews
+            </h1>
+            <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto 
+              leading-relaxed tracking-wide">
+              Leverage AI to Drive Product Growth
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <FeatureCard 
-            icon={Search}
-            title="Deep Analysis"
-            description="Comprehensive review insights using advanced AI algorithms"
-          />
-          <FeatureCard 
-            icon={Zap}
-            title="Instant Results"
-            description="Get actionable insights in seconds, not hours"
-          />
-          <FeatureCard 
-            icon={TrendingUp}
-            title="Growth Insights"
-            description="Uncover hidden opportunities for product enhancement"
-          />
-          <FeatureCard 
-            icon={Rocket}
-            title="Performance Intelligence"
-            description="AI that turns user feedback into actionable strategy"
-          />
-        </div>
-      </div>
+        <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
 
-      <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+          {/* Demo Selector */}
+        <DemoSelector 
+          url={url} 
+          setUrl={setUrl} 
+          handleSubmit={prepareChallengeAndSubmit} 
+        />
 
-        {/* Demo Selector */}
-      <DemoSelector 
-        url={url} 
-        setUrl={setUrl} 
-        handleSubmit={prepareChallengeAndSubmit} 
-      />
-
-        <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
-          <div className="flex flex-col sm:flex-row gap-4 mb-4">
-            {false && (
-              <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                <select
-                  value={provider}
-                  onChange={(e) => setProvider(e.target.value as keyof typeof PROVIDERS_CONFIG)}
-                  className="w-full sm:w-auto px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+          <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+              {false && (
+                <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                  <select
+                    value={provider}
+                    onChange={(e) => setProvider(e.target.value as keyof typeof PROVIDERS_CONFIG)}
+                    className="w-full sm:w-auto px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  >
+                    {Object.keys(PROVIDERS_CONFIG).map(providerKey => (
+                      <option key={providerKey} value={providerKey}>
+                        {providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    className="w-full sm:w-auto flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  >
+                    {PROVIDERS_CONFIG[provider].models.map(modelName => (
+                      <option key={modelName} value={modelName}>
+                        {modelName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <input
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="Enter App Store or Google Play URL"
+                className="w-full sm:flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                required
+              />
+              {loading ? (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 flex items-center justify-center gap-2"
                 >
-                  {Object.keys(PROVIDERS_CONFIG).map(providerKey => (
-                    <option key={providerKey} value={providerKey}>
-                      {providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="w-full sm:w-auto flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Cancel
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2"
                 >
-                  {PROVIDERS_CONFIG[provider].models.map(modelName => (
-                    <option key={modelName} value={modelName}>
-                      {modelName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="Enter App Store or Google Play URL"
-              className="w-full sm:flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              required
-            />
-            {loading ? (
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 flex items-center justify-center gap-2"
-              >
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Cancel
-              </button>
-            ) : (
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2"
-              >
-                <Send className="w-5 h-5" />
-                Analyze
-              </button>
-            )}
-          </div>
-          {error && (
-            <p className="mt-2 text-red-600">{error}</p>
-          )}
-        </form>
-
-        {report && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-              <button 
-                onClick={() => {
-                  const blob = new Blob([report], { type: 'text/markdown' });
-                  const link = document.createElement('a');
-                  link.href = URL.createObjectURL(blob);
-                  link.download = 'analysis_report.md';
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  window.URL.revokeObjectURL(downloadUrl);
-                }}
-                className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download Report
-              </button>
-              {appData?.reviews?.reviews && (
-                <button 
-                  onClick={downloadReviews} 
-                  className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
-                >
-                  <Download className="w-4 h-4 mr-2" /> Download Reviews
+                  <Send className="w-5 h-5" />
+                  Analyze
                 </button>
               )}
-              <div className="w-full sm:w-auto">
-                <ShareButton url={url} />
+            </div>
+            {error && (
+              <p className="mt-2 text-red-600">{error}</p>
+            )}
+          </form>
+
+          {report && (
+            <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+              <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
+                <button 
+                  onClick={() => {
+                    const blob = new Blob([report], { type: 'text/markdown' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'analysis_report.md';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(downloadUrl);
+                  }}
+                  className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Report
+                </button>
+                {appData?.reviews?.reviews && (
+                  <button 
+                    onClick={downloadReviews} 
+                    className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
+                  >
+                    <Download className="w-4 h-4 mr-2" /> Download Reviews
+                  </button>
+                )}
+                <div className="w-full sm:w-auto">
+                  <ShareButton url={url} />
+                </div>
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown>{report}</ReactMarkdown>
               </div>
             </div>
-            <div className="prose prose-sm max-w-none">
-              <ReactMarkdown>{report}</ReactMarkdown>
-            </div>
+          )}
+
+          {!loading && (
+              <CachedAnalysesList />
+          )}
+
+          <div className="border-t border-gray-200 my-8"></div>
+
+          {/* Product Hunt Badge */}
+          <div className="flex justify-center mb-16">
+            <a 
+              href="https://www.producthunt.com/posts/insightly-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-insightly&#0045;3" 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              <img 
+                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=838886&theme=light&t=1738479256775" 
+                alt="Insightly - Get instant insights from your app's reviews" 
+                className="w-64 h-14"
+              />
+            </a>
           </div>
-        )}
-
-        {!loading && (
-            <CachedAnalysesList />
-        )}
-
-        <div className="border-t border-gray-200 my-8"></div>
-
-        <div 
-          id="pricing"
-          className="bg-gray-50 py-16 px-4 sm:px-6 lg:px-8"
-        >
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl font-extrabold text-gray-900 mb-4">
-                Simple, Transparent Pricing
-              </h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Start for free. Scale with your needs.
-              </p>
+          
+          {/* Math Challenge Modal (only render if enabled and challenge exists) */}
+          {ENABLE_MATH_CHALLENGE && mathChallenge && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-xl">
+                <h2 className="text-xl font-bold mb-4">Human Verification</h2>
+                <p className="mb-4">{mathChallenge.question}</p>
+                <input 
+                  type="number" 
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                  className="w-full px-3 py-2 border rounded"
+                  placeholder="Your answer"
+                />
+                <button 
+                  onClick={prepareChallengeAndSubmit}
+                  className="mt-4 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+                >
+                  Submit
+                </button>
+              </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <PricingCard 
-                title="Free"
-                price="$0"
-                features={[
-                  'Up to 100 review analysis',
-                  'Basic AI insights',
-                  'Single app monitoring',
-                  'Community support'
-                ]}
-              />
-              
-              <PricingCard 
-                title="Pro"
-                price="$29"
-                features={[
-                  'Up to 1,000 review analysis',
-                  'Advanced AI insights',
-                  'Multiple app monitoring',
-                  'Priority email support',
-                  'Trend and sentiment tracking'
-                ]}
-                isMostPopular={true}
-              />
-              
-              <PricingCard 
-                title="Enterprise"
-                price="$99"
-                features={[
-                  'Unlimited review analysis',
-                  'Custom AI models',
-                  'Unlimited app monitoring',
-                  'Dedicated account manager',
-                  'Advanced reporting',
-                  'API access'
-                ]}
-              />
-            </div>
-            
-            <div className="text-center mt-12">
-              <p className="text-gray-600">
-                Need a custom solution? <a href="#contact" className="text-indigo-600 hover:underline">Contact Sales</a>
-              </p>
-            </div>
-          </div>
+          )}
         </div>
-
-        <div className="border-t border-gray-200 my-8"></div>
-
-        {/* Product Hunt Badge */}
-        <div className="flex justify-center mb-16">
-          <a 
-            href="https://www.producthunt.com/posts/insightly-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-insightly&#0045;3" 
-            target="_blank" 
-            rel="noopener noreferrer"
-          >
-            <img 
-              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=838886&theme=light&t=1738479256775" 
-              alt="Insightly - Get instant insights from your app's reviews" 
-              className="w-64 h-14"
-            />
-          </a>
-        </div>
-        
-        {/* Math Challenge Modal (only render if enabled and challenge exists) */}
-        {ENABLE_MATH_CHALLENGE && mathChallenge && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl">
-              <h2 className="text-xl font-bold mb-4">Human Verification</h2>
-              <p className="mb-4">{mathChallenge.question}</p>
-              <input 
-                type="number" 
-                value={userAnswer}
-                onChange={(e) => setUserAnswer(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
-                placeholder="Your answer"
-              />
-              <button 
-                onClick={prepareChallengeAndSubmit}
-                className="mt-4 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -712,7 +569,8 @@ const App: React.FC = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<MainContent />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/app" element={<MainContent />} />
         <Route path="/share/:shareId" element={<ShareReportView />} />
       </Routes>
     </Router>

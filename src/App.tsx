@@ -278,7 +278,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDownload = useCallback(() => {
+  const downloadReport = useCallback(() => {
     if (!report) return;
     
     try {
@@ -286,7 +286,7 @@ const App: React.FC = () => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = 'app-review-analysis.md';
+      a.download = `${appData.details?.title || 'app'}-review-analysis.md`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -495,20 +495,11 @@ const App: React.FC = () => {
             )}
           </form>
 
-          {report && (
+          {report && !loading && (
             <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
               <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
                 <button 
-                  onClick={() => {
-                    const blob = new Blob([report], { type: 'text/markdown' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'analysis_report.md';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(downloadUrl);
-                  }}
+                  onClick={downloadReport}
                   className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
                 >
                   <Download className="w-4 h-4 mr-2" />

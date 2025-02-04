@@ -106,8 +106,13 @@ const FeatureCard: React.FC<{
 
 const App: React.FC = () => {
   const [url, setUrl] = useState('');
-  const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>('gemini');
-  const [model, setModel] = useState(PROVIDERS_CONFIG.gemini.defaultModel);
+  const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>(
+    (import.meta.env.VITE_LLM_PROVIDER as keyof typeof PROVIDERS_CONFIG) || 'gemini'
+  );
+  const [model, setModel] = useState(
+    import.meta.env[`VITE_${provider.toUpperCase()}_DEFAULT_MODEL`] || 
+    PROVIDERS_CONFIG[provider].defaultModel
+  );
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

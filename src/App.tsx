@@ -546,10 +546,13 @@ const App: React.FC = () => {
                 <p className="mb-4">{mathChallenge.question}</p>
                 <input 
                   type="number" 
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={userAnswer}
                   onChange={(e) => setUserAnswer(e.target.value)}
                   className="w-full px-3 py-2 border rounded"
                   placeholder="Your answer"
+                  autoFocus
                 />
                 <button 
                   onClick={prepareChallengeAndSubmit}

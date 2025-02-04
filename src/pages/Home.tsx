@@ -73,9 +73,13 @@ const PricingCard: React.FC<{
         </li>
       ))}
     </ul>
-    <button className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors mt-auto">
+    <Link
+      to="/app"
+      className={`${isMostPopular ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600'} 
+      inline-block w-full py-3 px-6 text-center rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105`}
+    >
       Get Started
-    </button>
+    </Link>
   </div>
 );
 
@@ -210,6 +214,25 @@ const Home: React.FC = () => {
               />
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Start Analyzing Section */}
+      <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 bg-white">
+        <div className="text-center">
+          <h2 className="text-4xl font-extrabold text-gray-900 mb-6">
+            Start Analyzing Your App
+          </h2>
+          <p className="text-xl text-gray-600 mb-8">
+            Gain deep insights into your app's performance and user feedback
+          </p>
+          <Link 
+            to="/app" 
+            className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110"
+          >
+            <Rocket className="w-6 h-6 mr-3" />
+            Start Analysis
+          </Link>
         </div>
       </div>
 

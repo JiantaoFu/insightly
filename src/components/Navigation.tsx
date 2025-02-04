@@ -9,16 +9,8 @@ import {
   X
 } from 'lucide-react';
 
-// Define navigation item type
-export interface NavigationItem {
-  to: string;
-  label: string;
-  icon: React.ElementType;
-}
-
 // Navigation component props
 interface NavigationProps {
-  items?: NavigationItem[];
   ctaButton?: {
     to: string;
     label: string;
@@ -42,6 +34,7 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // Determine which links to show based on current route
   const renderDesktopLinks = () => {
+    // Default case for home page
     if (location.pathname === '/') {
       return (
         <Link 
@@ -56,7 +49,41 @@ const Navigation: React.FC<NavigationProps> = ({
           <span>{ctaButton.label}</span>
         </Link>
       );
-    } else if (location.pathname === '/app') {
+    }
+
+    // Shared report page
+    if (location.pathname.startsWith('/share/')) {
+      return (
+        <>
+          <Link 
+            to="/" 
+            className="
+              group relative px-3 py-2 rounded-lg transition-colors duration-300
+              text-gray-700 hover:text-blue-600 hover:bg-blue-50
+              flex items-center space-x-2
+            "
+          >
+            <HomeIcon className="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" />
+            <span className="font-medium">Home</span>
+          </Link>
+          
+          <Link 
+            to="/app" 
+            className="
+              bg-blue-600 text-white px-4 py-2 rounded-lg 
+              hover:bg-blue-700 transition-colors duration-300
+              flex items-center space-x-2 shadow-md hover:shadow-lg
+            "
+          >
+            <RocketIcon className="w-5 h-5" />
+            <span>Start Analyzing</span>
+          </Link>
+        </>
+      );
+    }
+
+    // App page
+    if (location.pathname === '/app') {
       return (
         <Link 
           to="/" 
@@ -71,10 +98,12 @@ const Navigation: React.FC<NavigationProps> = ({
         </Link>
       );
     }
+
+    // Default fallback
     return null;
   };
 
-  // Determine which links to show in mobile menu
+  // Similar logic for mobile links
   const renderMobileLinks = () => {
     if (location.pathname === '/') {
       return (
@@ -91,7 +120,43 @@ const Navigation: React.FC<NavigationProps> = ({
           <span>{ctaButton.label}</span>
         </Link>
       );
-    } else if (location.pathname === '/app') {
+    }
+
+    // Shared report page
+    if (location.pathname.startsWith('/share/')) {
+      return (
+        <>
+          <Link
+            to="/"
+            className="
+              text-gray-700 hover:bg-blue-50 hover:text-blue-600
+              block px-3 py-2 rounded-md text-base font-medium
+              flex items-center space-x-2
+            "
+            onClick={toggleMenu}
+          >
+            <HomeIcon className="w-5 h-5 mr-2" />
+            Home
+          </Link>
+          
+          <Link
+            to="/app"
+            className="
+              bg-blue-600 text-white px-4 py-2 rounded-lg 
+              hover:bg-blue-700 transition-colors duration-300
+              flex items-center justify-center space-x-2 w-full
+            "
+            onClick={toggleMenu}
+          >
+            <RocketIcon className="w-5 h-5" />
+            <span>Start Analyzing</span>
+          </Link>
+        </>
+      );
+    }
+
+    // App page
+    if (location.pathname === '/app') {
       return (
         <Link
           to="/"
@@ -107,6 +172,8 @@ const Navigation: React.FC<NavigationProps> = ({
         </Link>
       );
     }
+
+    // Default fallback
     return null;
   };
 

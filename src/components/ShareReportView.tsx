@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import Navigation from './Navigation';
 
 interface ShareReportViewProps {
   // Any additional props if needed
@@ -26,7 +27,7 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
     const fetchSharedReport = async () => {
       try {
         setIsLoading(true);
-        const analysisResponse = await fetch(`${SERVER_URL}/api/shared-report?url=${shareId}`, {
+        const analysisResponse = await fetch(`${SERVER_URL}/api/shared-report?shareId=${shareId}`, {
           method: 'GET'
         });
 
@@ -97,6 +98,8 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
 
   return (
     <div className="container mx-auto p-4">
+
+    <Navigation />
       <div className="prose prose-sm max-w-none">
         {report ? (
           <ReactMarkdown>{report}</ReactMarkdown>

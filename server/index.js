@@ -17,6 +17,7 @@ import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { LRUCache } from 'lru-cache';
+import { generateUrlHash } from './utils.js';
 
 dotenv.config();
 
@@ -220,7 +221,7 @@ const analysisCache = new LRUCache({
 });
 
 // Modify the cache entry structure
-const createCacheEntry = (finalReport, appData) => ({
+const createCacheEntry = (url, hashUrl, finalReport, appData) => ({
   finalReport,
   timestamp: Date.now(),
   appDetails: {
@@ -228,7 +229,7 @@ const createCacheEntry = (finalReport, appData) => ({
     description: appData.details.description,
     developer: appData.details.developer,
     version: appData.details.version,
-    url: appData.details.url,
+    url: url,
     score: appData.details.score,
     reviews: appData.details.reviews,
     icon: appData.details.icon
@@ -239,7 +240,7 @@ const createCacheEntry = (finalReport, appData) => ({
     scoreDistribution: appData.reviews.scoreDistribution,
     topInsights: appData.reviews.topInsights
   },
-  shareLink: `http://localhost:3000/api/shared-report?shareLink=${encodeURIComponent(finalReport)}`
+  shareLink: `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`,
 });
 
 app.post('/api/analyze', 
@@ -346,8 +347,9 @@ NOT something like this:
       console.log('Final report:', finalReport);
 
       // Store in cache with comprehensive metadata
-      const cacheEntry = createCacheEntry(finalReport, appData);
-      analysisCache.set(url, cacheEntry);
+      const hashUrl = generateUrlHash(url);
+      const cacheEntry = createCacheEntry(url, hashUrl, finalReport, appData);
+      analysisCache.set(hashUrl, cacheEntry);
 
       // Directly end the response after streaming is complete
       res.end();
@@ -388,8 +390,8 @@ NOT something like this:
 
 // Update existing routes that fetch cached reports
 app.get('/api/check-cache', (req, res) => {
-  const { url } = req.query;
-  const cachedReport = analysisCache.get(url);
+  const { urlHash } = req.query;
+  const cachedReport = analysisCache.get(urlHash);
   
   if (cachedReport) {
     res.json({
@@ -412,10 +414,10 @@ app.get('/api/cached-analyses', (req, res) => {
     
     const cachedResults = Array.from(analysisCache.entries())
       .sort((a, b) => b[1].timestamp - a[1].timestamp)
-      .map(([url, entry]) => {
+      .map(([hashUrl, entry]) => {
         // Ensure all fields are defined and sanitized
         return {
-          shareLink: `${process.env.CLIENT_ORIGIN}/share/${encodeURIComponent(url)}`,
+          shareLink: entry.shareLink,
           appDetails: entry.appDetails,
           reviewsSummary: entry.reviewsSummary,
           analysisDate: new Date(entry.timestamp || Date.now()).toLocaleString(),
@@ -449,7 +451,7 @@ app.get('/api/share', (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
-  const cachedReport = analysisCache.get(url);
+  const cachedReport = analysisCache.get(generateUrlHash(url));
   
   if (!cachedReport) {
     return res.status(404).json({ 
@@ -465,13 +467,13 @@ app.get('/api/share', (req, res) => {
 });
 
 app.get('/api/shared-report', (req, res) => {
-  const { url } = req.query;
+  const { shareId } = req.query;
   
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
+  if (!shareId) {
+    return res.status(400).json({ error: 'Share ID is required' });
   }
 
-  const cachedReport = analysisCache.get(url);
+  const cachedReport = analysisCache.get(shareId);
   
   if (!cachedReport) {
     return res.status(404).json({ 

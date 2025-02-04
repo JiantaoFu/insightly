@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 /**
  * Calculate the average rating from an array of reviews
  * @param {Array} reviews - Array of review objects
@@ -27,4 +29,12 @@ export function calculateScoreDistribution(reviews) {
   });
 
   return distribution;
+}
+
+// Utility function to generate a consistent hash for a URL
+export function generateUrlHash(url) {
+  return crypto
+    .createHash('md5')
+    .update(url.toLowerCase().trim())
+    .digest('hex');
 }

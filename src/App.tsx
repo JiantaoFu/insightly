@@ -495,8 +495,9 @@ const App: React.FC = () => {
             )}
           </form>
 
-          {report && !loading && (
+          {report && (
             <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+              {!loading && (
               <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
                 <button 
                   onClick={downloadReport}
@@ -517,6 +518,7 @@ const App: React.FC = () => {
                   <ShareButton url={url} />
                 </div>
               </div>
+              )}
               <div className="prose prose-sm max-w-none">
                 <ReactMarkdown>{report}</ReactMarkdown>
               </div>

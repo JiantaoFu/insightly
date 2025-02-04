@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Send, Loader2, Download, Zap, Home as HomeIcon, BarChart2, TrendingUp, Rocket } from 'lucide-react';
 import { Search,Zap as ZapIcon,TrendingUp as TrendingUpIcon,Rocket as RocketIcon } from 'lucide-react';
@@ -348,10 +348,8 @@ const App: React.FC = () => {
     setUrl: (url: string) => void, 
     handleSubmit: (e: React.FormEvent) => Promise<void> 
   }) {
-    const [selectedDemo, setSelectedDemo] = useState<string | null>(null);
-
     const handleDemoSelect = (demoApp: typeof demoApps[0]) => {
-      setSelectedDemo(demoApp.name);
+      // Ensure the URL is always set and the component re-renders
       setUrl(demoApp.placeholder);
     };
 
@@ -364,10 +362,10 @@ const App: React.FC = () => {
               <button
                 key={app.name}
                 onClick={() => handleDemoSelect(app)}
-                className={`p-4 rounded-lg border transition-all ${
-                  selectedDemo === app.name 
-                    ? 'bg-blue-500 text-white border-blue-600' 
-                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                className={`p-4 rounded-lg border transition-all duration-300 ${
+                  url === app.placeholder
+                    ? 'bg-blue-500 text-white border-blue-600 shadow-lg' 
+                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200 hover:shadow-md'
                 }`}
               >
                 <h3 className="font-semibold">{app.name}</h3>
@@ -380,11 +378,27 @@ const App: React.FC = () => {
     );
   }
 
+  const ProductHuntBadge = memo(() => (
+    <div className="flex justify-center mb-16">
+      <a 
+        href="https://www.producthunt.com/posts/insightly-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-insightly&#0045;3" 
+        target="_blank" 
+        rel="noopener noreferrer"
+      >
+        <img 
+          src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=838886&theme=light&t=1738479256775" 
+          alt="Insightly - Get instant insights from your app's reviews" 
+          className="w-64 h-14"
+        />
+      </a>
+    </div>
+  ));
+
   const MainContent = () => (
     <div className="pt-20">
       <Navigation />
       <div 
-        className="relative min-h-screen bg-cover bg-center bg-no-repeat 
+        className="relative bg-cover bg-center bg-no-repeat 
           py-8 md:py-16 px-4"
         style={{
           backgroundImage: `
@@ -517,28 +531,15 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
 
-          {!loading && (
-              <CachedAnalysesList />
-          )}
+
 
           <div className="border-t border-gray-200 my-8"></div>
 
           {/* Product Hunt Badge */}
-          <div className="flex justify-center mb-16">
-            <a 
-              href="https://www.producthunt.com/posts/insightly-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-insightly&#0045;3" 
-              target="_blank" 
-              rel="noopener noreferrer"
-            >
-              <img 
-                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=838886&theme=light&t=1738479256775" 
-                alt="Insightly - Get instant insights from your app's reviews" 
-                className="w-64 h-14"
-              />
-            </a>
-          </div>
-          
+          <ProductHuntBadge />
+
           {/* Math Challenge Modal (only render if enabled and challenge exists) */}
           {ENABLE_MATH_CHALLENGE && mathChallenge && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -561,7 +562,7 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
+
       </div>
     </div>
   );

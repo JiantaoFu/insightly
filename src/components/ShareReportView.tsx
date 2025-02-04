@@ -97,14 +97,13 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-
-    <Navigation />
+    <div className="container mx-auto p-4 pt-24">
+      <Navigation />
       <div className="prose prose-sm max-w-none">
         {report ? (
           <ReactMarkdown>{report}</ReactMarkdown>
         ) : (
-          <p>No report content available.</p>
+          <p>No report available</p>
         )}
       </div>
     </div>

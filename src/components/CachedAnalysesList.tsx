@@ -20,15 +20,23 @@ interface CachedAnalysis {
   finalReport?: string;
 }
 
-const CachedAnalysesList: React.FC = () => {
+interface CachedAnalysesListProps {
+  pageSize?: number;
+  searchTerm?: string;
+}
+
+const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({ 
+  pageSize = 6, 
+  searchTerm = '' 
+}) => {
   const [cachedAnalyses, setCachedAnalyses] = useState<CachedAnalysis[]>([]);
   const [displayedAnalyses, setDisplayedAnalyses] = useState<CachedAnalysis[]>([]);
+  const [filteredAnalyses, setFilteredAnalyses] = useState<CachedAnalysis[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [iconErrors, setIconErrors] = useState<{[key: string]: boolean}>({});
 
-  const ITEMS_PER_PAGE = 6;
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
   useEffect(() => {
@@ -62,7 +70,6 @@ const CachedAnalysesList: React.FC = () => {
         }));
 
         setCachedAnalyses(validatedData);
-        setDisplayedAnalyses(validatedData.slice(0, ITEMS_PER_PAGE));
         setIsLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -73,14 +80,26 @@ const CachedAnalysesList: React.FC = () => {
     fetchCachedAnalyses();
   }, []);
 
+  useEffect(() => {
+    // Filter logic
+    const filtered = cachedAnalyses.filter(analysis => 
+      analysis.appDetails.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      analysis.appDetails.developer.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    setFilteredAnalyses(filtered);
+    setDisplayedAnalyses(filtered.slice(0, pageSize));
+    setPage(1);
+  }, [cachedAnalyses, searchTerm, pageSize]);
+
   const handleLoadMore = () => {
     const nextPage = page + 1;
     const startIndex = displayedAnalyses.length;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const endIndex = startIndex + pageSize;
     
     const newDisplayedAnalyses = [
       ...displayedAnalyses, 
-      ...cachedAnalyses.slice(startIndex, endIndex)
+      ...filteredAnalyses.slice(startIndex, endIndex)
     ];
     
     setDisplayedAnalyses(newDisplayedAnalyses);
@@ -207,7 +226,7 @@ const CachedAnalysesList: React.FC = () => {
         </div>
       )}
       
-      {displayedAnalyses.length < cachedAnalyses.length && (
+      {displayedAnalyses.length < filteredAnalyses.length && (
         <div className="flex justify-center mt-8">
           <button 
             onClick={handleLoadMore}

@@ -6,7 +6,8 @@ import {
   BarChart2, 
   Rocket as RocketIcon,
   Menu,
-  X
+  X,
+  Microscope
 } from 'lucide-react';
 
 // Navigation component props
@@ -33,148 +34,61 @@ const Navigation: React.FC<NavigationProps> = ({
   };
 
   // Determine which links to show based on current route
-  const renderDesktopLinks = () => {
-    // Default case for home page
-    if (location.pathname === '/') {
-      return (
-        <Link 
-          to={ctaButton.to} 
-          className="
-            bg-blue-600 text-white px-4 py-2 rounded-lg 
-            hover:bg-blue-700 transition-colors duration-300
-            flex items-center space-x-2 shadow-md hover:shadow-lg
-          "
-        >
-          {ctaButton.icon && <ctaButton.icon className="w-5 h-5" />}
-          <span>{ctaButton.label}</span>
-        </Link>
-      );
-    }
+  const renderDefaultLinks = () => {
+    const links = [
+      {
+        to: '/',
+        icon: HomeIcon,
+        label: 'Home',
+        className: 'text-gray-700 hover:bg-blue-50 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium flex items-center space-x-2'
+      },
+      {
+        to: '/app',
+        icon: RocketIcon,
+        label: 'Start Analyzing',
+        className: 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center space-x-2 w-full'
+      },
+      {
+        to: '/app-insights',
+        icon: Microscope,
+        label: 'Insights',
+        className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out'
+      }
+    ];
 
-    // Shared report page
-    if (location.pathname.startsWith('/share/')) {
-      return (
-        <>
-          <Link 
-            to="/" 
-            className="
-              group relative px-3 py-2 rounded-lg transition-colors duration-300
-              text-gray-700 hover:text-blue-600 hover:bg-blue-50
-              flex items-center space-x-2
-            "
-          >
-            <HomeIcon className="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" />
-            <span className="font-medium">Home</span>
-          </Link>
-          
-          <Link 
-            to="/app" 
-            className="
-              bg-blue-600 text-white px-4 py-2 rounded-lg 
-              hover:bg-blue-700 transition-colors duration-300
-              flex items-center space-x-2 shadow-md hover:shadow-lg
-            "
-          >
-            <RocketIcon className="w-5 h-5" />
-            <span>Start Analyzing</span>
-          </Link>
-        </>
-      );
-    }
+    // Filter out the link matching the current route
+    const filteredLinks = links.filter(link => link.to !== location.pathname);
 
-    // App page
-    if (location.pathname === '/app') {
-      return (
-        <Link 
-          to="/" 
-          className="
-            group relative px-3 py-2 rounded-lg transition-colors duration-300
-            text-gray-700 hover:text-blue-600 hover:bg-blue-50
-            flex items-center space-x-2
-          "
-        >
-          <HomeIcon className="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" />
-          <span className="font-medium">Home</span>
-        </Link>
-      );
-    }
-
-    // Default fallback
-    return null;
+    return filteredLinks.map((link, index) => (
+      <Link 
+        key={index}
+        to={link.to}
+        className={link.className}
+      >
+        {link.icon && <link.icon className="w-5 h-5 mr-2 text-gray-400 group-hover:text-blue-500 transition-colors duration-300" />}
+        <span className="font-medium group-hover:text-blue-600">{link.label}</span>
+      </Link>
+    ));
   };
 
-  // Similar logic for mobile links
+  const renderDesktopLinks = () => {
+    if (location.pathname === '/analyzed-apps') return null;
+
+    return (
+      <>
+        {renderDefaultLinks()}
+      </>
+    );
+  };
+
   const renderMobileLinks = () => {
-    if (location.pathname === '/') {
-      return (
-        <Link
-          to={ctaButton.to}
-          className="
-            bg-blue-600 text-white px-4 py-2 rounded-lg 
-            hover:bg-blue-700 transition-colors duration-300
-            flex items-center justify-center space-x-2 w-full
-          "
-          onClick={toggleMenu}
-        >
-          {ctaButton.icon && <ctaButton.icon className="w-5 h-5" />}
-          <span>{ctaButton.label}</span>
-        </Link>
-      );
-    }
+    if (location.pathname === '/analyzed-apps') return null;
 
-    // Shared report page
-    if (location.pathname.startsWith('/share/')) {
-      return (
-        <>
-          <Link
-            to="/"
-            className="
-              text-gray-700 hover:bg-blue-50 hover:text-blue-600
-              block px-3 py-2 rounded-md text-base font-medium
-              flex items-center space-x-2
-            "
-            onClick={toggleMenu}
-          >
-            <HomeIcon className="w-5 h-5 mr-2" />
-            Home
-          </Link>
-          
-          <Link
-            to="/app"
-            className="
-              bg-blue-600 text-white px-4 py-2 rounded-lg 
-              hover:bg-blue-700 transition-colors duration-300
-              flex items-center justify-center space-x-2 w-full
-            "
-            onClick={toggleMenu}
-          >
-            <RocketIcon className="w-5 h-5" />
-            <span>Start Analyzing</span>
-          </Link>
-        </>
-      );
-    }
-
-    // App page
-    if (location.pathname === '/app') {
-      return (
-        <Link
-          to="/"
-          className="
-            text-gray-700 hover:bg-blue-50 hover:text-blue-600
-            block px-3 py-2 rounded-md text-base font-medium
-            flex items-center space-x-2
-          "
-          onClick={toggleMenu}
-        >
-          <HomeIcon className="w-5 h-5 mr-2" />
-          Home
-        </Link>
-      );
-    }
-
-    // Default fallback
-    return null;
+    return (
+      <>
+        {renderDefaultLinks()}
+      </>
+    );
   };
 
   return (

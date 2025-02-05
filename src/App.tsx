@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Send, Loader2, Download, Zap, Home as HomeIcon, BarChart2, TrendingUp, Rocket } from 'lucide-react';
 import { Search,Zap as ZapIcon,TrendingUp as TrendingUpIcon,Rocket as RocketIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -7,6 +7,8 @@ import ShareButton from './components/ShareButton';
 import ShareReportView from './components/ShareReportView';
 import Home from './pages/Home';
 import Navigation from './components/Navigation';
+import AppInsightsPage from './pages/AppInsightsPage';
+import { ProductHuntBadge } from './components/ProductHuntBadge';
 
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -382,22 +384,6 @@ const App: React.FC = () => {
     );
   }
 
-  const ProductHuntBadge = memo(() => (
-    <div className="flex justify-center mb-16">
-      <a 
-        href="https://www.producthunt.com/posts/insightly-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-insightly&#0045;3" 
-        target="_blank" 
-        rel="noopener noreferrer"
-      >
-        <img 
-          src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=838886&theme=light&t=1738479256775" 
-          alt="Insightly - Get instant insights from your app's reviews" 
-          className="w-64 h-14"
-        />
-      </a>
-    </div>
-  ));
-
   const MainContent = () => (
     <div className="pt-20">
       <Navigation />
@@ -573,6 +559,7 @@ const App: React.FC = () => {
         <Route path="/" element={<Home />} />
         <Route path="/app" element={<MainContent />} />
         <Route path="/share/:shareId" element={<ShareReportView />} />
+        <Route path="/app-insights" element={<AppInsightsPage />} />
       </Routes>
     </Router>
   );

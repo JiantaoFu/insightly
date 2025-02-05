@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import Navigation from './Navigation';
+import { ProductHuntBadge } from './ProductHuntBadge';
 
 interface ShareReportViewProps {
   // Any additional props if needed
@@ -72,13 +73,14 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
   return (
     <div className="container mx-auto p-4 pt-24">
       <Navigation />
-      <div className="prose prose-sm max-w-none">
+      <div className="prose prose-sm max-w-none mb-8">
         {report ? (
           <ReactMarkdown>{report}</ReactMarkdown>
         ) : (
           <p>No report available</p>
         )}
       </div>
+      <ProductHuntBadge />
     </div>
   );
 };

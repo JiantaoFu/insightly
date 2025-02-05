@@ -482,18 +482,8 @@ app.get('/api/shared-report', (req, res) => {
     });
   }
 
-  // Set headers for streaming
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Transfer-Encoding', 'chunked');
-  
-  const chunks = cachedReport.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
-  chunks.forEach((chunk, index) => {
-    res.write(JSON.stringify({ report: chunk }) + '\n');
-    
-    if (index === chunks.length - 1) {
-      res.end();
-    }
-  });
+  // Return the entire report directly
+  res.json({ report: cachedReport.finalReport });
 });
 
 // Optional: Add a route to clear or inspect the cache (for debugging)

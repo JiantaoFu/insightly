@@ -30,44 +30,17 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
         const analysisResponse = await fetch(`${SERVER_URL}/api/shared-report?shareId=${shareId}`, {
           method: 'GET'
         });
-
-        if (!analysisResponse.body) {
-          throw new Error('Response body is null');
-        }
-
-        const reader = analysisResponse.body.getReader();
-        const decoder = new TextDecoder();
-        let fullReport = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            console.log('Stream completed');
-            setIsLoading(false);
-            break;
+        const responseData = await analysisResponse.json();
+        
+        if (responseData.error) {
+          setError(responseData.error);
+          if (responseData.shouldReanalyze) {
+            // Potentially trigger re-analysis
           }
-
-          const chunk = decoder.decode(value, { stream: true });
-          console.log('Received chunk:', chunk);
-
-          // Split chunk into lines and parse
-          const lines = chunk.split('\n').filter(line => line.trim() !== '');
-          
-          lines.forEach(line => {
-            try {
-              console.log('Parsing line:', line);
-              const parsedChunk = JSON.parse(line);
-              
-              if (parsedChunk.report) {
-                fullReport += parsedChunk.report;
-                setReport(fullReport);
-              }
-            } catch (parseError) {
-              console.error('Error parsing chunk:', parseError, 'Raw line:', line);
-            }
-          });
+          return;
         }
+        
+        setReport(responseData.report);
       } catch (error) {
         console.error('Error:', error);
         setError(error instanceof Error ? error.message : 'Failed to load shared report');

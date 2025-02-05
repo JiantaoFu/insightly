@@ -238,14 +238,6 @@ const Home: React.FC = () => {
 
       {/* Cached Analyses Section */}
       <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-extrabold text-gray-900">
-            Recent Analyses
-          </h2>
-          <p className="mt-4 text-xl text-gray-600">
-            Your latest app review insights
-          </p>
-        </div>
         <CachedAnalysesList />
       </div>
 

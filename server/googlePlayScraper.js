@@ -18,7 +18,8 @@ export async function fetchAppDetails(appId) {
       description: details.description,
       developer: details.developer,
       version: details.version,
-      icon: details.icon
+      icon: details.icon,
+      platform: 'android'  // Add platform for Google Play
     };
   } catch (error) {
     console.error('Error fetching app details:', error);

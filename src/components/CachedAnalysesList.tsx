@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Link as LinkIcon, BarChart2, Star, RefreshCw, ChevronDown, AlertCircle } from 'lucide-react';
+import { 
+  Clock, 
+  Link as LinkIcon, 
+  BarChart2, 
+  Star, 
+  RefreshCw, 
+  ChevronDown, 
+  AlertCircle 
+} from 'lucide-react';
 
 interface CachedAnalysis {
   shareLink: string;
@@ -10,6 +18,7 @@ interface CachedAnalysis {
     version: string;
     url: string;
     icon: string;
+    platform?: 'ios' | 'android';
   };
   reviewsSummary: {
     totalReviews: number;
@@ -58,7 +67,8 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
             developer: entry.appDetails?.developer || 'Unknown Developer',
             version: entry.appDetails?.version || 'N/A',
             url: entry.appDetails?.url || '',
-            icon: entry.appDetails?.icon || ''
+            icon: entry.appDetails?.icon || '',
+            platform: entry.appDetails?.platform || 'unknown'
           },
           reviewsSummary: {
             totalReviews: entry.reviewsSummary?.totalReviews,
@@ -81,7 +91,6 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
   }, []);
 
   useEffect(() => {
-    // Filter logic
     const filtered = cachedAnalyses.filter(analysis => 
       analysis.appDetails.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       analysis.appDetails.developer.toLowerCase().includes(searchTerm.toLowerCase())
@@ -159,10 +168,20 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
                       loading="lazy"
                     />
                   )}
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-800">
-                      {analysis.appDetails.title}
-                    </h3>
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <h3 className="text-xl font-semibold text-gray-800 mr-2">
+                        {analysis.appDetails.title}
+                      </h3>
+                      <span 
+                        className={`
+                          px-2 py-1 rounded-full text-xs font-semibold uppercase
+                          bg-gray-200 text-gray-800
+                        `}
+                      >
+                        {analysis.appDetails.platform}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500">
                       {analysis.appDetails.developer}
                     </p>
@@ -180,7 +199,6 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
                   </div>
                 </div>
 
-                {/* Rating Histogram */}
                 <div className="mt-4 space-y-1">
                   {Object.entries(analysis.reviewsSummary.scoreDistribution || {})
                     .sort((a, b) => parseInt(b[0]) - parseInt(a[0]))

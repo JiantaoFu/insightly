@@ -68,7 +68,8 @@ export async function getAppDetails(appId) {
       version: app.version,
       size: app.size,
       genre: app.genre,
-      bundleId: await fetchBundleId(appId)
+      bundleId: await fetchBundleId(appId),
+      platform: 'ios'  // Add platform for App Store
     };
   } catch (error) {
     console.error('Error fetching app details:', error);

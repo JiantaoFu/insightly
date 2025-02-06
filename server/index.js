@@ -232,7 +232,8 @@ const createCacheEntry = (url, hashUrl, finalReport, appData) => ({
     url: url,
     score: appData.details.score,
     reviews: appData.details.reviews,
-    icon: appData.details.icon
+    icon: appData.details.icon,
+    platform: appData.details.platform
   },
   reviewsSummary: {
     totalReviews: appData.reviews.total,

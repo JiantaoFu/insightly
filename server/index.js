@@ -534,6 +534,15 @@ app.get('/api/cache-stats', (req, res) => {
   });
 });
 
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    availableProviders: Object.keys(LLM_PROVIDERS),
+    currentProvider: process.env.LLM_PROVIDER || 'ollama'
+  });
+});
+
 // Function to load existing analyses from database
 async function loadCacheFromDatabase() {
   try {

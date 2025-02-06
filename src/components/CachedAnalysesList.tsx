@@ -173,14 +173,6 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
                       <h3 className="text-xl font-semibold text-gray-800 mr-2">
                         {analysis.appDetails.title}
                       </h3>
-                      <span 
-                        className={`
-                          px-2 py-1 rounded-full text-xs font-semibold uppercase
-                          bg-gray-200 text-gray-800
-                        `}
-                      >
-                        {analysis.appDetails.platform}
-                      </span>
                     </div>
                     <p className="text-sm text-gray-500">
                       {analysis.appDetails.developer}
@@ -197,6 +189,14 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
                     <Star className="mr-2 text-yellow-500" size={16} />
                     {analysis.reviewsSummary.averageRating.toFixed(1)}
                   </div>
+                  <span 
+                    className={`
+                      px-2 py-1 rounded-full text-xs font-semibold uppercase
+                      bg-gray-200 text-gray-800 ml-2
+                    `}
+                  >
+                    {analysis.appDetails.platform}
+                  </span>
                 </div>
 
                 <div className="mt-4 space-y-1">

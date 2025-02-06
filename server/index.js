@@ -26,7 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = process.env.ENABLE_MATH_CHALLENGE === 'true';
@@ -222,7 +222,7 @@ const analysisCache = new LRUCache({
 });
 
 // Async function to save to Supabase
-async function saveToSupabase(cacheEntry) {
+async function saveToSupabase(cacheEntry, url, hashUrl) {
   try {
     const { data, error } = await supabase
       .from('analysis_reports')
@@ -231,7 +231,8 @@ async function saveToSupabase(cacheEntry) {
         description: cacheEntry.appDetails.description,
         developer: cacheEntry.appDetails.developer,
         version: cacheEntry.appDetails.version,
-        app_url: cacheEntry.appDetails.url,
+        app_url: url,
+        hash_url: hashUrl,
         app_score: cacheEntry.appDetails.score,
         reviews: cacheEntry.appDetails.reviews,
         icon: cacheEntry.appDetails.icon,
@@ -277,7 +278,7 @@ const createCacheEntry = (url, hashUrl, finalReport, appData) => {
   };
 
   // Save to Supabase
-  saveToSupabase(cacheEntry);
+  saveToSupabase(cacheEntry, url, hashUrl);
 
   return cacheEntry;
 };
@@ -533,15 +534,59 @@ app.get('/api/cache-stats', (req, res) => {
   });
 });
 
-// Health check endpoint
-app.get('/', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    availableProviders: Object.keys(LLM_PROVIDERS),
-    currentProvider: process.env.LLM_PROVIDER || 'ollama'
-  });
-});
+// Function to load existing analyses from database
+async function loadCacheFromDatabase() {
+  try {
+    // Fetch recent analyses (e.g., from last 7 days)
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .select('*')
+      .gte('timestamp', sevenDaysAgo)
+      .order('timestamp', { ascending: false });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+    if (error) {
+      console.error('Error loading cache from database:', error);
+      return;
+    }
+
+    // Populate the cache with loaded entries
+    data.forEach(entry => {
+      // Use the stored hash_url directly
+      const hashUrl = entry.hash_url;
+      
+      // Reconstruct the cache entry format
+      const cacheEntry = {
+        ...entry.full_report,
+        getShareLink: () => `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`
+      };
+
+      // Add to LRU cache
+      analysisCache.set(hashUrl, cacheEntry);
+    });
+
+    console.log(`Loaded ${data.length} analyses from database`);
+  } catch (catchError) {
+    console.error('Unexpected error loading cache:', catchError);
+  }
+}
+
+// Modify the server startup to load cache
+const startServer = async () => {
+  try {
+    // Load existing analyses from database
+    await loadCacheFromDatabase();
+
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Call the startup function
+startServer();

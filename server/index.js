@@ -18,6 +18,7 @@ import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
+import { supabase } from './supabaseClient.js';
 
 dotenv.config();
 
@@ -220,29 +221,66 @@ const analysisCache = new LRUCache({
   maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
 });
 
+// Async function to save to Supabase
+async function saveToSupabase(cacheEntry) {
+  try {
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .insert({
+        app_title: cacheEntry.appDetails.title,
+        description: cacheEntry.appDetails.description,
+        developer: cacheEntry.appDetails.developer,
+        version: cacheEntry.appDetails.version,
+        app_url: cacheEntry.appDetails.url,
+        app_score: cacheEntry.appDetails.score,
+        reviews: cacheEntry.appDetails.reviews,
+        icon: cacheEntry.appDetails.icon,
+        platform: cacheEntry.appDetails.platform,
+        total_reviews: cacheEntry.reviewsSummary.totalReviews,
+        average_rating: cacheEntry.reviewsSummary.averageRating,
+        score_distribution: cacheEntry.reviewsSummary.scoreDistribution,
+        timestamp: cacheEntry.timestamp,
+        full_report: cacheEntry
+      })
+      .select();
+
+    if (error) {
+      console.error('Error saving to Supabase:', error);
+    }
+  } catch (dbError) {
+    console.error('Database save error:', dbError);
+  }
+}
+
 // Modify the cache entry structure
-const createCacheEntry = (url, hashUrl, finalReport, appData) => ({
-  finalReport,
-  timestamp: Date.now(),
-  appDetails: {
-    title: appData.details.title,
-    description: appData.details.description,
-    developer: appData.details.developer,
-    version: appData.details.version,
-    url: url,
-    score: appData.details.score,
-    reviews: appData.details.reviews,
-    icon: appData.details.icon,
-    platform: appData.details.platform
-  },
-  reviewsSummary: {
-    totalReviews: appData.reviews.total,
-    averageRating: appData.reviews.averageRating,
-    scoreDistribution: appData.reviews.scoreDistribution,
-    topInsights: appData.reviews.topInsights
-  },
-  shareLink: `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`,
-});
+const createCacheEntry = (url, hashUrl, finalReport, appData) => {
+  const cacheEntry = {
+    finalReport,
+    timestamp: Date.now(),
+    appDetails: {
+      title: appData.details.title,
+      description: appData.details.description,
+      developer: appData.details.developer,
+      version: appData.details.version,
+      url: url,
+      score: appData.details.score,
+      reviews: appData.details.reviews,
+      icon: appData.details.icon,
+      platform: appData.details.platform
+    },
+    reviewsSummary: {
+      totalReviews: appData.reviews.total,
+      averageRating: appData.reviews.averageRating,
+      scoreDistribution: appData.reviews.scoreDistribution
+    },
+    getShareLink: () => `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`,
+  };
+
+  // Save to Supabase
+  saveToSupabase(cacheEntry);
+
+  return cacheEntry;
+};
 
 app.post('/api/analyze', 
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
@@ -418,7 +456,7 @@ app.get('/api/cached-analyses', (req, res) => {
       .map(([hashUrl, entry]) => {
         // Ensure all fields are defined and sanitized
         return {
-          shareLink: entry.shareLink,
+          shareLink: entry.getShareLink(),
           appDetails: entry.appDetails,
           reviewsSummary: entry.reviewsSummary,
           analysisDate: new Date(entry.timestamp || Date.now()).toLocaleString(),
@@ -462,7 +500,7 @@ app.get('/api/share', (req, res) => {
   }
 
   res.json({ 
-    shareLink: cachedReport.shareLink,
+    shareLink: cachedReport.getShareLink(),
     expiresAt: Date.now() + analysisCache.maxAge
   });
 });

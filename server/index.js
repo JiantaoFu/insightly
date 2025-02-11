@@ -343,24 +343,27 @@ app.post('/api/analyze',
 
 Reviews Summary:
 - Total Reviews: ${appData.reviews.total}
-- Score Distribution: ${JSON.stringify(appData.reviews.scoreDistribution)}
+- Score Distribution: ${JSON.stringify(appData.reviews.scoreDistribution)} (Interpret this as the breakdown percentages for each star rating, e.g., percentage of 5-star, 4-star, etc.)
 
 Detailed Reviews:
 ${reviewsText}
 
 ${promptConfig.appReviewAnalysis}
 
-Format the response in markdown with appropriate headers and bullet points.
-But do NOT wrap it inside triple backticks.
+**Formatting Requirements:**
+- Use markdown formatting with appropriate headers and bullet points.
+- Do NOT wrap the final output in triple backticks.
 
-Expect something like this:
+For example, the output should start like:
 
-# This is a title
+# Summary of Key Insights
+- ...
 
-NOT something like this:
+NOT like this:
 
 \`\`\`Markdown
-# This is a title
+# Summary of Key Insights
+- ...
 \`\`\`
 `;
     } else {

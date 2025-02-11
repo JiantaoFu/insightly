@@ -174,7 +174,7 @@ app.post('/google-play/process-url', async (req, res) => {
 // New route to process full App Store URL
 app.post('/app-store/process-url', async (req, res) => {
   try {
-    const { url } = req.body;
+  const { url } = req.body;
     
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
@@ -221,6 +221,21 @@ const analysisCache = new LRUCache({
   maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
 });
 
+const RECORD_EXPIRATION_HOURS = process.env.RECORD_EXPIRATION_HOURS 
+  ? parseInt(process.env.RECORD_EXPIRATION_HOURS, 10) 
+  : 24; // Default to 24 hours if not specified
+
+// Function to check if cache entry is expired
+const isRecordEntryExpired = (recordEntry) => {
+  if (!recordEntry || !recordEntry.timestamp) return true;
+
+  const currentTime = Date.now();
+  const entryAge = currentTime - recordEntry.timestamp;
+  const expirationMs = RECORD_EXPIRATION_HOURS * 60 * 60 * 1000;
+
+  return entryAge > expirationMs;
+};
+
 // Async function to save to Supabase
 async function saveToSupabase(cacheEntry, url, hashUrl) {
   try {
@@ -250,6 +265,44 @@ async function saveToSupabase(cacheEntry, url, hashUrl) {
     }
   } catch (dbError) {
     console.error('Database save error:', dbError);
+  }
+}
+
+// Async function to remove expired entries from Supabase
+async function removeExpiredEntriesFromSupabase() {
+  try {
+    const expirationThreshold = Date.now() - (RECORD_EXPIRATION_HOURS * 60 * 60 * 1000);
+
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .delete()
+      .lt('timestamp', expirationThreshold);
+
+    if (error) {
+      console.error('Error removing expired entries from Supabase:', error);
+    } else {
+      console.log(`Removed expired entries from Supabase`);
+    }
+  } catch (dbError) {
+    console.error('Database cleanup error:', dbError);
+  }
+}
+
+// Async function to remove a specific entry from Supabase by hashUrl
+async function removeEntryFromSupabase(hashUrl) {
+  try {
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .delete()
+      .eq('hash_url', hashUrl);
+
+    if (error) {
+      console.error(`Error removing entry with hash_url ${hashUrl} from Supabase:`, error);
+    } else {
+      console.log(`Removed entry with hash_url ${hashUrl} from Supabase`);
+    }
+  } catch (dbError) {
+    console.error('Database deletion error:', dbError);
   }
 }
 
@@ -287,10 +340,15 @@ app.post('/api/analyze',
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
   async (req, res) => {
   const { url } = req.body;
+  const hashUrl = generateUrlHash(url);
   
   // Check if report is in cache
-  const cachedReport = analysisCache.get(url);
-  if (cachedReport) {
+  const cachedReport = analysisCache.get(hashUrl);
+  
+  // Check if cache entry is valid and not expired
+  if (cachedReport && !isRecordEntryExpired(cachedReport)) {
+    console.log('Report found in cache:', url);
+
     // If cached, stream the report
     const chunks = cachedReport.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
     chunks.forEach((chunk, index) => {
@@ -301,6 +359,11 @@ app.post('/api/analyze',
       }
     });
     return;
+  } else if (cachedReport) {
+    // If cache entry is expired, remove it
+    console.log('Cache entry expired for:', url);
+    analysisCache.delete(hashUrl);
+    removeEntryFromSupabase(hashUrl);
   }
 
   try {
@@ -327,7 +390,7 @@ app.post('/api/analyze',
     }
 
     // Prepare prompt based on whether app data is provided
-    let prompt = `Analyze the following URL: ${url}`;
+    let prompt = `You are an expert app review analyzer. Analyze the app at the following URL: ${url}. App information provided below:`;
     
     if (appData && appData.reviews && appData.reviews.reviews) {
       // If App Store reviews are provided, include them in the prompt
@@ -349,14 +412,13 @@ Detailed Reviews:
 ${reviewsText}
 
 ${promptConfig.appReviewAnalysis}
-
-${promptConfig.format}
 `;
     } else {
       // Fallback to existing logic if no app data
       prompt += '\n\nPlease analyze this URL and provide insights.';
     }
 
+    console.log('Prompt:', prompt);
     console.log('Prompt length:', prompt.length);
 
     let finalReport = '';
@@ -376,7 +438,6 @@ ${promptConfig.format}
       console.log('Final report:', finalReport);
 
       // Store in cache with comprehensive metadata
-      const hashUrl = generateUrlHash(url);
       const cacheEntry = createCacheEntry(url, hashUrl, finalReport, appData);
       analysisCache.set(hashUrl, cacheEntry);
 
@@ -503,11 +564,6 @@ ${competitorDetails}
       );
 
       console.log('Final report:', finalReport);
-
-      // // Store in cache with comprehensive metadata
-      // const hashUrl = generateUrlHash(url);
-      // const cacheEntry = createCacheEntry(url, hashUrl, finalReport, appData);
-      // analysisCache.set(hashUrl, cacheEntry);
 
       // Directly end the response after streaming is complete
       res.end();
@@ -651,6 +707,26 @@ app.get('/api/cache-stats', (req, res) => {
   });
 });
 
+// Function to remove expired cache entries
+const removeExpiredCacheEntries = () => {
+  const expirationThreshold = Date.now() - (RECORD_EXPIRATION_HOURS * 60 * 60 * 1000);
+
+  // Remove expired entries from in-memory cache
+  for (const [key, entry] of analysisCache.entries()) {
+    if (entry.timestamp < expirationThreshold) {
+      analysisCache.delete(key);
+      removeEntryFromSupabase(key);
+    }
+  }
+
+  // Remove expired entries from Supabase
+  removeExpiredEntriesFromSupabase();
+};
+
+// Schedule periodic cache cleanup
+const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+setInterval(removeExpiredCacheEntries, CLEANUP_INTERVAL);
+
 // Health check endpoint
 app.get('/', (req, res) => {
   res.json({ 
@@ -664,12 +740,14 @@ app.get('/', (req, res) => {
 async function loadCacheFromDatabase() {
   try {
     // Fetch recent analyses (e.g., from last 7 days)
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    // const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+    removeExpiredEntriesFromSupabase();
     
     const { data, error } = await supabase
       .from('analysis_reports')
       .select('*')
-      .gte('timestamp', sevenDaysAgo)
+      // .gte('timestamp', sevenDaysAgo)
       .order('timestamp', { ascending: false });
 
     if (error) {

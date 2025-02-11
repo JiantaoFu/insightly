@@ -12,6 +12,10 @@ import {
 } from 'lucide-react';
 import Navigation from './Navigation';
 import { ProductHuntBadge } from './ProductHuntBadge';
+import { MathChallengeComponent, MathChallenge } from './MathChallenge';
+
+// Enable math challenge based on environment variable
+const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
 
 interface CompetitorApp {
   url: string;
@@ -156,6 +160,7 @@ export const CompetitorAnalysis: React.FC = () => {
   const [isAdding, setIsAdding] = useState<boolean>(false);
   const [comparisonResult, setComparisonResult] = useState<string>('');
   const [isComparing, setIsComparing] = useState<boolean>(false);
+  const [showChallenge, setShowChallenge] = useState(false);
 
   const handleAddCompetitor = async () => {
     // Prevent multiple simultaneous additions
@@ -201,7 +206,15 @@ export const CompetitorAnalysis: React.FC = () => {
     );
   };
 
-  const compareCompetitors = async () => {
+  const prepareChallengeAndSubmit = async () => {
+    if (ENABLE_MATH_CHALLENGE) {
+      setShowChallenge(true);
+    } else {
+      compareCompetitors();
+    }
+  }
+
+  const compareCompetitors = async (mathChallenge?: MathChallenge) => {
     // Ensure at least two competitors
     if (competitors.length < 2) {
       setError('Please add at least two competitors to compare');
@@ -238,13 +251,20 @@ export const CompetitorAnalysis: React.FC = () => {
         return;
       }
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      // Add math challenge header only if enabled and challenge exists
+      if (ENABLE_MATH_CHALLENGE && mathChallenge) {
+        headers['X-Math-Challenge'] = mathChallenge.challenge;
+      }
+
       console.log('Sending Competitors:', JSON.stringify(validCompetitors, null, 2));
 
       const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/compare-competitors`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: JSON.stringify({ competitors: validCompetitors })
       });
 
@@ -421,7 +441,7 @@ export const CompetitorAnalysis: React.FC = () => {
                 <div className="flex justify-center mt-6">
                   <div className="flex flex-col items-center space-y-4">
                     <button 
-                      onClick={compareCompetitors}
+                      onClick={prepareChallengeAndSubmit}
                       disabled={isComparing}
                       className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white 
                         px-8 py-3 rounded-lg shadow-lg hover:shadow-xl 
@@ -566,6 +586,20 @@ export const CompetitorAnalysis: React.FC = () => {
       <div className="flex justify-center mt-12">
         <ProductHuntBadge />
       </div>
+
+      {ENABLE_MATH_CHALLENGE && showChallenge && (
+          <MathChallengeComponent 
+            isOpen={showChallenge}
+            onClose={() => setShowChallenge(false)}
+            onChallengeComplete={(mathChallenge) => {
+              // Continue with submission using the completed challenge
+              compareCompetitors(mathChallenge);
+            }}
+            onChallengeFail={() => {
+            }}
+          />
+        )}
+
     </div>
   );
 };

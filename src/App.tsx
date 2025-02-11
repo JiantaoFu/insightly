@@ -8,6 +8,7 @@ import ShareButton from './components/ShareButton';
 import ShareReportView from './components/ShareReportView';
 import Navigation from './components/Navigation';
 import { ProductHuntBadge } from './components/ProductHuntBadge';
+import { MathChallengeComponent, MathChallenge } from './components/MathChallenge';
 
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
@@ -22,41 +23,6 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 console.log('Resolved SERVER_URL:', SERVER_URL);
 console.log('VITE_SERVER_URL from env:', import.meta.env.VITE_SERVER_URL);
 console.log('VITE_ENABLE_MATH_CHALLENGE from env:', import.meta.env.VITE_ENABLE_MATH_CHALLENGE);
-
-// Generate a math challenge
-const generateMathChallenge = (): { 
-  question: string, 
-  answer: number, 
-  challenge: string 
-} => {
-  const operations = ['+', '-', '*'];
-  const operation = operations[Math.floor(Math.random() * operations.length)];
-  
-  let a, b, answer;
-  switch (operation) {
-    case '+':
-      a = Math.floor(Math.random() * 10) + 1;
-      b = Math.floor(Math.random() * 10) + 1;
-      answer = a + b;
-      break;
-    case '-':
-      a = Math.floor(Math.random() * 20) + 10;
-      b = Math.floor(Math.random() * 10) + 1;
-      answer = a - b;
-      break;
-    case '*':
-      a = Math.floor(Math.random() * 5) + 2;
-      b = Math.floor(Math.random() * 5) + 2;
-      answer = a * b;
-      break;
-  }
-
-  return {
-    question: `What is ${a} ${operation} ${b}?`,
-    answer,
-    challenge: `${a}${operation}${b}`
-  };
-};
 
 // Configuration for providers and models
 const PROVIDERS_CONFIG = {
@@ -124,27 +90,27 @@ const App: React.FC = () => {
   const [appData, setAppData] = useState<any>(null);
   const abortControllerRef = useRef<AbortController | null>(new AbortController());
 
-  // Add state for math challenge configuration
-  const [mathChallenge, setMathChallenge] = useState<{ 
-    question: string, 
-    answer: number, 
-    challenge: string 
-  } | null>(null);
-  const [userAnswer, setUserAnswer] = useState('');
+  const [showChallenge, setShowChallenge] = useState(false);
 
   // Update model when provider changes
   useEffect(() => {
     setModel(PROVIDERS_CONFIG[provider].defaultModel);
   }, [provider]);
 
-  const prepareChallengeAndSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const prepareChallengeAndSubmit = async () => {
+    if (ENABLE_MATH_CHALLENGE) {
+      setShowChallenge(true);
+    } else {
+      handleFinalSubmit();
+    }
+  }
+
+  const handleFinalSubmit = async (mathChallenge?: MathChallenge) => {
     // Cancel any ongoing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
+
     // Create new abort controller
     abortControllerRef.current = new AbortController();
     
@@ -152,34 +118,7 @@ const App: React.FC = () => {
     setLoading(true);
     setError('');
     setReport('');
-
-    // Math challenge logic (only if enabled)
-    if (ENABLE_MATH_CHALLENGE) {
-      // Generate math challenge if not already present
-      if (!mathChallenge) {
-        const newChallenge = generateMathChallenge();
-        setMathChallenge(newChallenge);
-        setLoading(false);
-        return;
-      }
-
-      // Verify math challenge
-      const challengeAnswer = parseInt(userAnswer, 10);
-      if (challengeAnswer !== mathChallenge.answer) {
-        setError('Incorrect answer. Please solve the math challenge.');
-        setLoading(false);
-        // Regenerate challenge
-        const newChallenge = generateMathChallenge();
-        setMathChallenge(newChallenge);
-        setUserAnswer('');
-        return;
-      }
-
-      // Immediately dismiss math challenge after correct answer
-      const currentChallenge = mathChallenge;
-      setMathChallenge(null);
-      setUserAnswer('');
-    }
+    setShowChallenge(false);
 
     try {
       let processUrlEndpoint = '';
@@ -199,7 +138,7 @@ const App: React.FC = () => {
         'Content-Type': 'application/json'
       };
 
-      // Add math challenge header only if enabled
+      // Add math challenge header only if enabled and challenge exists
       if (ENABLE_MATH_CHALLENGE && mathChallenge) {
         headers['X-Math-Challenge'] = mathChallenge.challenge;
       }
@@ -249,20 +188,20 @@ const App: React.FC = () => {
         }
 
         const chunk = decoder.decode(value, { stream: true });
-        console.log('Received chunk:', chunk);
+        // console.log('Received chunk:', chunk);
 
         // Split chunk into lines and parse
         const lines = chunk.split('\n').filter(line => line.trim() !== '');
         
         lines.forEach(line => {
           try {
-            console.log('Parsing line:', line);
+            // console.log('Parsing line:', line);
             const parsedChunk = JSON.parse(line);
             
             if (parsedChunk.report) {
               fullReport += parsedChunk.report;
               setReport(fullReport);
-              //console.log('Updated report:', fullReport);
+              console.log('Updated report:', fullReport);
             }
           } catch (parseError) {
             console.error('Error parsing chunk:', parseError, 'Raw line:', line);
@@ -520,39 +459,23 @@ const App: React.FC = () => {
           )}
         </div>
 
+        {ENABLE_MATH_CHALLENGE && showChallenge && (
+          <MathChallengeComponent 
+            isOpen={showChallenge}
+            onClose={() => setShowChallenge(false)}
+            onChallengeComplete={(mathChallenge) => {
+              // Continue with submission using the completed challenge
+              handleFinalSubmit(mathChallenge);
+            }}
+            onChallengeFail={() => {
+            }}
+          />
+        )}
 
+        <div className="border-t border-gray-200 my-8"></div>
 
-          <div className="border-t border-gray-200 my-8"></div>
-
-          {/* Product Hunt Badge */}
-          <ProductHuntBadge />
-
-          {/* Math Challenge Modal (only render if enabled and challenge exists) */}
-          {ENABLE_MATH_CHALLENGE && mathChallenge && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg shadow-xl">
-                <h2 className="text-xl font-bold mb-4">Human Verification</h2>
-                <p className="mb-4">{mathChallenge.question}</p>
-                <input 
-                  type="number" 
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={userAnswer}
-                  onChange={(e) => setUserAnswer(e.target.value)}
-                  className="w-full px-3 py-2 border rounded"
-                  placeholder="Your answer"
-                  autoFocus
-                />
-                <button 
-                  onClick={prepareChallengeAndSubmit}
-                  className="mt-4 w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
-                >
-                  Submit
-                </button>
-              </div>
-            </div>
-          )}
-
+        {/* Product Hunt Badge */}
+        <ProductHuntBadge />
       </div>
     </div>
   );

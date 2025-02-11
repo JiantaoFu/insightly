@@ -53,6 +53,8 @@ Analyze the app reviews provided and generate a structured markdown report that 
 
 10. **Original App Link**
     - Include the original app URL for reference.
+
+${formatPrompt}
 `;
 
 export const appComparisonPrompt = `

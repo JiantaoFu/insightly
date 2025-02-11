@@ -350,21 +350,7 @@ ${reviewsText}
 
 ${promptConfig.appReviewAnalysis}
 
-**Formatting Requirements:**
-- Use markdown formatting with appropriate headers and bullet points.
-- Do NOT wrap the final output in triple backticks.
-
-For example, the output should start like:
-
-# Summary of Key Insights
-- ...
-
-NOT like this:
-
-\`\`\`Markdown
-# Summary of Key Insights
-- ...
-\`\`\`
+${promptConfig.format}
 `;
     } else {
       // Fallback to existing logic if no app data
@@ -428,6 +414,134 @@ NOT like this:
       });
     }
     res.end();
+  }
+});
+
+app.post('/api/compare-competitors', 
+  ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
+  async (req, res) => {
+  try {
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const { competitors } = req.body;
+
+    // Validate input
+    if (!competitors || !Array.isArray(competitors) || competitors.length < 2) {
+      res.status(400).json({ error: 'At least two competitors are required' });
+      return;
+    }
+
+    // Validate each competitor has required fields
+    const validCompetitors = competitors.filter(comp => 
+      comp.name && comp.url && comp.platform && comp.description
+    );
+
+    if (validCompetitors.length < 2) {
+      res.status(400).json({ 
+        error: 'Insufficient valid competitor data',
+        details: 'Each competitor must have name, url, platform, and description'
+      });
+      return;
+    }
+
+    // Prepare the comparison prompt with reviews
+    const competitorDetails = validCompetitors.map(comp => {
+      // Extract top positive and negative reviews
+      const positiveReviews = comp.appData?.reviews?.reviews
+        ?.filter(review => review.score >= 4)
+        ?.map(review => `"${review.text}"`) || [];
+      
+      const negativeReviews = comp.appData?.reviews?.reviews
+        ?.filter(review => review.score <= 2)
+        ?.map(review => `"${review.text}"`) || [];
+
+      return `
+App Name: ${comp.name}
+Platform: ${comp.platform}
+Developer: ${comp.developer || 'N/A'}
+Description: ${comp.description}
+
+Positive Reviews:
+${positiveReviews.length > 0 ? positiveReviews.join('\n') : 'No notable positive reviews'}
+
+Negative Reviews:
+${negativeReviews.length > 0 ? negativeReviews.join('\n') : 'No notable negative reviews'}
+
+Average Rating: ${comp.appData?.reviews?.averageRating || 'N/A'}
+Total Reviews: ${comp.appData?.reviews?.totalReviews || 0}
+`;
+    }).join('\n\n');
+
+    const comparisonPrompt = `
+${promptConfig.appComparison}
+
+\`\`\`
+${competitorDetails}
+\`\`\`
+`;
+
+    console.log(comparisonPrompt);
+
+    // Select the LLM provider (default to Ollama)
+    const selectedProvider = LLM_PROVIDERS[process.env.LLM_PROVIDER || 'ollama'];
+    const selectedModel = process.env.LLM_MODEL || 'deepseek-r1:7b';
+
+    let finalReport = '';
+    try {
+      await selectedProvider.streamResponse(
+        selectedModel, 
+        comparisonPrompt, 
+        (chunk) => {
+          // Accumulate the report for caching
+          finalReport += chunk;
+
+          // Stream the response
+          res.write(JSON.stringify({ report: chunk }) + '\n');
+        }
+      );
+
+      console.log('Final report:', finalReport);
+
+      // // Store in cache with comprehensive metadata
+      // const hashUrl = generateUrlHash(url);
+      // const cacheEntry = createCacheEntry(url, hashUrl, finalReport, appData);
+      // analysisCache.set(hashUrl, cacheEntry);
+
+      // Directly end the response after streaming is complete
+      res.end();
+    } catch (generateError) {
+      console.error('Generate Response Error:', {
+        message: generateError.message,
+        stack: generateError.stack,
+        responseData: generateError.response ? generateError.response.data : 'No response data'
+      });
+
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Failed to generate response', 
+          details: generateError.message,
+          providerDetails: {
+            url: selectedProvider.url,
+            model: selectedModel
+          }
+        });
+      }
+      res.end();
+    }
+
+  } catch (error) {
+    console.error('Competitor comparison error:', error);
+    
+    // Ensure headers haven't been sent
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Internal server error during competitor comparison', 
+        details: error.message,
+        stack: error.stack 
+      });
+    }
   }
 });
 

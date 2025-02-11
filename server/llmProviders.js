@@ -16,7 +16,8 @@ export const LLM_PROVIDERS = {
         prompt: prompt,
         options: {
           temperature: options.temperature || 0.7,
-          max_tokens: options.max_tokens || 1000
+          max_tokens: options.max_tokens || 16384,
+          num_ctx: options.num_ctx || 32768
         }
       }, {
         timeout: 300000  // 5-minute timeout
@@ -37,7 +38,8 @@ export const LLM_PROVIDERS = {
             stream: true,
             options: {
               temperature: options.temperature || 0.7,
-              max_tokens: options.max_tokens || 1000
+              max_tokens: options.max_tokens || 16384,
+              num_ctx: options.num_ctx || 32768
             }
           }, {
             timeout: 300000,  // 5-minute timeout

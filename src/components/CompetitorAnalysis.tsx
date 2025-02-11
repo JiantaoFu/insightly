@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { 
   Plus, 
   Globe, 
   Scale, 
-  Zap, 
-  CheckCircle2,
   Loader2,
   BarChart2,
-  AlertCircle,
-  X,
-  AlertOctagon
+  AlertOctagon,
+  X
 } from 'lucide-react';
 import Navigation from './Navigation';
 import { ProductHuntBadge } from './ProductHuntBadge';
@@ -22,18 +20,18 @@ interface CompetitorApp {
   description: string;
   platform: 'ios' | 'android';
   developer: string;
-}
-
-interface CompetitorAnalysisResult {
-  name: string;
-  url: string;
-  logo: string;
-  strengths: string[];
-  weaknesses: string[];
-  marketPosition: string;
-  technicalDetails: {
-    technologies: string[];
-    performanceMetrics: Record<string, number>;
+  appData?: {
+    reviews?: {
+      reviews: Array<{
+        text: string;
+        score: number;
+        date?: string;
+        userName?: string;
+      }>;
+      averageRating?: number;
+      totalReviews?: number;
+    };
+    details?: Record<string, any>;
   };
 }
 
@@ -72,7 +70,7 @@ const fetchCompetitorAppDetails = async (url: string): Promise<CompetitorApp> =>
     const response = await fetch(processUrlEndpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, includeFullDetails: true }), // Request full details
       signal: abortController.signal
     });
 
@@ -95,7 +93,15 @@ const fetchCompetitorAppDetails = async (url: string): Promise<CompetitorApp> =>
       logo: data.details.icon,
       description: data.details.description,
       platform: url.includes('apps.apple.com') ? 'ios' : 'android',
-      developer: data.details.developer
+      developer: data.details.developer,
+      appData: {
+        reviews: {
+          reviews: data.reviews?.reviews || [],
+          averageRating: data.reviews?.averageRating,
+          totalReviews: data.reviews?.totalReviews
+        },
+        details: data.details
+      }
     };
 
     // Log normalized app details
@@ -148,9 +154,8 @@ export const CompetitorAnalysis: React.FC = () => {
   const [competitors, setCompetitors] = useState<CompetitorApp[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState<boolean>(false);
-  const [analysisLoading, setAnalysisLoading] = useState<boolean>(false); 
-  const [analysisResults, setAnalysisResults] = useState<CompetitorAnalysisResult[]>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [comparisonResult, setComparisonResult] = useState<string>('');
+  const [isComparing, setIsComparing] = useState<boolean>(false);
 
   const handleAddCompetitor = async () => {
     // Prevent multiple simultaneous additions
@@ -158,130 +163,138 @@ export const CompetitorAnalysis: React.FC = () => {
 
     // Validate URL
     if (!currentUrl.trim()) {
-      setError('Please enter a URL');
+      setError('Please enter a valid app store URL');
       return;
     }
 
-    if (!validateCompetitorUrl(currentUrl)) {
-      setError('Please provide a valid App Store or Google Play URL');
-      return;
-    }
-
-    // Check if URL is already added
+    // Check for duplicate URLs
     if (competitorUrls.includes(currentUrl)) {
-      setError('This competitor URL has already been added');
+      setError('This app has already been added');
       return;
     }
 
     try {
-      // Set adding state to prevent duplicate submissions
       setIsAdding(true);
       setError(null);
 
-      // Fetch app details
+      // Fetch competitor details
       const competitorDetails = await fetchCompetitorAppDetails(currentUrl);
-      
-      // Add to competitors list
-      setCompetitors(prev => {
-        // Ensure URL is still not duplicated (race condition prevention)
-        if (!prev.some(comp => comp.url === currentUrl)) {
-          return [...prev, competitorDetails];
-        }
-        return prev;
-      });
-      
-      // Add URL to tracked URLs
-      setCompetitorUrls(prev => {
-        // Ensure URL is not duplicated
-        if (!prev.includes(currentUrl)) {
-          return [...prev, currentUrl];
-        }
-        return prev;
-      });
-      
-      // Reset input
-      setCurrentUrl('');
-    } catch (error) {
-      console.error('Error adding competitor:', error);
-      
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('An unexpected error occurred');
-      }
+
+      // Update state
+      setCompetitors(prev => [...prev, competitorDetails]);
+      setCompetitorUrls(prev => [...prev, currentUrl]);
+      setCurrentUrl(''); // Reset input
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add competitor';
+      setError(errorMessage);
     } finally {
-      // Always reset adding state
       setIsAdding(false);
     }
   };
 
-  const analyzeCompetitors = async (competitorUrls: string[]) => {
-    try {
-      const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
-      
-      const response = await axios.post(`${SERVER_URL}/api/competitor-analysis`, {
-        urls: competitorUrls
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (response.data && Array.isArray(response.data)) {
-        setAnalysisResults(response.data);
-        return response.data;
-      } else {
-        throw new Error('Invalid response format from server');
-      }
-    } catch (error) {
-      console.error('Competitor Analysis Error:', error);
-      
-      if (axios.isAxiosError(error)) {
-        if (error.response) {
-          setError(`Analysis failed: ${error.response.data.message || 'Server error'}`);
-        } else if (error.request) {
-          setError('No response from server. Please check your network connection.');
-        } else {
-          setError('Error setting up the analysis request.');
-        }
-      } else {
-        setError('An unexpected error occurred during competitor analysis.');
-      }
-      
-      throw error;
-    }
+  const handleRemoveCompetitor = (urlToRemove: string) => {
+    setCompetitors(prev => 
+      prev.filter(competitor => competitor.url !== urlToRemove)
+    );
+    setCompetitorUrls(prev => 
+      prev.filter(url => url !== urlToRemove)
+    );
   };
 
-  const handleAnalyzeCompetitors = async () => {
+  const compareCompetitors = async () => {
+    // Ensure at least two competitors
     if (competitors.length < 2) {
-      setError('Please add at least two competitors to perform analysis');
+      setError('Please add at least two competitors to compare');
       return;
     }
 
-    setIsAnalyzing(true);
-    setError(null);
-
     try {
-      const competitorUrls = competitors.map(competitor => competitor.url);
-      
-      const analysisResults = await analyzeCompetitors(competitorUrls);
-      
-      const updatedCompetitors = competitors.map(competitor => {
-        const analysisResult = analysisResults.find(result => result.url === competitor.url);
-        return analysisResult 
-          ? { 
-              ...competitor, 
-              strengths: analysisResult.strengths,
-              weaknesses: analysisResult.weaknesses
-            }
-          : competitor;
+      setIsComparing(true);
+      setComparisonResult('');
+      setError(null);
+
+      // Fetch full app details for each competitor before comparison
+      const competitorDetailsWithData = await Promise.all(
+        competitors.map(async (competitor) => {
+          try {
+            // Fetch full app details using the existing fetchCompetitorAppDetails function
+            const fullDetails = await fetchCompetitorAppDetails(competitor.url);
+            return fullDetails;
+          } catch (error) {
+            console.error(`Failed to fetch details for ${competitor.name}:`, error);
+            return competitor; // Return original competitor if fetch fails
+          }
+        })
+      );
+
+      // Validate competitor data before sending
+      const validCompetitors = competitorDetailsWithData.filter(comp => 
+        comp.name && comp.url && comp.platform && comp.description
+      );
+
+      if (validCompetitors.length < 2) {
+        setError('Insufficient valid competitor data. Please check your competitors.');
+        setIsComparing(false);
+        return;
+      }
+
+      console.log('Sending Competitors:', JSON.stringify(validCompetitors, null, 2));
+
+      const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/compare-competitors`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ competitors: validCompetitors })
       });
 
-      console.log('Competitor Analysis Results:', analysisResults);
-      
+      // Check response status
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('No response body');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          setIsComparing(false);
+          break;
+        }
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        lines.forEach(line => {
+          try {
+            const parsedLine = JSON.parse(line);
+            
+            if (parsedLine.report) {
+              setComparisonResult(prev => prev + parsedLine.report);
+            }
+          } catch (parseError) {
+            console.error('Error parsing stream chunk:', parseError);
+          }
+        });
+      }
     } catch (error) {
-    } finally {
-      setIsAnalyzing(false);
+      console.error('Competitor comparison error:', error);
+      
+      // Detailed error handling
+      if (error instanceof Error) {
+        setError(`Comparison failed: ${error.message}`);
+      } else {
+        setError('An unexpected error occurred during competitor comparison');
+      }
+      
+      setIsComparing(false);
     }
   };
 
@@ -403,33 +416,136 @@ export const CompetitorAnalysis: React.FC = () => {
                 ))}
               </div>
 
-              {/* Analysis Button */}
-              <div className="flex justify-center mt-6">
-                <div className="flex flex-col items-center space-y-4">
-                  <button 
-                    onClick={handleAnalyzeCompetitors}
-                    disabled={isAnalyzing}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white 
-                      px-8 py-3 rounded-lg shadow-lg hover:shadow-xl 
-                      transition-all duration-300 ease-in-out 
-                      flex items-center space-x-3 
-                      disabled:opacity-50 disabled:cursor-not-allowed 
-                      transform hover:-translate-y-1"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        <span>Analyzing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <BarChart2 className="w-5 h-5" />
-                        <span>Analyze Competitors</span>
-                      </>
-                    )}
-                  </button>
+              {/* Comparison Button */}
+              {competitors.length >= 2 && (
+                <div className="flex justify-center mt-6">
+                  <div className="flex flex-col items-center space-y-4">
+                    <button 
+                      onClick={compareCompetitors}
+                      disabled={isComparing}
+                      className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white 
+                        px-8 py-3 rounded-lg shadow-lg hover:shadow-xl 
+                        transition-all duration-300 ease-in-out 
+                        flex items-center space-x-3 
+                        disabled:opacity-50 disabled:cursor-not-allowed 
+                        transform hover:-translate-y-1"
+                    >
+                      {isComparing ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                          <span>Comparing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <BarChart2 className="w-5 h-5" />
+                          <span>Compare Competitors</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Comparison Result */}
+              {comparisonResult && (
+                <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+                  <h3 className="text-xl font-bold mb-4">Competitor Comparison</h3>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({node, ...props}) => (
+                        <h1 
+                          className="text-3xl font-extrabold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500" 
+                          {...props} 
+                        />
+                      ),
+                      h2: ({node, ...props}) => (
+                        <h2 
+                          className="text-2xl font-bold text-gray-800 mb-4 mt-6 pl-3 border-l-4 border-blue-500" 
+                          {...props} 
+                        />
+                      ),
+                      h3: ({node, ...props}) => (
+                        <h3 
+                          className="text-xl font-semibold text-gray-700 mb-3 mt-4" 
+                          {...props} 
+                        />
+                      ),
+                      h4: ({node, ...props}) => (
+                        <h4 
+                          className="text-lg font-medium text-gray-600 mb-2 mt-3 italic" 
+                          {...props} 
+                        />
+                      ),
+                      h5: ({node, ...props}) => (
+                        <h5 
+                          className="text-base font-medium text-gray-500 mb-2 uppercase tracking-wider" 
+                          {...props} 
+                        />
+                      ),
+                      p: ({node, ...props}) => (
+                        <p 
+                          className="text-gray-700 leading-relaxed mb-4 pl-2 border-l-2 border-gray-200" 
+                          {...props} 
+                        />
+                      ),
+                      ul: ({node, ...props}) => (
+                        <ul 
+                          className="list-none pl-4 mb-4 space-y-2" 
+                          {...props} 
+                        />
+                      ),
+                      li: ({node, ...props}) => (
+                        <li 
+                          className="relative pl-4 text-gray-700" 
+                          {...props} 
+                        />
+                      ),
+                      table: ({node, ...props}) => (
+                        <div className="overflow-x-auto shadow-lg rounded-lg mb-6">
+                          <table 
+                            className="w-full border-collapse bg-white" 
+                            {...props} 
+                          />
+                        </div>
+                      ),
+                      th: ({node, ...props}) => (
+                        <th 
+                          className="px-6 py-3 bg-blue-50 text-xs font-bold text-blue-600 uppercase tracking-wider border-b-2 border-blue-200 text-left" 
+                          {...props} 
+                        />
+                      ),
+                      td: ({node, ...props}) => (
+                        <td 
+                          className="px-6 py-4 whitespace-nowrap border-b border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors" 
+                          {...props} 
+                        />
+                      ),
+                      blockquote: ({node, ...props}) => (
+                        <blockquote 
+                          className="border-l-4 border-blue-500 pl-4 py-2 my-4 bg-blue-50 italic text-gray-700" 
+                          {...props} 
+                        />
+                      ),
+                      code: ({node, inline, ...props}) => (
+                        inline ? (
+                          <code 
+                            className="bg-gray-100 text-red-600 rounded px-1 py-0.5 text-sm font-mono" 
+                            {...props} 
+                          />
+                        ) : (
+                          <pre 
+                            className="bg-gray-900 text-white rounded-lg p-4 overflow-x-auto text-sm font-mono" 
+                            {...props} 
+                          />
+                        )
+                      )
+                    }}
+                  >
+                    {comparisonResult}
+                  </ReactMarkdown>
+                </div>
+              )}
             </>
           )}
 

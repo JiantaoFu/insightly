@@ -1,14 +1,18 @@
 import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 import { Send, Loader2, Download, Zap, Home as HomeIcon, BarChart2, TrendingUp, Rocket } from 'lucide-react';
 import { Search,Zap as ZapIcon,TrendingUp as TrendingUpIcon,Rocket as RocketIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ShareButton from './components/ShareButton';
 import ShareReportView from './components/ShareReportView';
-import Home from './pages/Home';
 import Navigation from './components/Navigation';
-import AppInsightsPage from './pages/AppInsightsPage';
 import { ProductHuntBadge } from './components/ProductHuntBadge';
+
+// Lazy load pages
+const Home = lazy(() => import('./pages/Home'));
+const AppInsightsPage = lazy(() => import('./pages/AppInsightsPage'));
+const CompetitorAnalysis = lazy(() => import('./components/CompetitorAnalysis'));
 
 // Get math challenge configuration from environment
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -560,6 +564,7 @@ const App: React.FC = () => {
         <Route path="/app" element={<MainContent />} />
         <Route path="/share/:shareId" element={<ShareReportView />} />
         <Route path="/app-insights" element={<AppInsightsPage />} />
+        <Route path="/competitor-insights" element={<CompetitorAnalysis />} />
       </Routes>
     </Router>
   );

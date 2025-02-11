@@ -11,8 +11,8 @@ const PROVIDERS_CONFIG = {
     models: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
   },
   gemini: {
-    defaultModel: 'gemini-1.5-flash',
-    models: ['gemini-1.5-flash', 'gemini-pro', 'gemini-pro-vision']
+    defaultModel: 'gemini-2.0-flash',
+    models: ['gemini-2.0-flash', 'gemini-pro', 'gemini-pro-vision']
   }
 };
 

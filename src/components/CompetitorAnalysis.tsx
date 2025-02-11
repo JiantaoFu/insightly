@@ -292,6 +292,7 @@ export const CompetitorAnalysis: React.FC = () => {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let fullReport = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -309,13 +310,16 @@ export const CompetitorAnalysis: React.FC = () => {
             const parsedLine = JSON.parse(line);
             
             if (parsedLine.report) {
-              setComparisonResult(prev => prev + parsedLine.report);
+              fullReport += parsedLine.report;
+              setComparisonResult(fullReport);
             }
           } catch (parseError) {
             console.error('Error parsing stream chunk:', parseError);
           }
         });
       }
+
+      console.log('Final Report:', fullReport);
     } catch (error) {
       console.error('Competitor comparison error:', error);
       

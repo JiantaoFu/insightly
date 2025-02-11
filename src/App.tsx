@@ -182,12 +182,13 @@ const App: React.FC = () => {
             if (parsedChunk.report) {
               fullReport += parsedChunk.report;
               setReport(fullReport);
-              console.log('Updated report:', fullReport);
             }
           } catch (parseError) {
             console.error('Error parsing chunk:', parseError, 'Raw line:', line);
           }
         });
+
+        console.log('full report:', fullReport);
       }
     } catch (error) {
       if (error.name === 'AbortError') {

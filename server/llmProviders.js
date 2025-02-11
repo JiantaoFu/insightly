@@ -122,18 +122,27 @@ export const LLM_PROVIDERS = {
       return response.data.choices[0].message.content;
     },
     async streamResponse(model, prompt, onChunk, options = {}) {
+      const {
+        maxTokens = 4096,  // Default max tokens
+        contextLength = 8192,  // Default context length
+        temperature = 0.7,  // Default temperature
+        topP = 0.9,  // Default top-p sampling
+        ...otherOptions
+      } = options;
+
+      const requestBody = {
+        model: model || this.defaultModel,
+        messages: [{ role: 'user', content: prompt }],
+        stream: true,
+        max_tokens: maxTokens,
+        temperature: temperature,
+        top_p: topP,
+        ...otherOptions
+      };
+
       const response = await axios.post(
         this.url, 
-        {
-          model: model || this.defaultModel,
-          messages: [
-            { role: "system", content: "You are an expert app review analyzer." },
-            { role: "user", content: prompt }
-          ],
-          temperature: options.temperature || 0.7,
-          max_tokens: options.max_tokens || 1000,
-          stream: true
-        },
+        requestBody,
         {
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
@@ -179,7 +188,7 @@ export const LLM_PROVIDERS = {
   gemini: {
     url: process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models',
     apiKey: process.env.GEMINI_API_KEY,
-    defaultModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+    defaultModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
     async generateResponse(model, prompt, options = {}) {
       const genAI = new GoogleGenerativeAI(this.apiKey);
       const generativeModel = genAI.getGenerativeModel({ model: model || this.defaultModel });
@@ -194,7 +203,28 @@ export const LLM_PROVIDERS = {
     },
     async streamResponse(model, prompt, onChunk, options = {}) {
       const genAI = new GoogleGenerativeAI(this.apiKey);
-      const generativeModel = genAI.getGenerativeModel({ model: model || this.defaultModel });
+      
+      // Extract options with sensible defaults
+      const {
+        maxTokens = 16384,  // Default max tokens
+        contextLength = 32768,  // Default context length
+        temperature = 0.7,  // Default temperature
+        topP = 0.9,  // Default top-p sampling
+        ...otherOptions
+      } = options;
+
+      // Configure generation settings
+      const generationConfig = {
+        maxOutputTokens: maxTokens,
+        temperature: temperature,
+        topP: topP,
+        ...otherOptions
+      };
+
+      const generativeModel = genAI.getGenerativeModel({ 
+        model: model || this.defaultModel,
+        generationConfig
+      });
       
       try {
         const result = await generativeModel.generateContentStream(prompt);

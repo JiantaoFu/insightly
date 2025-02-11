@@ -13,6 +13,8 @@ import {
 import Navigation from './Navigation';
 import { ProductHuntBadge } from './ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './MathChallenge';
+import { ProviderModelSelector } from './ProviderModelSelector';
+import { useProviderModel } from './ProviderModelSelector';
 
 // Enable math challenge based on environment variable
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -161,6 +163,7 @@ export const CompetitorAnalysis: React.FC = () => {
   const [comparisonResult, setComparisonResult] = useState<string>('');
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [showChallenge, setShowChallenge] = useState(false);
+  const { provider, model } = useProviderModel();
 
   const handleAddCompetitor = async () => {
     // Prevent multiple simultaneous additions
@@ -210,11 +213,15 @@ export const CompetitorAnalysis: React.FC = () => {
     if (ENABLE_MATH_CHALLENGE) {
       setShowChallenge(true);
     } else {
-      compareCompetitors();
+      handleFinalSubmit(provider, model);
     }
   }
 
-  const compareCompetitors = async (mathChallenge?: MathChallenge) => {
+  const handleFinalSubmit = async (
+    currentProvider: keyof typeof PROVIDERS_CONFIG, 
+    currentModel: string, 
+    mathChallenge?: MathChallenge
+  ) => {
     // Ensure at least two competitors
     if (competitors.length < 2) {
       setError('Please add at least two competitors to compare');
@@ -265,7 +272,12 @@ export const CompetitorAnalysis: React.FC = () => {
       const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/compare-competitors`, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ competitors: validCompetitors })
+        body: JSON.stringify({
+           competitors: validCompetitors,
+           provider: currentProvider,
+           model: currentModel,
+           mathChallenge: mathChallenge
+        })
       });
 
       // Check response status
@@ -440,6 +452,7 @@ export const CompetitorAnalysis: React.FC = () => {
               {competitors.length >= 2 && (
                 <div className="flex justify-center mt-6">
                   <div className="flex flex-col items-center space-y-4">
+                    {false && <ProviderModelSelector />}
                     <button 
                       onClick={prepareChallengeAndSubmit}
                       disabled={isComparing}
@@ -593,7 +606,7 @@ export const CompetitorAnalysis: React.FC = () => {
             onClose={() => setShowChallenge(false)}
             onChallengeComplete={(mathChallenge) => {
               // Continue with submission using the completed challenge
-              compareCompetitors(mathChallenge);
+              handleFinalSubmit(provider, model, mathChallenge);
             }}
             onChallengeFail={() => {
             }}

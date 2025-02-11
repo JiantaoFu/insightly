@@ -376,11 +376,8 @@ app.post('/api/analyze',
     res.setHeader('Transfer-Encoding', 'chunked');
 
     console.log('Received parameters:', { url, model, provider });
-    
     const selectedProvider = LLM_PROVIDERS[provider || process.env.LLM_PROVIDER || 'ollama'];
-    
     console.log('Selected provider:', selectedProvider ? 'Found' : 'Not found');
-    
     if (!selectedProvider) {
       console.error('Invalid provider:', provider);
       return res.status(400).json({ 
@@ -486,7 +483,17 @@ app.post('/api/compare-competitors',
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Transfer-Encoding', 'chunked');
 
-    const { competitors } = req.body;
+    const { provider, model, competitors } = req.body;
+
+    const selectedProvider = LLM_PROVIDERS[provider || process.env.LLM_PROVIDER || 'ollama'];
+    console.log('Selected provider:', selectedProvider ? 'Found' : 'Not found');
+    if (!selectedProvider) {
+      console.error('Invalid provider:', provider);
+      return res.status(400).json({ 
+        error: 'Invalid LLM provider', 
+        availableProviders: Object.keys(LLM_PROVIDERS) 
+      });
+    }
 
     // Validate input
     if (!competitors || !Array.isArray(competitors) || competitors.length < 2) {
@@ -545,14 +552,10 @@ ${competitorDetails}
 
     console.log(comparisonPrompt);
 
-    // Select the LLM provider (default to Ollama)
-    const selectedProvider = LLM_PROVIDERS[process.env.LLM_PROVIDER || 'ollama'];
-    const selectedModel = process.env.LLM_MODEL || 'deepseek-r1:7b';
-
     let finalReport = '';
     try {
       await selectedProvider.streamResponse(
-        selectedModel, 
+        model,
         comparisonPrompt, 
         (chunk) => {
           // Accumulate the report for caching

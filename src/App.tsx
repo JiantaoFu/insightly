@@ -9,6 +9,7 @@ import ShareReportView from './components/ShareReportView';
 import Navigation from './components/Navigation';
 import { ProductHuntBadge } from './components/ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './components/MathChallenge';
+import { ProviderModelSelector, useProviderModel } from './components/ProviderModelSelector';
 
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
@@ -23,22 +24,6 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 console.log('Resolved SERVER_URL:', SERVER_URL);
 console.log('VITE_SERVER_URL from env:', import.meta.env.VITE_SERVER_URL);
 console.log('VITE_ENABLE_MATH_CHALLENGE from env:', import.meta.env.VITE_ENABLE_MATH_CHALLENGE);
-
-// Configuration for providers and models
-const PROVIDERS_CONFIG = {
-  ollama: {
-    defaultModel: 'deepseek-r1:7b',
-    models: ['llama2', 'mistral', 'deepseek-r1:7b']
-  },
-  openai: {
-    defaultModel: 'gpt-3.5-turbo',
-    models: ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo']
-  },
-  gemini: {
-    defaultModel: 'gemini-1.5-flash',
-    models: ['gemini-1.5-flash', 'gemini-pro', 'gemini-pro-vision']
-  }
-};
 
 // Enhanced FeatureCard with more elegant design
 const FeatureCard: React.FC<{ 
@@ -77,13 +62,6 @@ const FeatureCard: React.FC<{
 
 const App: React.FC = () => {
   const [url, setUrl] = useState('');
-  const [provider, setProvider] = useState<keyof typeof PROVIDERS_CONFIG>(
-    (import.meta.env.VITE_LLM_PROVIDER as keyof typeof PROVIDERS_CONFIG) || 'gemini'
-  );
-  const [model, setModel] = useState(
-    import.meta.env[`VITE_${provider.toUpperCase()}_DEFAULT_MODEL`] || 
-    PROVIDERS_CONFIG[provider].defaultModel
-  );
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,20 +70,22 @@ const App: React.FC = () => {
 
   const [showChallenge, setShowChallenge] = useState(false);
 
-  // Update model when provider changes
-  useEffect(() => {
-    setModel(PROVIDERS_CONFIG[provider].defaultModel);
-  }, [provider]);
+  const { provider, model } = useProviderModel();
 
-  const prepareChallengeAndSubmit = async () => {
+  const prepareChallengeAndSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (ENABLE_MATH_CHALLENGE) {
       setShowChallenge(true);
     } else {
-      handleFinalSubmit();
+      handleFinalSubmit(provider, model);
     }
   }
 
-  const handleFinalSubmit = async (mathChallenge?: MathChallenge) => {
+  const handleFinalSubmit = async (
+    currentProvider: keyof typeof PROVIDERS_CONFIG, 
+    currentModel: string, 
+    mathChallenge?: MathChallenge
+  ) => {
     // Cancel any ongoing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -163,9 +143,10 @@ const App: React.FC = () => {
         headers,
         body: JSON.stringify({
           url,
-          provider,
-          model: model || undefined,
-          appData: data
+          provider: currentProvider,
+          model: currentModel,
+          appData: data,
+          mathChallenge
         }),
         signal: abortControllerRef.current.signal
       });
@@ -368,32 +349,7 @@ const App: React.FC = () => {
 
           <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
-              {false && (
-                <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                  <select
-                    value={provider}
-                    onChange={(e) => setProvider(e.target.value as keyof typeof PROVIDERS_CONFIG)}
-                    className="w-full sm:w-auto px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
-                  >
-                    {Object.keys(PROVIDERS_CONFIG).map(providerKey => (
-                      <option key={providerKey} value={providerKey}>
-                        {providerKey.charAt(0).toUpperCase() + providerKey.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="w-full sm:w-auto flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
-                  >
-                    {PROVIDERS_CONFIG[provider].models.map(modelName => (
-                      <option key={modelName} value={modelName}>
-                        {modelName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {false && <ProviderModelSelector />}
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <input
@@ -465,7 +421,7 @@ const App: React.FC = () => {
             onClose={() => setShowChallenge(false)}
             onChallengeComplete={(mathChallenge) => {
               // Continue with submission using the completed challenge
-              handleFinalSubmit(mathChallenge);
+              handleFinalSubmit(provider, model, mathChallenge);
             }}
             onChallengeFail={() => {
             }}

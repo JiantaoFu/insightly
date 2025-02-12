@@ -4,21 +4,15 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import Navigation from './Navigation';
 import { ProductHuntBadge } from './ProductHuntBadge';
+import remarkGfm from 'remark-gfm';
 
-interface ShareReportViewProps {
-  // Any additional props if needed
+interface SharedReportViewProps {
+  reportType: 'app' | 'competitor';
 }
 
-interface ReportChunk {
-  type: string;
-  data: any;
-}
-
-const ShareReportView: React.FC<ShareReportViewProps> = () => {
+const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
   const { shareId } = useParams<{ shareId: string }>();
-  const [metadata, setMetadata] = useState<any | null>(null);
   const [report, setReport] = useState<string>('');
-  const [reportChunks, setReportChunks] = useState<ReportChunk[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +22,11 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
     const fetchSharedReport = async () => {
       try {
         setIsLoading(true);
-        const analysisResponse = await fetch(`${SERVER_URL}/api/shared-report?shareId=${shareId}`, {
+        const apiEndpoint = reportType === 'app' 
+          ? `/api/shared-app-report?shareId=${shareId}` 
+          : `/api/shared-competitor-report?shareId=${shareId}`;
+
+        const analysisResponse = await fetch(`${SERVER_URL}${apiEndpoint}`, {
           method: 'GET'
         });
         const responseData = await analysisResponse.json();
@@ -44,14 +42,14 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
         setReport(responseData.report);
       } catch (error) {
         console.error('Error:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load shared report');
+        setError(error instanceof Error ? error.message : `Failed to load shared ${reportType} report`);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchSharedReport();
-  }, [shareId]);
+  }, [shareId, reportType]);
 
   if (isLoading) {
     return (
@@ -75,7 +73,7 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
       <Navigation />
       <div className="prose prose-sm max-w-none mb-8">
         {report ? (
-          <ReactMarkdown>{report}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{report}</ReactMarkdown>
         ) : (
           <p>No report available</p>
         )}
@@ -85,4 +83,8 @@ const ShareReportView: React.FC<ShareReportViewProps> = () => {
   );
 };
 
-export default ShareReportView;
+// Create specific report view components using the generic component
+const AppReportView: React.FC = () => <SharedReportView reportType="app" />;
+const CompetitorReportView: React.FC = () => <SharedReportView reportType="competitor" />;
+
+export { AppReportView, CompetitorReportView };

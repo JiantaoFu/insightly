@@ -2,16 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Share2, Copy, Check, Link as LinkIcon } from 'lucide-react';
 import axios from 'axios';
 
-interface ShareButtonProps {
-  url: string;
+interface ShareComponentProps {
+  generateShareLink: () => Promise<string | null>;
   title?: string;
   description?: string;
+  shareType: 'app' | 'competitor';
 }
 
-const ShareButton: React.FC<ShareButtonProps> = ({ 
-  url, 
-  title = 'Insightly App Review Analysis', 
-  description = 'Discover deep insights from app reviews using AI-powered analysis' 
+const ShareComponent: React.FC<ShareComponentProps> = ({ 
+  generateShareLink, 
+  title = 'Insightly Analysis', 
+  description = 'AI-powered insights', 
+  shareType 
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -19,44 +21,11 @@ const ShareButton: React.FC<ShareButtonProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
-
   const copyToClipboard = (textToCopy: string) => {
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const generateShareLink = async () => {
-    setIsLoading(true);
-    setError(null);
-    setShareLink(null);
-
-    try {
-      const response = await axios.get(`${SERVER_URL}/api/share`, {
-        params: { url }
-      });
-
-      if (response.data.shareLink) {
-        setShareLink(response.data.shareLink);
-      } else {
-        throw new Error('No share link generated');
-      }
-    } catch (err) {
-      console.error('Error generating share link:', err);
-      setError('Failed to generate share link');
-      setShareLink(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Trigger share link generation when dropdown opens
-  useEffect(() => {
-    if (isOpen && !shareLink && !isLoading) {
-      generateShareLink();
-    }
-  }, [isOpen]);
 
   // Truncate text for Twitter's character limit
   const truncateForTwitter = (text: string, maxLength: number = 280) => {
@@ -67,6 +36,27 @@ const ShareButton: React.FC<ShareButtonProps> = ({
     return availableLength > 0 
       ? `${baseText} ${shareLink || ''}` 
       : `${baseText.slice(0, availableLength)}... ${shareLink || ''}`;
+  };
+
+  const handleGenerateShareLink = async () => {
+    setIsLoading(true);
+    setError(null);
+    setShareLink(null);
+
+    try {
+      const link = await generateShareLink();
+      if (link) {
+        setShareLink(link);
+      } else {
+        throw new Error('No share link generated');
+      }
+    } catch (err) {
+      console.error(`Error generating ${shareType} report share link:`, err);
+      setError('Failed to generate share link');
+      setShareLink(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const socialShareLinks = [
@@ -117,11 +107,14 @@ const ShareButton: React.FC<ShareButtonProps> = ({
   return (
     <div className="relative">
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          if (!shareLink) handleGenerateShareLink();
+        }}
         className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
       >
         <Share2 size={20} className="mr-2" />
-        Share
+        Share {shareType === 'app' ? 'Analysis' : 'Comparison'}
       </button>
       
       {isOpen && (
@@ -131,15 +124,13 @@ const ShareButton: React.FC<ShareButtonProps> = ({
           onMouseLeave={() => setIsOpen(false)}
         >
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 place-items-center">
-            {socialShareLinks.map((link, index) => {
+            {socialShareLinks.map((link) => {
               // For Copy Link
               if (link.name === 'Copy Link') {
                 return (
                   <button
                     key={link.name}
-                    onClick={() => {
-                      link.action();
-                    }}
+                    onClick={() => link.action()}
                     className={`flex flex-col items-center justify-center hover:bg-gray-100 p-2 rounded-lg transition-colors relative 
                       ${link.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     title={copied ? 'Copied!' : 'Copy Link'}
@@ -162,9 +153,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({
                   rel="noopener noreferrer"
                   className={`flex flex-col items-center justify-center hover:bg-gray-100 p-2 rounded-lg transition-colors 
                     ${link.disabled ? 'opacity-50 pointer-events-none' : ''}`}
-                  onClick={() => {
-                    setIsOpen(false)
-                  }}
+                  onClick={() => setIsOpen(false)}
                 >
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
@@ -194,6 +183,80 @@ const ShareButton: React.FC<ShareButtonProps> = ({
         </div>
       )}
     </div>
+  );
+};
+
+// Existing ShareButton component
+interface ShareButtonProps {
+  url: string;
+  title?: string;
+  description?: string;
+}
+
+const ShareButton: React.FC<ShareButtonProps> = ({ 
+  url, 
+  title = 'Insightly App Review Analysis', 
+  description = 'Discover deep insights from app reviews using AI-powered analysis' 
+}) => {
+  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+
+  const generateAppShareLink = async () => {
+    try {
+      const response = await axios.get(`${SERVER_URL}/api/share-app-report`, {
+        params: { url }
+      });
+
+      return response.data.shareLink || null;
+    } catch (err) {
+      console.error('Error generating app share link:', err);
+      return null;
+    }
+  };
+
+  return (
+    <ShareComponent 
+      generateShareLink={generateAppShareLink}
+      title={title}
+      description={description}
+      shareType="app"
+    />
+  );
+};
+
+// New ShareCompetitorReportButton component
+interface ShareCompetitorReportButtonProps {
+  competitors: Array<{ url: string }>;
+  title?: string;
+  description?: string;
+}
+
+export const ShareCompetitorReportButton: React.FC<ShareCompetitorReportButtonProps> = ({ 
+  competitors, 
+  title = 'Insightly Competitor Analysis', 
+  description = 'AI-powered comparative analysis of app competitors' 
+}) => {
+  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+
+  const generateCompetitorShareLink = async () => {
+    try {
+      const response = await axios.get(`${SERVER_URL}/api/share-competitor-report`, {
+        params: { urls: JSON.stringify(competitors.map(c => c.url)) }
+      });
+
+      return response.data.shareLink || null;
+    } catch (err) {
+      console.error('Error generating competitor report share link:', err);
+      return null;
+    }
+  };
+
+  return (
+    <ShareComponent 
+      generateShareLink={generateCompetitorShareLink}
+      title={title}
+      description={description}
+      shareType="competitor"
+    />
   );
 };
 

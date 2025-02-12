@@ -216,8 +216,15 @@ app.post('/app-store/extract-id', async (req, res) => {
 });
 
 const ANALYSIS_CACHE_MAX_SIZE = 100;
+const COMPARISON_CACHE_MAX_SIZE = 50;  // Separate cache for comparison reports
+
 const analysisCache = new LRUCache({
   max: ANALYSIS_CACHE_MAX_SIZE,
+  maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+});
+
+const comparisonReportsCache = new LRUCache({
+  max: COMPARISON_CACHE_MAX_SIZE,
   maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
 });
 
@@ -327,11 +334,22 @@ const createCacheEntry = (url, hashUrl, finalReport, appData) => {
       averageRating: appData.reviews.averageRating,
       scoreDistribution: appData.reviews.scoreDistribution
     },
-    getShareLink: () => `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`,
+    getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${hashUrl}`,
   };
 
   // Save to Supabase
   saveToSupabase(cacheEntry, url, hashUrl);
+
+  return cacheEntry;
+};
+
+const createComparisonCacheEntry = (urls, cacheKey, finalReport) => {
+  const cacheEntry = {
+    finalReport,
+    timestamp: Date.now(),
+    urls,
+    getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${cacheKey}`,
+  };
 
   return cacheEntry;
 };
@@ -479,12 +497,23 @@ app.post('/api/compare-competitors',
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
   async (req, res) => {
   try {
+    const { competitors, provider, model } = req.body;
+
+    // Generate a cache key based on sorted URLs
+    const sortedUrls = competitors.map(c => c.url).sort();
+    const cacheKey = createComparisonCacheKey(sortedUrls);
+
+    // Check if report is in cache
+    const cachedReport = comparisonReportsCache.get(cacheKey);
+    if (cachedReport) {
+      console.log('Returning cached comparison report');
+      return res.json({ report: cachedReport.finalReport });
+    }
+
     // Set headers for streaming
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Transfer-Encoding', 'chunked');
-
-    const { provider, model, competitors } = req.body;
-
+    
     const selectedProvider = LLM_PROVIDERS[provider || process.env.LLM_PROVIDER || 'ollama'];
     console.log('Selected provider:', selectedProvider ? 'Found' : 'Not found');
     if (!selectedProvider) {
@@ -568,6 +597,10 @@ ${competitorDetails}
 
       console.log('Final report:', finalReport);
 
+      // Cache the comparison report
+      const cacheEntry = createComparisonCacheEntry(sortedUrls, cacheKey, finalReport);
+      comparisonReportsCache.set(cacheKey, cacheEntry);
+
       // Directly end the response after streaming is complete
       res.end();
     } catch (generateError) {
@@ -583,7 +616,7 @@ ${competitorDetails}
           details: generateError.message,
           providerDetails: {
             url: selectedProvider.url,
-            model: selectedModel
+            model: model
           }
         });
       }
@@ -603,6 +636,13 @@ ${competitorDetails}
     }
   }
 });
+
+// Utility function to create a consistent cache key
+function createComparisonCacheKey(urls) {
+  // Create a deterministic key based on sorted URLs
+  const urlsString = urls.join('|');
+  return generateUrlHash(urlsString);
+}
 
 // Update existing routes that fetch cached reports
 app.get('/api/check-cache', (req, res) => {
@@ -660,7 +700,7 @@ app.get('/api/cached-analyses', (req, res) => {
 });
 
 // Add after existing routes
-app.get('/api/share', (req, res) => {
+app.get('/api/share-app-report', (req, res) => {
   const { url } = req.query;
   
   if (!url) {
@@ -682,7 +722,7 @@ app.get('/api/share', (req, res) => {
   });
 });
 
-app.get('/api/shared-report', (req, res) => {
+app.get('/api/shared-app-report', (req, res) => {
   const { shareId } = req.query;
   
   if (!shareId) {
@@ -700,6 +740,52 @@ app.get('/api/shared-report', (req, res) => {
 
   // Return the entire report directly
   res.json({ report: cachedReport.finalReport });
+});
+
+app.get('/api/share-competitor-report', (req, res) => {
+  const { urls } = req.query;
+  
+  if (!urls) {
+    return res.status(400).json({ error: 'URLs are required' });
+  }
+
+  // Sort and parse URLs
+  const sortedUrls = JSON.parse(urls).sort();
+  const cacheKey = createComparisonCacheKey(sortedUrls);
+  
+  const cachedReport = comparisonReportsCache.get(cacheKey);
+  
+  if (!cachedReport) {
+    return res.status(404).json({ 
+      error: 'Report not found. Please re-run the comparison.',
+      shouldReanalyze: true
+    });
+  }
+
+  res.json({ 
+    shareLink: cachedReport.getShareLink(),
+    expiresAt: Date.now() + comparisonReportsCache.maxAge
+  });
+});
+
+app.get('/api/shared-competitor-report', (req, res) => {
+  const { shareId } = req.query;
+  
+  if (!shareId) {
+    return res.status(400).json({ error: 'Share ID is required' });
+  }
+
+  const sharedReportEntry = comparisonReportsCache.get(shareId);
+  
+  if (!sharedReportEntry) {
+    return res.status(404).json({ 
+      error: 'Report expired. Please re-run the comparison.',
+      shouldReanalyze: true
+    });
+  }
+
+  // Return the entire report directly
+  res.json({ report: sharedReportEntry.finalReport });
 });
 
 // Optional: Add a route to clear or inspect the cache (for debugging)

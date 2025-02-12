@@ -5,7 +5,7 @@ import { Send, Loader2, Download, Zap, Home as HomeIcon, BarChart2, TrendingUp, 
 import { Search,Zap as ZapIcon,TrendingUp as TrendingUpIcon,Rocket as RocketIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import ShareButton from './components/ShareButton';
-import ShareReportView from './components/ShareReportView';
+import { AppReportView, CompetitorReportView } from './components/ShareReportView';
 import Navigation from './components/Navigation';
 import { ProductHuntBadge } from './components/ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './components/MathChallenge';
@@ -442,7 +442,8 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/app" element={<MainContent />} />
-        <Route path="/share/:shareId" element={<ShareReportView />} />
+        <Route path="/shared-app-report/:shareId" element={<AppReportView/>} />
+        <Route path="/shared-competitor-report/:shareId" element={<CompetitorReportView/>} />
         <Route path="/app-insights" element={<AppInsightsPage />} />
         <Route path="/competitor-insights" element={<CompetitorAnalysis />} />
       </Routes>

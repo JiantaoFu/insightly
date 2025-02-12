@@ -8,13 +8,15 @@ import {
   Loader2,
   BarChart2,
   AlertOctagon,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import Navigation from './Navigation';
 import { ProductHuntBadge } from './ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './MathChallenge';
 import { ProviderModelSelector } from './ProviderModelSelector';
 import { useProviderModel } from './ProviderModelSelector';
+import { ShareCompetitorReportButton } from './ShareButton';
 
 // Enable math challenge based on environment variable
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -334,6 +336,19 @@ export const CompetitorAnalysis: React.FC = () => {
     }
   };
 
+  const downloadCompetitorReport = () => {
+    // Create a Blob with the comparison result
+    const blob = new Blob([comparisonResult], { type: 'text/markdown' });
+    
+    // Create a link element and trigger download
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `competitor-analysis-${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div 
       className="relative bg-cover bg-center bg-no-repeat min-h-screen py-12 md:py-16 px-4"
@@ -485,104 +500,32 @@ export const CompetitorAnalysis: React.FC = () => {
 
               {/* Comparison Result */}
               {comparisonResult && (
-                <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-                  <h3 className="text-xl font-bold mb-4">Competitor Comparison</h3>
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      h1: ({node, ...props}) => (
-                        <h1 
-                          className="text-3xl font-extrabold text-gray-900 mb-6 pb-2 border-b-2 border-blue-500" 
-                          {...props} 
-                        />
-                      ),
-                      h2: ({node, ...props}) => (
-                        <h2 
-                          className="text-2xl font-bold text-gray-800 mb-4 mt-6 pl-3 border-l-4 border-blue-500" 
-                          {...props} 
-                        />
-                      ),
-                      h3: ({node, ...props}) => (
-                        <h3 
-                          className="text-xl font-semibold text-gray-700 mb-3 mt-4" 
-                          {...props} 
-                        />
-                      ),
-                      h4: ({node, ...props}) => (
-                        <h4 
-                          className="text-lg font-medium text-gray-600 mb-2 mt-3 italic" 
-                          {...props} 
-                        />
-                      ),
-                      h5: ({node, ...props}) => (
-                        <h5 
-                          className="text-base font-medium text-gray-500 mb-2 uppercase tracking-wider" 
-                          {...props} 
-                        />
-                      ),
-                      p: ({node, ...props}) => (
-                        <p 
-                          className="text-gray-700 leading-relaxed mb-4 pl-2 border-l-2 border-gray-200" 
-                          {...props} 
-                        />
-                      ),
-                      ul: ({node, ...props}) => (
-                        <ul 
-                          className="list-none pl-4 mb-4 space-y-2" 
-                          {...props} 
-                        />
-                      ),
-                      li: ({node, ...props}) => (
-                        <li 
-                          className="relative pl-4 text-gray-700" 
-                          {...props} 
-                        />
-                      ),
-                      table: ({node, ...props}) => (
-                        <div className="overflow-x-auto shadow-lg rounded-lg mb-6">
-                          <table 
-                            className="w-full border-collapse bg-white" 
-                            {...props} 
-                          />
-                        </div>
-                      ),
-                      th: ({node, ...props}) => (
-                        <th 
-                          className="px-6 py-3 bg-blue-50 text-xs font-bold text-blue-600 uppercase tracking-wider border-b-2 border-blue-200 text-left" 
-                          {...props} 
-                        />
-                      ),
-                      td: ({node, ...props}) => (
-                        <td 
-                          className="px-6 py-4 whitespace-nowrap border-b border-gray-200 text-sm text-gray-700 hover:bg-gray-50 transition-colors" 
-                          {...props} 
-                        />
-                      ),
-                      blockquote: ({node, ...props}) => (
-                        <blockquote 
-                          className="border-l-4 border-blue-500 pl-4 py-2 my-4 bg-blue-50 italic text-gray-700" 
-                          {...props} 
-                        />
-                      ),
-                      code: ({node, inline, ...props}) => (
-                        inline ? (
-                          <code 
-                            className="bg-gray-100 text-red-600 rounded px-1 py-0.5 text-sm font-mono" 
-                            {...props} 
-                          />
-                        ) : (
-                          <pre 
-                            className="bg-gray-900 text-white rounded-lg p-4 overflow-x-auto text-sm font-mono" 
-                            {...props} 
-                          />
-                        )
-                      )
-                    }}
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+                {!isComparing && (
+                <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
+                  <button 
+                    onClick={downloadCompetitorReport}
+                    className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
                   >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Report
+                  </button>
+                  <div className="w-full sm:w-auto">
+                    <ShareCompetitorReportButton 
+                      competitors={competitors.map(competitor => ({ url: competitor.url }))}
+                      title="Insightly Competitor Analysis"
+                      description={`Comparative analysis of ${competitors.map(c => c.name).join(', ')}`}
+                    />
+                  </div>
+                </div>
+                )}
+                <div className="prose prose-sm max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {comparisonResult}
                   </ReactMarkdown>
                 </div>
-              )}
+              </div>
+            )}
             </>
           )}
 

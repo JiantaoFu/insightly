@@ -60,60 +60,82 @@ ${formatPrompt}
 export const appComparisonPrompt = `
 Based on the app reviews provided, generate a structured markdown report that includes the following sections:
 
-1. **Summary Table:**
-   - A concise table summarizing the overall sentiment, key themes, and SWOT for each app.
+---
 
-1. **Overall Sentiment Analysis:**
+### 1. **Summary Table (Concise Overview)**
+   - Generate a **clear and well-structured table** that summarizes the following for each app:
+     - **Overall Sentiment**: Positive, Neutral, Negative
+     - **Key Positive Themes** (Top 2-3)
+     - **Key Negative Themes** (Top 2-3)
+     - **SWOT Summary** (Brief points for Strengths, Weaknesses, Opportunities, and Threats)
 
-   - For each app, determine the overall user sentiment (positive, negative, neutral).
-   - Calculate the percentage of reviews falling into each sentiment category.
-   - Explain your methodology for sentiment classification (e.g., lexicon-based, machine learning-based).
+   **Table Formatting Guidelines:**
+   - Keep **columns minimal** to ensure readability.
+   - Avoid excessive text within table cells—**use concise bullet points**.
+   - If needed, split details across multiple rows rather than cramming too many columns in one row.
 
-2. **Feature-Specific Analysis:**
+---
 
-    - Analyze user reviews for each app related to the following key features (add, modify, or prioritize as needed based on your app category):
+### 2. **Overall Sentiment Analysis**
+   - Determine **overall sentiment** for each app: Positive, Neutral, or Negative.
+   - Provide a **percentage breakdown** of sentiment categories.
+   - Explain your **methodology** for sentiment classification (e.g., lexicon-based, ML-based).
 
-      - User Interface (UI) / User Experience (UX):  Ease of use, navigation, design, aesthetics.
-      - Performance & Stability: Crashes, bugs, speed, responsiveness.
-      - Functionality & Features: Available features, their effectiveness, and user satisfaction.
-      - Pricing & Value: Cost, subscription models, in-app purchases, perceived value.
-      - Customer Support: Responsiveness, helpfulness, communication quality.
-      - [Specific Feature Relevant to Your App Category]:  (e.g., for a photo editing app: Filters, Editing Tools; for a social media app: Community Features, Privacy Controls).
+---
 
-    - For each feature, identify:
+### 3. **Feature-Specific Analysis**
+   - Analyze user reviews based on key features relevant to the app category:
+     - **User Interface (UI) & UX**
+     - **Performance & Stability**
+     - **Functionality & Features**
+     - **Pricing & Value**
+     - **Customer Support**
+     - **[Category-Specific Feature]** (e.g., Filters for a photo app)
 
-      - Key Themes: Recurring user feedback (positive and negative).
-      - Sentiment Distribution: How users feel about the feature (e.g., % positive, % negative).
-      - Example Review Snippets: Illustrative quotes from user reviews.
+   **For Each Feature, Provide:**
+   - **Key Themes** (Recurring feedback, both positive and negative)
+   - **Sentiment Distribution** (% positive, % negative)
+   - **Example Review Snippets** (Illustrative quotes from user reviews)
 
-3. **Thematic Analysis (Beyond Specific Features):** 
+---
 
-   - Identify the top 5-10 *additional* recurring themes (both positive and negative) in user reviews for each app that are *not* covered in the Feature-Specific Analysis.  Provide example review snippets for each theme.
+### 4. **Thematic Analysis (Beyond Features)**
+   - Identify **5-10 additional themes** not covered under feature analysis.
+   - Provide **brief summaries** of each theme with **example review snippets**.
 
-4. **Competitive SWOT Analysis:**
+---
 
-   - Conduct a SWOT analysis for each app, focusing on how they compare to the other target apps:
+### 5. **Competitive SWOT Analysis**
+   - Conduct a **SWOT Analysis** for each app **relative to its competitors**:
+     - **Strengths**: Features users love.
+     - **Weaknesses**: Key areas of dissatisfaction.
+     - **Opportunities**: Unmet user needs or gaps in the market.
+     - **Threats**: Competitive risks or external challenges.
 
-      - Strengths: What does the app do well, according to users?  *Relate these to specific features or themes.*
-      - Weaknesses: Where does the app fall short?  *Relate these to specific features or themes.*
-      - Opportunities: What unmet user needs or market gaps could the app address? *Base these on user feedback and market trends.*
-      - Threats: What external factors or competitive pressures could negatively impact the app?  *Consider user churn, competitor actions, and technological changes.*
+   **Table Formatting Guidelines:**
+   - Use a **two-column format** to maintain clarity:
+     - Column 1: **SWOT Category**
+     - Column 2: **Summary (Concise Bullet Points)**
 
-5. **Competitive Differentiation:**
+---
 
-   - Clearly articulate the key differentiators (both positive and negative) for each app compared to its competitors.  Where does each app have a competitive edge, and where is it vulnerable?
+### 6. **Competitive Differentiation**
+   - Highlight **key differentiators** for each app:
+     - What gives it a competitive edge?
+     - Where is it vulnerable compared to competitors?
 
-6. **Actionable Insights & Recommendations:**
+---
 
-   - Based on the analysis, provide specific and actionable recommendations for:
-   
-      - Product Improvements: What features should be added, modified, or removed?  Prioritize these recommendations.
-      - Marketing Strategies: How can the app's strengths be leveraged and weaknesses mitigated in marketing campaigns?
-      - Competitive Positioning: How can the app differentiate itself more effectively in the market?
+### 7. **Actionable Insights & Recommendations**
+   - **Product Improvements**: Features to add, modify, or remove (**prioritized**).
+   - **Marketing Strategies**: Ways to leverage strengths and mitigate weaknesses.
+   - **Competitive Positioning**: Recommendations for better market differentiation.
 
-7. **Conclusion:**
+---
 
-   - Summarize your findings and provide recommendations for the overall product strategy.
+### 8. **Conclusion**
+   - Summarize key findings.
+   - Provide high-level recommendations for **product strategy**.
    
 ${formatPrompt}
 

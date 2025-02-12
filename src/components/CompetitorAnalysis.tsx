@@ -519,8 +519,32 @@ export const CompetitorAnalysis: React.FC = () => {
                   </div>
                 </div>
                 )}
-                <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <div className="prose prose-sm max-w-none mb-8 w-full overflow-x-auto">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      table: ({node, ...props}) => (
+                        <div className="w-full overflow-x-auto">
+                          <table 
+                            className="w-full border-collapse bg-white text-sm" 
+                            {...props} 
+                          />
+                        </div>
+                      ),
+                      th: ({node, ...props}) => (
+                        <th 
+                          className="px-4 py-2 bg-gray-100 border border-gray-200 text-left font-semibold" 
+                          {...props} 
+                        />
+                      ),
+                      td: ({node, ...props}) => (
+                        <td 
+                          className="px-4 py-2 border border-gray-200" 
+                          {...props} 
+                        />
+                      )
+                    }}
+                  >
                     {comparisonResult}
                   </ReactMarkdown>
                 </div>

@@ -223,7 +223,7 @@ const analysisCache = new LRUCache({
   maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
 });
 
-const comparisonReportsCache = new LRUCache({
+const comparisonCache = new LRUCache({
   max: COMPARISON_CACHE_MAX_SIZE,
   maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
 });
@@ -275,6 +275,26 @@ async function saveToSupabase(cacheEntry, url, hashUrl) {
   }
 }
 
+async function saveComparisonToSupabase(cacheEntry, hashUrl) {
+ try {
+   const { data, error } = await supabase
+     .from('comparison_reports')
+     .insert({
+       urls: cacheEntry.urls,
+       hash_url: hashUrl,
+       competitors: cacheEntry.competitors,
+       final_report: cacheEntry.finalReport,
+       timestamp: cacheEntry.timestamp
+     });
+
+   if (error) {
+     console.error('Error saving comparison to Supabase:', error);
+   }
+ } catch (dbError) {
+   console.error('Database save error:', dbError);
+ }
+}
+
 // Async function to remove expired entries from Supabase
 async function removeExpiredEntriesFromSupabase() {
   try {
@@ -297,20 +317,38 @@ async function removeExpiredEntriesFromSupabase() {
 
 // Async function to remove a specific entry from Supabase by hashUrl
 async function removeEntryFromSupabase(hashUrl) {
-  try {
-    const { data, error } = await supabase
-      .from('analysis_reports')
-      .delete()
-      .eq('hash_url', hashUrl);
+ try {
+   // Remove from analysis_reports table
+   const { error: analysisError } = await supabase
+     .from('analysis_reports')
+     .delete()
+     .eq('hash_url', hashUrl);
 
-    if (error) {
-      console.error(`Error removing entry with hash_url ${hashUrl} from Supabase:`, error);
-    } else {
-      console.log(`Removed entry with hash_url ${hashUrl} from Supabase`);
-    }
-  } catch (dbError) {
-    console.error('Database deletion error:', dbError);
-  }
+   if (analysisError) {
+     console.error(`Error removing entry with hash_url ${hashUrl} from analysis_reports:`, analysisError);
+     return { success: false, message: `Error removing entry from analysis_reports: ${analysisError.message}` };
+   } else {
+     console.log(`Removed entry with hash_url ${hashUrl} from analysis_reports`);
+   }
+
+   // Remove from comparison_reports table
+   const { error: comparisonError } = await supabase
+     .from('comparison_reports')
+     .delete()
+     .eq('hash_url', hashUrl);
+
+   if (comparisonError) {
+     console.error(`Error removing entry with hash_url ${hashUrl} from comparison_reports:`, comparisonError);
+     return { success: false, message: `Error removing entry from comparison_reports: ${comparisonError.message}` };
+   } else {
+     console.log(`Removed entry with hash_url ${hashUrl} from comparison_reports`);
+   }
+
+   return { success: true, message: `Entries with hash_url ${hashUrl} removed from both tables` };
+ } catch (dbError) {
+   console.error('Database deletion error:', dbError);
+   return { success: false, message: `Database deletion error: ${dbError.message}` };
+ }
 }
 
 // Modify the cache entry structure
@@ -343,13 +381,17 @@ const createCacheEntry = (url, hashUrl, finalReport, appData) => {
   return cacheEntry;
 };
 
-const createComparisonCacheEntry = (urls, cacheKey, finalReport) => {
+const createComparisonCacheEntry = (urls, cacheKey, competitors, finalReport) => {
   const cacheEntry = {
+    competitors,
     finalReport,
     timestamp: Date.now(),
     urls,
     getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${cacheKey}`,
   };
+
+  // Save to Supabase
+  saveComparisonToSupabase(cacheEntry, cacheKey);
 
   return cacheEntry;
 };
@@ -504,7 +546,7 @@ app.post('/api/compare-competitors',
     const cacheKey = createComparisonCacheKey(sortedUrls);
 
     // Check if report is in cache
-    const cachedReport = comparisonReportsCache.get(cacheKey);
+    const cachedReport = comparisonCache.get(cacheKey);
     if (cachedReport) {
       console.log('Returning cached comparison report');
       return res.json({ report: cachedReport.finalReport });
@@ -598,8 +640,8 @@ ${competitorDetails}
       console.log('Final report:', finalReport);
 
       // Cache the comparison report
-      const cacheEntry = createComparisonCacheEntry(sortedUrls, cacheKey, finalReport);
-      comparisonReportsCache.set(cacheKey, cacheEntry);
+      const cacheEntry = createComparisonCacheEntry(sortedUrls, cacheKey, validCompetitors, finalReport);
+      comparisonCache.set(cacheKey, cacheEntry);
 
       // Directly end the response after streaming is complete
       res.end();
@@ -646,20 +688,30 @@ function createComparisonCacheKey(urls) {
 
 // Update existing routes that fetch cached reports
 app.get('/api/check-cache', (req, res) => {
-  const { urlHash } = req.query;
-  const cachedReport = analysisCache.get(urlHash);
-  
-  if (cachedReport) {
-    res.json({
-      cached: true,
-      finalReport: cachedReport.finalReport,
-      appDetails: cachedReport.appDetails,
-      reviewsSummary: cachedReport.reviewsSummary,
-      timestamp: cachedReport.timestamp
-    });
-  } else {
-    res.json({ cached: false });
-  }
+ const { urlHash } = req.query;
+ let cachedReport = analysisCache.get(urlHash);
+
+ if (cachedReport) {
+   res.json({
+     cached: true,
+     finalReport: cachedReport.finalReport,
+     appDetails: cachedReport.appDetails,
+     reviewsSummary: cachedReport.reviewsSummary,
+     timestamp: cachedReport.timestamp
+   });
+ } else {
+   cachedReport = comparisonCache.get(urlHash);
+   if (cachedReport) {
+     res.json({
+       cached: true,
+       finalReport: cachedReport.finalReport,
+       competitors: cachedReport.competitors,
+       timestamp: cachedReport.timestamp
+     });
+   } else {
+     res.json({ cached: false });
+   }
+ }
 });
 
 // Update the cached analyses endpoint to return more comprehensive data
@@ -677,7 +729,6 @@ app.get('/api/cached-analyses', (req, res) => {
           appDetails: entry.appDetails,
           reviewsSummary: entry.reviewsSummary,
           analysisDate: new Date(entry.timestamp || Date.now()).toLocaleString(),
-          finalReport: entry.finalReport || ''
         };
       });
 
@@ -697,6 +748,40 @@ app.get('/api/cached-analyses', (req, res) => {
          details: error.message 
        });
   }
+});
+
+app.get('/api/cached-comparisons', (req, res) => {
+ try {
+   // Explicitly clear any existing headers
+   res.removeHeader('Content-Type');
+   
+   const cachedResults = Array.from(comparisonCache.entries())
+     .sort((a, b) => b[1].timestamp - a[1].timestamp)
+     .map(([hashUrl, entry]) => {
+       // Ensure all fields are defined and sanitized
+       return {
+         shareLink: entry.getShareLink(),
+         competitors: entry.competitors,
+         comparisonDate: new Date(entry.timestamp || Date.now()).toLocaleString(),
+       };
+     });
+
+   // Explicitly set JSON content type
+   res.contentType('application/json');
+
+   console.log('Sending cached comparison results:', cachedResults);
+   
+   // Send JSON response
+   res.json(cachedResults);
+ } catch (error) {
+   console.error('Error retrieving cached comparisons:', error);
+   res.status(500)
+      .contentType('application/json')
+      .json({ 
+        error: 'Failed to retrieve cached comparisons', 
+        details: error.message 
+      });
+ }
 });
 
 // Add after existing routes
@@ -753,7 +838,7 @@ app.get('/api/share-competitor-report', (req, res) => {
   const sortedUrls = JSON.parse(urls).sort();
   const cacheKey = createComparisonCacheKey(sortedUrls);
   
-  const cachedReport = comparisonReportsCache.get(cacheKey);
+  const cachedReport = comparisonCache.get(cacheKey);
   
   if (!cachedReport) {
     return res.status(404).json({ 
@@ -764,7 +849,7 @@ app.get('/api/share-competitor-report', (req, res) => {
 
   res.json({ 
     shareLink: cachedReport.getShareLink(),
-    expiresAt: Date.now() + comparisonReportsCache.maxAge
+    expiresAt: Date.now() + comparisonCache.maxAge
   });
 });
 
@@ -775,7 +860,7 @@ app.get('/api/shared-competitor-report', (req, res) => {
     return res.status(400).json({ error: 'Share ID is required' });
   }
 
-  const sharedReportEntry = comparisonReportsCache.get(shareId);
+  const sharedReportEntry = comparisonCache.get(shareId);
   
   if (!sharedReportEntry) {
     return res.status(404).json({ 
@@ -790,26 +875,40 @@ app.get('/api/shared-competitor-report', (req, res) => {
 
 // Optional: Add a route to clear or inspect the cache (for debugging)
 app.get('/api/cache-stats', (req, res) => {
-  res.json({
-    size: analysisCache.size,
-    keys: Array.from(analysisCache.keys())
-  });
+ res.json({
+   analysisCache: {
+     size: analysisCache.size,
+     keys: Array.from(analysisCache.keys())
+   },
+   comparisonCache: {
+     size: comparisonCache.size,
+     keys: Array.from(comparisonCache.keys())
+   }
+ });
 });
 
 // Function to remove expired cache entries
-const removeExpiredCacheEntries = () => {
-  const expirationThreshold = Date.now() - (RECORD_EXPIRATION_HOURS * 60 * 60 * 1000);
+const removeExpiredCacheEntries = async () => {
+ const expirationThreshold = Date.now() - (RECORD_EXPIRATION_HOURS * 60 * 60 * 1000);
 
-  // Remove expired entries from in-memory cache
-  for (const [key, entry] of analysisCache.entries()) {
-    if (entry.timestamp < expirationThreshold) {
-      analysisCache.delete(key);
-      removeEntryFromSupabase(key);
-    }
-  }
+ // Remove expired entries from analysisCache
+ for (const [key, entry] of analysisCache.entries()) {
+   if (entry.timestamp < expirationThreshold) {
+     analysisCache.delete(key);
+     await removeEntryFromSupabase(key);
+   }
+ }
 
-  // Remove expired entries from Supabase
-  removeExpiredEntriesFromSupabase();
+ // Remove expired entries from comparisonCache
+ for (const [key, entry] of comparisonCache.entries()) {
+   if (entry.timestamp < expirationThreshold) {
+     comparisonCache.delete(key);
+     await removeEntryFromSupabase(key);
+   }
+ }
+
+ // Remove expired entries from Supabase
+ await removeExpiredEntriesFromSupabase();
 };
 
 // Schedule periodic cache cleanup
@@ -827,42 +926,73 @@ app.get('/', (req, res) => {
 
 // Function to load existing analyses from database
 async function loadCacheFromDatabase() {
-  try {
-    // Fetch recent analyses (e.g., from last 7 days)
-    // const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+ try {
+   // Fetch recent analyses (e.g., from last 7 days)
+   // const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
 
-    removeExpiredEntriesFromSupabase();
-    
-    const { data, error } = await supabase
-      .from('analysis_reports')
-      .select('*')
-      // .gte('timestamp', sevenDaysAgo)
-      .order('timestamp', { ascending: false });
+   removeExpiredEntriesFromSupabase();
+   
+   // Load analysis reports
+   const { data: analysisData, error: analysisError } = await supabase
+     .from('analysis_reports')
+     .select('*')
+     // .gte('timestamp', sevenDaysAgo)
+     .order('timestamp', { ascending: false });
 
-    if (error) {
-      console.error('Error loading cache from database:', error);
-      return;
-    }
+   if (analysisError) {
+     console.error('Error loading analysis cache from database:', analysisError);
+   } else {
+     // Populate the analysis cache with loaded entries
+     analysisData.forEach(entry => {
+       // Use the stored hash_url directly
+       const hashUrl = entry.hash_url;
+       
+       // Reconstruct the cache entry format
+       const cacheEntry = {
+         ...entry.full_report,
+         getShareLink: () => `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`
+       };
 
-    // Populate the cache with loaded entries
-    data.forEach(entry => {
-      // Use the stored hash_url directly
-      const hashUrl = entry.hash_url;
-      
-      // Reconstruct the cache entry format
-      const cacheEntry = {
-        ...entry.full_report,
-        getShareLink: () => `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`
-      };
+       // Add to LRU cache
+       analysisCache.set(hashUrl, cacheEntry);
+     });
 
-      // Add to LRU cache
-      analysisCache.set(hashUrl, cacheEntry);
-    });
+     console.log(`Loaded ${analysisData.length} analyses from database`);
+   }
 
-    console.log(`Loaded ${data.length} analyses from database`);
-  } catch (catchError) {
-    console.error('Unexpected error loading cache:', catchError);
-  }
+   // Load comparison reports
+   const { data: comparisonData, error: comparisonError } = await supabase
+     .from('comparison_reports')
+     .select('*')
+     // .gte('timestamp', sevenDaysAgo)
+     .order('timestamp', { ascending: false });
+
+   if (comparisonError) {
+     console.error('Error loading comparison cache from database:', comparisonError);
+   } else {
+     // Populate the comparison cache with loaded entries
+     comparisonData.forEach(entry => {
+       // Use the stored hash_url directly
+       const hashUrl = entry.hash_url;
+       
+       // Reconstruct the cache entry format
+       const cacheEntry = {
+         competitors: JSON.parse(entry.competitors),
+         finalReport: entry.final_report,
+         timestamp: entry.timestamp,
+         urls: entry.urls,
+         getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${hashUrl}`
+       };
+
+       // Add to LRU cache
+       comparisonCache.set(hashUrl, cacheEntry);
+     });
+
+     console.log(`Loaded ${comparisonData.length} comparison reports from database`);
+   }
+ } catch (catchError) {
+   console.error('Unexpected error loading cache:', catchError);
+ }
 }
 
 // Modify the server startup to load cache

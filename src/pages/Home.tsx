@@ -14,7 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import CachedAnalysesList from '../components/CachedAnalysesList';
-import { ProductHuntBadge } from '../components/ProductHuntBadge';
+import ProductHuntBadge from '../components/ProductHuntBadge';
 
 // Feature Card Component
 const FeatureCard: React.FC<{

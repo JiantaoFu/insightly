@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 
-export const ProductHuntBadge: React.FC = memo(() => (
+const ProductHuntBadge: React.FC = memo(() => (
   <div className="flex justify-center mb-16">
     <a 
       href="https://www.producthunt.com/posts/insightly-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-insightly&#0045;3" 
@@ -15,3 +15,5 @@ export const ProductHuntBadge: React.FC = memo(() => (
     </a>
   </div>
 ));
+
+export default ProductHuntBadge;

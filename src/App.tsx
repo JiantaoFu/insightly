@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import ShareButton from './components/ShareButton';
 import { AppReportView, CompetitorReportView } from './components/ShareReportView';
 import Navigation from './components/Navigation';
-import { ProductHuntBadge } from './components/ProductHuntBadge';
+import ProductHuntBadge from './components/ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './components/MathChallenge';
 import { ProviderModelSelector, useProviderModel } from './components/ProviderModelSelector';
 

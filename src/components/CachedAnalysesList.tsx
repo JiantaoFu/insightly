@@ -230,7 +230,7 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
                 <div className="mt-4 flex items-center">
                   <a 
                     href={analysis.shareLink} 
-                    target="_blank" 
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
                   >

@@ -399,14 +399,14 @@ const createComparisonCacheEntry = (urls, cacheKey, competitors, finalReport) =>
 app.post('/api/analyze', 
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
   async (req, res) => {
-  const { url } = req.body;
+  const { url, customPrompt, force = false } = req.body;
   const hashUrl = generateUrlHash(url);
   
   // Check if report is in cache
   const cachedReport = analysisCache.get(hashUrl);
   
   // Check if cache entry is valid and not expired
-  if (cachedReport && !isRecordEntryExpired(cachedReport)) {
+  if (!force && cachedReport && !isRecordEntryExpired(cachedReport)) {
     console.log('Report found in cache:', url);
 
     // If cached, stream the report
@@ -420,10 +420,10 @@ app.post('/api/analyze',
     });
     return;
   } else if (cachedReport) {
-    // If cache entry is expired, remove it
-    console.log('Cache entry expired for:', url);
+    // If cache entry is expired or force refresh, remove it
+    console.log('Cache entry expired or force refresh for:', url);
     analysisCache.delete(hashUrl);
-    removeEntryFromSupabase(hashUrl);
+    await removeEntryFromSupabase(hashUrl);
   }
 
   try {
@@ -468,7 +468,9 @@ Reviews Summary:
 Detailed Reviews:
 ${reviewsText}
 
-${promptConfig.appReviewAnalysis}
+${customPrompt || promptConfig.appReviewAnalysis}
+
+${promptConfig.format}
 `;
     } else {
       // Fallback to existing logic if no app data
@@ -539,7 +541,7 @@ app.post('/api/compare-competitors',
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
   async (req, res) => {
   try {
-    const { competitors, provider, model } = req.body;
+    const { competitors, provider, model, customComparisonPrompt, force = false } = req.body;
 
     // Generate a cache key based on sorted URLs
     const sortedUrls = competitors.map(c => c.url).sort();
@@ -547,9 +549,14 @@ app.post('/api/compare-competitors',
 
     // Check if report is in cache
     const cachedReport = comparisonCache.get(cacheKey);
-    if (cachedReport) {
+    if (!force && cachedReport) {
       console.log('Returning cached comparison report');
       return res.json({ report: cachedReport.finalReport });
+    } else if (cachedReport) {
+      // If cache entry is expired or force refresh, remove it
+      console.log('Cache entry expired or force refresh for:', sortedUrls);
+      comparisonCache.delete(cacheKey);
+      await removeEntryFromSupabase(cacheKey);
     }
 
     // Set headers for streaming
@@ -614,7 +621,11 @@ Total Reviews: ${comp.appData?.reviews?.totalReviews || 0}
     }).join('\n\n');
 
     const comparisonPrompt = `
-${promptConfig.appComparison}
+${customComparisonPrompt || promptConfig.appComparison}
+
+${promptConfig.format}
+
+Perform a comprehensive comparative analysis of the following competitor apps:
 
 \`\`\`
 ${competitorDetails}

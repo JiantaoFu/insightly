@@ -1,23 +1,4 @@
-export const formatPrompt = `
-**Formatting Requirements:**
-- Use markdown formatting with appropriate headers and bullet points.
-- Do NOT wrap the final output in triple backticks.
-
-For example, the output should start like:
-
-# Summary of Key Insights
-- ...
-
-NOT like this:
-
-\`\`\`Markdown
-# Summary of Key Insights
-- ...
-\`\`\`
-`;
-
-export const appReviewAnalysisPrompt = `
-Analyze the app reviews provided and generate a structured markdown report that includes the following sections:
+export const DEFAULT_APP_ANALYZE_PROMPT = `Analyze the app reviews provided and generate a structured markdown report that includes the following sections:
 
 1. **Summary of Key Insights**
    - Provide an overall overview of the main findings.
@@ -53,12 +34,9 @@ Analyze the app reviews provided and generate a structured markdown report that 
 
 10. **Original App Link**
     - Include the original app URL for reference.
-
-${formatPrompt}
 `;
 
-export const appComparisonPrompt = `
-Based on the app reviews provided, generate a structured markdown report that includes the following sections:
+export const DEFAULT_APP_COMPARE_PROMPT = `Based on the app reviews provided, generate a structured markdown report that includes the following sections:
 
 ---
 
@@ -138,10 +116,8 @@ Based on the app reviews provided, generate a structured markdown report that in
    - Provide high-level recommendations for **product strategy**.
 `
 
-export const promptConfig = {
-  appReviewAnalysis: appReviewAnalysisPrompt,
-  format: formatPrompt,
-  appComparison: appComparisonPrompt
-};
+// Get math challenge configuration from environment
+export const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
 
-export default promptConfig;
+// Get server URL from environment
+export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';

@@ -9,7 +9,8 @@ import {
   BarChart2,
   AlertOctagon,
   X,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import Navigation from './Navigation';
 import ProductHuntBadge from './ProductHuntBadge';
@@ -18,6 +19,8 @@ import { ProviderModelSelector } from './ProviderModelSelector';
 import { useProviderModel } from './ProviderModelSelector';
 import { ShareCompetitorReportButton } from './ShareButton';
 import StyledComparisonCard from './StyledComparisonCard';
+import TextareaAutosize from 'react-textarea-autosize';
+import { DEFAULT_APP_COMPARE_PROMPT } from './Constants';
 
 // Enable math challenge based on environment variable
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -167,6 +170,12 @@ export const CompetitorAnalysis: React.FC = () => {
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const { provider, model } = useProviderModel();
+  const [customComparisonPrompt, setCustomComparisonPrompt] = useState<string>(DEFAULT_APP_COMPARE_PROMPT);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setCustomComparisonPrompt(e.target.value);
+  };
 
   const handleAddCompetitor = async () => {
     // Prevent multiple simultaneous additions
@@ -223,7 +232,8 @@ export const CompetitorAnalysis: React.FC = () => {
   const handleFinalSubmit = async (
     currentProvider: keyof typeof PROVIDERS_CONFIG, 
     currentModel: string, 
-    mathChallenge?: MathChallenge
+    mathChallenge?: MathChallenge,
+    force: boolean = false
   ) => {
     // Ensure at least two competitors
     if (competitors.length < 2) {
@@ -279,7 +289,9 @@ export const CompetitorAnalysis: React.FC = () => {
            competitors: validCompetitors,
            provider: currentProvider,
            model: currentModel,
-           mathChallenge: mathChallenge
+           customComparisonPrompt,
+           mathChallenge: mathChallenge,
+           force: force
         })
       });
 
@@ -348,6 +360,10 @@ export const CompetitorAnalysis: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleRefresh = () => {
+    handleFinalSubmit(provider, model, undefined, true);
   };
 
   return (
@@ -462,6 +478,37 @@ export const CompetitorAnalysis: React.FC = () => {
                 </div>
               )}
 
+              {/* Advanced Options */}
+              <div className="mb-12">
+                <button
+                  onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                  className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2"
+                >
+                  {showAdvancedOptions ? 'Hide' : 'Show'} Advanced Options
+                </button>
+                {showAdvancedOptions && (
+                  <div className="mt-4">
+                    <label className="block text-gray-700 font-bold mb-2" htmlFor="customComparisonPrompt">
+                      Customized Comparison Prompt
+                    </label>
+                    <div className="relative w-full">
+                      <TextareaAutosize
+                        value={customComparisonPrompt}
+                        onChange={handleTextareaChange}
+                        placeholder={DEFAULT_APP_COMPARE_PROMPT}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-300 
+                          focus:ring-2 focus:ring-blue-500 focus:border-transparent 
+                          outline-none placeholder-gray-400 resize-none"
+                        minRows={20}
+                        maxRows={40}
+                        spellCheck={false}
+                        style={{ lineHeight: '1.5' }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Comparison Result */}
               {comparisonResult && (
               <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
@@ -481,6 +528,13 @@ export const CompetitorAnalysis: React.FC = () => {
                       description={`Comparative analysis of ${competitors.map(c => c.name).join(', ')}`}
                     />
                   </div>
+                  <button 
+                    onClick={handleRefresh}
+                    className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                  </button>
                 </div>
                 )}
                 <div className="prose prose-sm max-w-none mb-8 w-full overflow-x-auto">

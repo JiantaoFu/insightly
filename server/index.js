@@ -230,7 +230,7 @@ const comparisonCache = new LRUCache({
 
 const RECORD_EXPIRATION_HOURS = process.env.RECORD_EXPIRATION_HOURS 
   ? parseInt(process.env.RECORD_EXPIRATION_HOURS, 10) 
-  : 24; // Default to 24 hours if not specified
+  : 24 * 7 * 90; // Default to 90 days
 
 // Function to check if cache entry is expired
 const isRecordEntryExpired = (recordEntry) => {

@@ -961,7 +961,7 @@ async function loadCacheFromDatabase() {
        // Reconstruct the cache entry format
        const cacheEntry = {
          ...entry.full_report,
-         getShareLink: () => `${process.env.CLIENT_ORIGIN}/share/${hashUrl}`
+         getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${hashUrl}`
        };
 
        // Add to LRU cache

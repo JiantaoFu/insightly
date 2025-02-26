@@ -172,6 +172,7 @@ export const CompetitorAnalysis: React.FC = () => {
   const { provider, model } = useProviderModel();
   const [customComparisonPrompt, setCustomComparisonPrompt] = useState<string>(DEFAULT_APP_COMPARE_PROMPT);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
+  const [isRefresh, setIsRefresh] = useState(false);
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCustomComparisonPrompt(e.target.value);
@@ -221,13 +222,14 @@ export const CompetitorAnalysis: React.FC = () => {
     );
   };
 
-  const prepareChallengeAndSubmit = async () => {
+  const prepareChallengeAndSubmit = async (force: boolean = false) => {
+    setIsRefresh(force);
     if (ENABLE_MATH_CHALLENGE) {
       setShowChallenge(true);
     } else {
-      handleFinalSubmit(provider, model);
+      handleFinalSubmit(provider, model, undefined, force);
     }
-  }
+  };
 
   const handleFinalSubmit = async (
     currentProvider: keyof typeof PROVIDERS_CONFIG, 
@@ -363,7 +365,7 @@ export const CompetitorAnalysis: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    handleFinalSubmit(provider, model, undefined, true);
+    prepareChallengeAndSubmit(true);
   };
 
   return (
@@ -453,7 +455,7 @@ export const CompetitorAnalysis: React.FC = () => {
                   <div className="flex flex-col items-center space-y-4">
                     {false && <ProviderModelSelector />}
                     <button 
-                      onClick={prepareChallengeAndSubmit}
+                      onClick={() => prepareChallengeAndSubmit(false)}
                       disabled={isComparing}
                       className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white 
                         px-8 py-3 rounded-lg shadow-lg hover:shadow-xl 
@@ -595,7 +597,7 @@ export const CompetitorAnalysis: React.FC = () => {
             onClose={() => setShowChallenge(false)}
             onChallengeComplete={(mathChallenge) => {
               // Continue with submission using the completed challenge
-              handleFinalSubmit(provider, model, mathChallenge);
+              handleFinalSubmit(provider, model, mathChallenge, isRefresh);
             }}
             onChallengeFail={() => {
             }}

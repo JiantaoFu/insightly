@@ -20,6 +20,7 @@ const MainAnalysis: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(new AbortController());
 
   const [showChallenge, setShowChallenge] = useState(false);
+  const [isRefresh, setIsRefresh] = useState(false);
 
   const { provider, model } = useProviderModel();
 
@@ -44,14 +45,15 @@ const MainAnalysis: React.FC = () => {
     }
   }, [customPrompt]);
   
-  const prepareChallengeAndSubmit = async (e: React.FormEvent) => {
+  const prepareChallengeAndSubmit = async (e: React.FormEvent, force: boolean = false) => {
     e.preventDefault();
+    setIsRefresh(force);
     if (ENABLE_MATH_CHALLENGE) {
       setShowChallenge(true);
     } else {
-      handleFinalSubmit(provider, model);
+      handleFinalSubmit(provider, model, undefined, force);
     }
-  }
+  };
 
   const handleFinalSubmit = async (
     currentProvider: keyof typeof PROVIDERS_CONFIG, 
@@ -185,8 +187,7 @@ const MainAnalysis: React.FC = () => {
   };
 
   const handleRefresh = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleFinalSubmit(provider, model, undefined, true);
+    prepareChallengeAndSubmit(e, true);
   };
 
   const downloadReport = useCallback(() => {
@@ -328,7 +329,7 @@ const MainAnalysis: React.FC = () => {
           handleSubmit={prepareChallengeAndSubmit} 
         />
 
-          <form onSubmit={prepareChallengeAndSubmit} className="mb-12">
+          <form onSubmit={(e) => prepareChallengeAndSubmit(e, false)} className="mb-12">
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
               {false && <ProviderModelSelector />}
             </div>
@@ -443,7 +444,7 @@ const MainAnalysis: React.FC = () => {
             onClose={() => setShowChallenge(false)}
             onChallengeComplete={(mathChallenge) => {
               // Continue with submission using the completed challenge
-              handleFinalSubmit(provider, model, mathChallenge);
+              handleFinalSubmit(provider, model, mathChallenge, isRefresh);
             }}
             onChallengeFail={() => {
             }}

@@ -235,7 +235,7 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
                     className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
                   >
                     <LinkIcon className="mr-2" size={16} />
-                    View Shared Report
+                    View Report
                   </a>
                 </div>
               </div>

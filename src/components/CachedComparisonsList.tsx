@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, RefreshCw, ChevronDown } from 'lucide-react';
+import { BarChart2, RefreshCw, ChevronDown, Link as LinkIcon } from 'lucide-react';
 import StyledComparisonCard from './StyledComparisonCard';
 import axios from 'axios';
 
@@ -69,7 +69,11 @@ const CachedComparisonsList = ({ pageSize, searchTerm }) => {
               {comparison.competitors.map((competitor, idx) => (
                 <StyledComparisonCard key={idx} competitor={competitor} />
               ))}
-              <a href={comparison.shareLink} target="_blank" className="text-blue-500 hover:underline">View Report</a>
+              <a href={comparison.shareLink} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center text-blue-600 hover:text-blue-800 transition-colors">
+                <LinkIcon className="mr-2" size={16} />
+                View Report
+              </a>
             </div>
           ))}
         </div>

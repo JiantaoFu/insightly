@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Insightly.top Chrome Extension",
+  "version": "1.0",
+  "description": "A Chrome extension to get app review summary",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://insightly-5iyw.onrender.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [{
+    "resources": ["styles.css", "lib/*"],
+    "matches": ["<all_urls>"]
+  }]
+}

@@ -15,6 +15,18 @@ export function extractAppStoreId(url) {
   throw new Error('Invalid App Store URL');
 }
 
+// Function to extract country code from App Store URL
+export function extractCountryCode(url) {
+  const countryCodeRegex = /https?:\/\/apps\.apple\.com\/([a-z]{2})\//;
+  const match = url.match(countryCodeRegex);
+
+  if (match && match[1]) {
+    return match[1].toLowerCase();
+  }
+
+  return 'us'; // Default to US if no country code found
+}
+
 // Function to fetch bundle ID using iTunes Lookup API
 export async function fetchBundleId(appId) {
   try {
@@ -25,7 +37,8 @@ export async function fetchBundleId(appId) {
       return results[0].bundleId;
     }
     
-    throw new Error('Bundle ID not found');
+    console.error('Bundle ID not found');
+    return '';
   } catch (error) {
     console.error('Error fetching bundle ID:', error);
     throw error;
@@ -52,10 +65,18 @@ export async function searchApps(query, options = {}) {
     throw error;
   }
 }
+export async function getAppDetails(appId, countryCode) {
+  if (!countryCode) {
+    throw new Error('Country code is required');
+  }
 
-export async function getAppDetails(appId) {
   try {
-    const app = await store.app({id: appId});
+    const app = await store.app({
+      id: appId,
+      country: countryCode,
+      // ratings: true
+    });
+    
     return {
       id: app.id,
       title: app.title,
@@ -68,7 +89,6 @@ export async function getAppDetails(appId) {
       version: app.version,
       size: app.size,
       genre: app.genre,
-      bundleId: await fetchBundleId(appId),
       platform: 'ios'  // Add platform for App Store
     };
   } catch (error) {
@@ -77,7 +97,7 @@ export async function getAppDetails(appId) {
   }
 }
 
-export async function getAppReviews(appId, options = {}) {
+export async function getAppReviews(appId, country) {
   try {
     const maxPages = 10;
     const allReviews = [];
@@ -88,7 +108,7 @@ export async function getAppReviews(appId, options = {}) {
         const reviews = await store.reviews({
           id: appId,
           page: page,
-          country: options.country || 'us'
+          country: country
         });
 
         // If no reviews are returned, break the loop
@@ -137,8 +157,16 @@ export async function getAppReviews(appId, options = {}) {
 export async function processAppStoreUrl(url) {
   try {
     const appId = extractAppStoreId(url);
-    const details = await getAppDetails(appId);
-    const reviews = await getAppReviews(appId);
+    const countryCode = extractCountryCode(url);
+
+    if (!countryCode) {
+      throw new Error('Country code is required');
+    }
+
+    console.log(`Processing app ID ${appId} from country ${countryCode}`);
+
+    const details = await getAppDetails(appId, countryCode);
+    const reviews = await getAppReviews(appId, countryCode);
 
     console.log('App Details:', details);
 

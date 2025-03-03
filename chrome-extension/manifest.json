@@ -4,8 +4,7 @@
   "version": "1.0",
   "description": "A Chrome extension to get app review summary",
   "permissions": [
-    "activeTab",
-    "storage"
+    "activeTab"
   ],
   "host_permissions": [
     "http://localhost:3000/*",

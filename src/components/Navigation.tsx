@@ -9,7 +9,7 @@ import {
   X,
   Microscope,
   Scale,
-  Compare
+  Chrome
 } from 'lucide-react';
 
 // Navigation component props
@@ -60,6 +60,12 @@ const Navigation: React.FC<NavigationProps> = ({
         to: '/competitor-insights',
         icon: Scale,
         label: 'Competitors',
+        className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out'
+      },
+      {
+        to: 'https://chromewebstore.google.com/detail/insightlytop-chrome-exten/jbhfbkkaffgfgjpipkpmgnbojjoajjka?hl=en',
+        icon: Chrome,
+        label: 'ChromeExtension',
         className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out'
       }
     ];

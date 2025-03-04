@@ -102,6 +102,8 @@ async function testAppDetails() {
       console.log(`Developer: ${details.developer}`);
       console.log(`Version: ${details.version}`);
       console.log(`Rating: ${details.score}`);
+      console.log(`Price: ${details.price}`);
+      console.log(`Reviews: ${details.reviews}`);
       
       // Verify required fields
       const requiredFields = ['id', 'title', 'description', 'developer', 'version', 'icon'];

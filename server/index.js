@@ -378,7 +378,7 @@ const createCacheEntry = (url, hashUrl, finalReport, appData) => {
       version: appData.details.version,
       url: url,
       score: appData.details.score,
-      reviews: appData.details.reviews,
+      reviews: appData.reviews.reviews,
       icon: appData.details.icon,
       platform: appData.details.platform
     },
@@ -850,7 +850,10 @@ app.get('/api/shared-app-report', (req, res) => {
   }
 
   // Return the entire report directly
-  res.json({ report: cachedReport.finalReport });
+  res.json({
+    appDetails: cachedReport.appDetails,
+    report: cachedReport.finalReport
+  });
 });
 
 app.get('/api/share-competitor-report', (req, res) => {

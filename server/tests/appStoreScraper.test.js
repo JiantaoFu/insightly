@@ -136,6 +136,7 @@ async function testAppDetails() {
       console.log(`Developer: ${details.developer}`);
       console.log(`Version: ${details.version}`);
       console.log(`Rating: ${details.score}`);
+      console.log(`Reviews: ${details.reviews}`);
       console.log(`Details Fetch: ${details.title ? 'PASS ✅' : 'FAIL ❌'}`);
     } catch (error) {
       console.error(`❌ Error fetching app details: ${error.message}`);

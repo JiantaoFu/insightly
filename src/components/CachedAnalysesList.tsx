@@ -58,28 +58,7 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
         }
 
         const data = await response.json();
-        
-        const validatedData = data.map(entry => ({
-          shareLink: entry.shareLink || '',
-          appDetails: {
-            title: entry.appDetails?.title || 'Unknown App',
-            description: entry.appDetails?.description || '',
-            developer: entry.appDetails?.developer || 'Unknown Developer',
-            version: entry.appDetails?.version || 'N/A',
-            url: entry.appDetails?.url || '',
-            icon: entry.appDetails?.icon || '',
-            platform: entry.appDetails?.platform || 'unknown'
-          },
-          reviewsSummary: {
-            totalReviews: entry.reviewsSummary?.totalReviews,
-            averageRating: entry.reviewsSummary?.averageRating,
-            scoreDistribution: entry.reviewsSummary?.scoreDistribution || {}
-          },
-          analysisDate: entry.analysisDate || new Date().toLocaleString(),
-          finalReport: entry.finalReport || ''
-        }));
-
-        setCachedAnalyses(validatedData);
+        setCachedAnalyses(data);
         setIsLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred');

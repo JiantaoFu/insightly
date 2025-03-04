@@ -30,6 +30,9 @@ export async function fetchAppDetails(appId, countryCode = 'us') {
       description: details.description,
       developer: details.developer,
       version: details.version,
+      price: details.price,
+      score: details.score,
+      reviews: details.reviews,
       icon: details.icon,
       platform: 'android'
     };

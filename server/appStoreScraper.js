@@ -126,7 +126,7 @@ export async function getAppReviews(appId, country) {
           title: review.title,
           text: review.text,
           url: review.url,
-          date: review.date // Add date for additional context
+          timestamp: review.updated
         }));
 
         allReviews.push(...mappedReviews);

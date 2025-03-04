@@ -4,6 +4,7 @@ import TextareaAutosize from 'react-textarea-autosize';
 import ReactMarkdown from 'react-markdown';
 import ShareButton from './ShareButton';
 import Navigation from './Navigation';
+import ReviewPreview from './ReviewPreview';
 import ProductHuntBadge from './ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './MathChallenge';
 import { ProviderModelSelector, useProviderModel } from './ProviderModelSelector';
@@ -216,9 +217,9 @@ const MainAnalysis: React.FC = () => {
     }
 
     // Prepare CSV
-    const csvHeader = 'Date,Score,User,Review\n';
+    const csvHeader = 'Timestamp,Score,User,Review\n';
     const csvContent = appData.reviews.reviews.map(review => 
-      `"${review.date || ''}","${review.score || 0}","${(review.userName || 'Anonymous').replace(/"/g, '""')}","${(review.text || '').replace(/"/g, '""')}"`)
+      `"${review.timestamp || ''}","${review.score || 0}","${(review.userName || 'Anonymous').replace(/"/g, '""')}","${(review.text || '').replace(/"/g, '""')}"`)
       .join('\n');
     const csvBlob = new Blob([csvHeader + csvContent], { type: 'text/csv;charset=utf-8;' });
 
@@ -400,6 +401,20 @@ const MainAnalysis: React.FC = () => {
             )}
           </div>
 
+          {/* Add ReviewPreview here, right after the report */}
+          {appData?.reviews?.reviews && appData?.reviews?.reviews.length > 0 && (
+            <ReviewPreview
+              reviews={appData?.reviews?.reviews.map(review => ({
+                id: review.id || crypto.randomUUID(),
+                text: review.text,
+                score: review.score,
+                userName: review.userName,
+                timestamp: review.timestamp
+              }))}
+            />
+          )}
+          <div className="border-t border-gray-200 my-8"></div>
+
           {report && (
             <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
               {!loading && (
@@ -431,9 +446,11 @@ const MainAnalysis: React.FC = () => {
                 </button>
               </div>
               )}
+
               <div className="prose prose-sm max-w-none">
                 <ReactMarkdown>{report}</ReactMarkdown>
               </div>
+
             </div>
           )}
         </div>

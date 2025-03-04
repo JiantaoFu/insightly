@@ -159,6 +159,7 @@ async function testAppReviews() {
       console.log(`\nSample review:`);
       console.log(`User: ${firstReview.userName}`);
       console.log(`Rating: ${firstReview.score}`);
+      console.log(`Timestamp: ${firstReview.timestamp}`);
       console.log(`Text: ${firstReview.text.substring(0, 100)}...`);
     }
     

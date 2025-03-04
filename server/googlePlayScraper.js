@@ -66,7 +66,7 @@ export async function getAppReviews(appId, countryCode = 'us', options = {}) {
       reviews: reviews.map(review => ({
         text: review.text || '',
         score: review.score || 0,
-        date: review.date,
+        timestamp: review.date,
         userName: review.userName || ''
       })),
       averageRating: calculateAverageRating(reviews),

@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import Navigation from './Navigation';
 import ProductHuntBadge from './ProductHuntBadge';
 import remarkGfm from 'remark-gfm';
-import ShareButton from './ShareButton';
+import { ShareComponent } from './ShareButton';
 
 interface SharedReportViewProps {
   reportType: 'app' | 'competitor';
@@ -106,7 +106,7 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
           <Download className="w-4 h-4 mr-2" />
           Download Report
         </button>
-        {appData?.reviews && (
+        {Array.isArray(appData?.reviews) && appData.reviews.length > 0 && (
           <button
             onClick={downloadReviews}
             className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
@@ -115,7 +115,14 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
           </button>
         )}
         <div className="w-full sm:w-auto">
-          <ShareButton url={`/shared/${reportType}/${shareId}`} />
+        {appData && (
+          <ShareComponent
+            generateShareLink={() => window.location.href}
+            title={appData.title || 'App Report'}
+            description={appData.description || 'Detailed app analysis report'}
+            shareType={reportType}
+          />
+          )}
         </div>
       </div>
 

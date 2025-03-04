@@ -251,7 +251,7 @@ export const ShareCompetitorReportButton: React.FC<ShareCompetitorReportButtonPr
   };
 
   return (
-    <ShareComponent 
+    <ShareComponent
       generateShareLink={generateCompetitorShareLink}
       title={title}
       description={description}
@@ -260,4 +260,5 @@ export const ShareCompetitorReportButton: React.FC<ShareCompetitorReportButtonPr
   );
 };
 
+export { ShareComponent };
 export default ShareButton;

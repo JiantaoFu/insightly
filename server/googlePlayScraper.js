@@ -24,18 +24,7 @@ export async function fetchAppDetails(appId, countryCode = 'us') {
       country: countryCode
     });
 
-    return {
-      id: details.appId,
-      title: details.title,
-      description: details.description,
-      developer: details.developer,
-      version: details.version,
-      price: details.price,
-      score: details.score,
-      reviews: details.reviews,
-      icon: details.icon,
-      platform: 'android'
-    };
+    return unifyGooglePlayAppData(details);
   } catch (error) {
     console.error(`Error fetching app details for ${appId} from ${countryCode}:`, error);
 
@@ -84,6 +73,58 @@ export async function getAppReviews(appId, countryCode = 'us', options = {}) {
       return getAppReviews(appId, 'us', options);
     }
 
+    throw error;
+  }
+}
+
+function unifyGooglePlayAppData(app) {
+  return {
+    url: app.url,
+    appId: app.appId,
+    title: app.title,
+    description: app.description,
+    developer: app.developer,
+    developerId: app.developerId,
+    icon: app.icon,
+    score: app.score,
+    price: app.price,
+    free: app.free,
+    reviews: app.reviews,
+    genre: app.genre,
+    id: app.appId,
+    version: app.version,
+    platform: 'android'
+  };
+}
+
+export async function searchApps(term, options = {}) {
+  try {
+    const results = await gplay.search({
+      term,
+      num: options.num || 20,
+      lang: options.lang || 'en',
+      country: options.country || 'us',
+      fullDetail: options.fullDetail || false,
+      price: options.price || 'all'
+    });
+    return results.map(unifyGooglePlayAppData);
+  } catch (error) {
+    console.error('Error searching Google Play:', error);
+    throw error;
+  }
+}
+
+export async function getSimilarApps(appId, options = {}) {
+  try {
+    const results = await gplay.similar({
+      appId,
+      lang: options.lang || 'en',
+      country: options.country || 'us',
+      fullDetail: options.fullDetail || false
+    });
+    return results.map(unifyGooglePlayAppData);
+  } catch (error) {
+    console.error('Error fetching similar apps:', error);
     throw error;
   }
 }

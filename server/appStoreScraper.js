@@ -45,26 +45,6 @@ export async function fetchBundleId(appId) {
   }
 }
 
-export async function searchApps(query, options = {}) {
-  try {
-    const results = await store.search({
-      term: query,
-      num: options.limit || 10,
-      country: options.country || 'us'
-    });
-    return results.map(app => ({
-      id: app.id,
-      title: app.title,
-      icon: app.icon,
-      developer: app.developer,
-      price: app.price,
-      score: app.score
-    }));
-  } catch (error) {
-    console.error('Error searching App Store:', error);
-    throw error;
-  }
-}
 export async function getAppDetails(appId, countryCode) {
   if (!countryCode) {
     throw new Error('Country code is required');
@@ -76,21 +56,8 @@ export async function getAppDetails(appId, countryCode) {
       country: countryCode,
       // ratings: true
     });
-    
-    return {
-      id: app.id,
-      title: app.title,
-      description: app.description,
-      icon: app.icon,
-      developer: app.developer,
-      price: app.price,
-      score: app.score,
-      reviews: app.reviews,
-      version: app.version,
-      size: app.size,
-      genre: app.genre,
-      platform: 'ios'  // Add platform for App Store
-    };
+
+    return unifyAppStoreAppData(app);
   } catch (error) {
     console.error('Error fetching app details:', error);
     throw error;
@@ -149,6 +116,55 @@ export async function getAppReviews(appId, country) {
     };
   } catch (error) {
     console.error('Error fetching app reviews:', error);
+    throw error;
+  }
+}
+
+function unifyAppStoreAppData(app) {
+  return {
+    url: app.url,
+    appId: app.appId,
+    title: app.title,
+    description: app.description,
+    developer: app.developer,
+    developerId: app.developerId,
+    icon: app.icon,
+    score: app.score,
+    price: app.price,
+    free: app.free,
+    reviews: app.reviews,
+    genre: app.primaryGenre,
+    id: app.id,
+    version: app.version,
+    platform: 'ios'
+  };
+}
+
+export async function searchApps(term, options = {}) {
+  try {
+    const results = await store.search({
+      term,
+      num: options.num || 50,
+      page: options.page || 1,
+      country: options.country || 'us',
+      lang: options.lang || 'en-us',
+      idsOnly: options.idsOnly || false
+    });
+    return results.map(unifyAppStoreAppData);
+  } catch (error) {
+    console.error('Error searching App Store:', error);
+    throw error;
+  }
+}
+
+export async function getSimilarApps(appId) {
+  try {
+    const results = await store.similar({
+      id: appId
+    })
+    return results.map(unifyAppStoreAppData);
+  } catch (error) {
+    console.error('Error fetching similar apps:', error);
     throw error;
   }
 }

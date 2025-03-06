@@ -5,7 +5,8 @@ import {
   searchApps,
   getAppDetails, 
   getAppReviews, 
-  processAppStoreUrl 
+  processAppStoreUrl,
+  getSimilarApps
 } from '../appStoreScraper.js';
 
 /**
@@ -15,27 +16,30 @@ import {
  * of the App Store scraper utilities.
  */
 
-// Test URLs for different regions and app types
-const TEST_URLS = [
-  {
-    url: 'https://apps.apple.com/us/app/instagram/id389801252',
-    expectedId: '389801252',
-    expectedCountry: 'us',
-    description: 'Instagram US'
-  },
-  {
-    url: 'https://apps.apple.com/cn/app/shopee-3-3-mega-shopping-party/id959840394',
-    expectedId: '959840394',
-    expectedCountry: 'cn',
-    description: 'Shopee CN'
-  },
-  {
-    url: 'https://apps.apple.com/jp/app/line/id443904275',
-    expectedId: '443904275',
-    expectedCountry: 'jp',
-    description: 'LINE JP'
-  }
-];
+const TEST_CONFIG = {
+  urls: [
+    {
+      url: 'https://apps.apple.com/us/app/instagram/id389801252',
+      appId: '389801252',
+      countryCode: 'us',
+      description: 'Instagram US',
+      searchTerm: 'instagram' // Add search term for this app
+    },
+    {
+      url: 'https://apps.apple.com/cn/app/shopee-3-3-mega-shopping-party/id959840394',
+      appId: '959840394',
+      countryCode: 'cn',
+      description: 'Shopee CN'
+    },
+    {
+      url: 'https://apps.apple.com/jp/app/line/id443904275',
+      appId: '443904275',
+      countryCode: 'jp',
+      description: 'LINE JP'
+    }
+  ],
+  searchTerms: ['instagram', 'spotify', 'netflix']
+};
 
 /**
  * Tests URL parsing functions
@@ -44,7 +48,7 @@ async function testUrlParsing() {
   console.log('\n📋 TESTING URL PARSING FUNCTIONS');
   console.log('===============================');
   
-  for (const test of TEST_URLS) {
+  for (const test of TEST_CONFIG.urls) {
     console.log(`\n🔍 Testing ${test.description}:`);
     console.log(`URL: ${test.url}`);
     
@@ -52,14 +56,14 @@ async function testUrlParsing() {
       // Test ID extraction
       const extractedId = extractAppStoreId(test.url);
       console.log(`Extracted ID: ${extractedId}`);
-      console.log(`Expected ID: ${test.expectedId}`);
-      console.log(`ID Extraction: ${extractedId === test.expectedId ? 'PASS ✅' : 'FAIL ❌'}`);
+      console.log(`Expected ID: ${test.appId}`);
+      console.log(`ID Extraction: ${extractedId === test.appId ? 'PASS ✅' : 'FAIL ❌'}`);
 
       // Test country code extraction
       const extractedCountry = extractCountryCode(test.url);
       console.log(`Extracted Country: ${extractedCountry}`);
-      console.log(`Expected Country: ${test.expectedCountry}`);
-      console.log(`Country Extraction: ${extractedCountry === test.expectedCountry ? 'PASS ✅' : 'FAIL ❌'}`);
+      console.log(`Expected Country: ${test.countryCode}`);
+      console.log(`Country Extraction: ${extractedCountry === test.countryCode ? 'PASS ✅' : 'FAIL ❌'}`);
     } catch (error) {
       console.error(`❌ Error: ${error.message}`);
     }
@@ -73,7 +77,7 @@ async function testBundleIdFetching() {
   console.log('\n📋 TESTING BUNDLE ID FETCHING');
   console.log('============================');
   
-  for (const test of TEST_URLS) {
+  for (const test of TEST_CONFIG.urls) {
     try {
       const appId = extractAppStoreId(test.url);
       console.log(`\n🔍 Fetching bundle ID for ${test.description} (ID: ${appId})...`);
@@ -94,9 +98,7 @@ async function testAppSearch() {
   console.log('\n📋 TESTING APP SEARCH');
   console.log('====================');
   
-  const searchTerms = ['instagram', 'spotify', 'netflix'];
-  
-  for (const term of searchTerms) {
+  for (const term of TEST_CONFIG.searchTerms) {
     try {
       console.log(`\n🔍 Searching for "${term}"...`);
       
@@ -124,7 +126,7 @@ async function testAppDetails() {
   console.log('\n📋 TESTING APP DETAILS FETCHING');
   console.log('=============================');
   
-  for (const test of TEST_URLS) {
+  for (const test of TEST_CONFIG.urls) {
     try {
       const appId = extractAppStoreId(test.url);
       const countryCode = extractCountryCode(test.url);
@@ -152,7 +154,7 @@ async function testAppReviews() {
   console.log('=============================');
   
   // Only test one app to avoid rate limiting
-  const testApp = TEST_URLS[0];
+  const testApp = TEST_CONFIG.urls[0];
   
   try {
     const appId = extractAppStoreId(testApp.url);
@@ -189,7 +191,7 @@ async function testFullWorkflow() {
   console.log('======================');
   
   // Only test one app to avoid rate limiting
-  const testApp = TEST_URLS[0];
+  const testApp = TEST_CONFIG.urls[0];
   
   try {
     console.log(`\n🔍 Processing full workflow for ${testApp.description} (URL: ${testApp.url})...`);
@@ -205,8 +207,65 @@ async function testFullWorkflow() {
 }
 
 /**
- * Main test runner
+ * Tests search functionality
  */
+async function testSearch() {
+  console.log('\n📱 TESTING APP STORE SEARCH');
+  console.log('=========================');
+  
+  const testApp = TEST_CONFIG.urls[0]; // Use Instagram as test case
+  
+  try {
+    console.log(`\n🔍 Testing search for "${testApp.searchTerm}"`);
+    const results = await searchApps(testApp.searchTerm, {
+      country: testApp.countryCode,
+      num: 5
+    });
+
+    console.log(`Found ${results.length} results`);
+    if (results.length > 0) {
+      console.log('Sample result:', {
+        title: results[0].title,
+        developer: results[0].developer,
+        score: results[0].score
+      });
+    }
+    console.log(`Search Test: ${results.length > 0 ? 'PASS ✅' : 'FAIL ❌'}`);
+  } catch (error) {
+    console.error('❌ Search Error:', error.message);
+  }
+}
+
+/**
+ * Tests similar apps functionality
+ */
+async function testSimilarApps() {
+  console.log('\n📱 TESTING SIMILAR APPS');
+  console.log('======================');
+
+  const testApp = TEST_CONFIG.urls[0]; // Use Instagram as test case
+
+  try {
+    console.log(`\n🔍 Testing similar apps for ${testApp.description}`);
+    const results = await getSimilarApps(testApp.appId, {
+      country: testApp.countryCode
+    });
+
+    console.log(`Found ${results.length} similar apps`);
+    if (results.length > 0) {
+      console.log('Sample similar app:', {
+        title: results[0].title,
+        developer: results[0].developer,
+        score: results[0].score
+      });
+    }
+    console.log(`Similar Apps Test: ${results.length > 0 ? 'PASS ✅' : 'FAIL ❌'}`);
+  } catch (error) {
+    console.error('❌ Similar Apps Error:', error.message);
+  }
+}
+
+// Update the test runner to include new test
 async function runTests() {
   console.log('🚀 RUNNING APP STORE SCRAPER INTEGRATION TESTS');
   console.log('============================================');
@@ -218,6 +277,8 @@ async function runTests() {
     await testAppDetails();
     await testAppReviews();
     await testFullWorkflow();
+    await testSearch();
+    await testSimilarApps();
     
     console.log('\n✅ ALL TESTS COMPLETED');
   } catch (error) {

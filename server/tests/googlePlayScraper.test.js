@@ -1,9 +1,12 @@
+import { expect } from 'chai';
 import { 
   extractGooglePlayId, 
   extractCountryCode,
   fetchAppDetails, 
   getAppReviews, 
-  processGooglePlayUrl 
+  processGooglePlayUrl,
+  searchApps,
+  getSimilarApps
 } from '../googlePlayScraper.js';
 
 /**
@@ -13,27 +16,30 @@ import {
  * of the Google Play scraper utilities.
  */
 
-// Test URLs for different apps and regions
-const TEST_URLS = [
-  {
-    url: 'https://play.google.com/store/apps/details?id=com.google.android.apps.photos',
-    expectedId: 'com.google.android.apps.photos',
-    expectedCountry: 'us',
-    description: 'Google Photos US'
-  },
-  {
-    url: 'https://play.google.com/store/apps/details?id=com.google.android.gm',
-    expectedId: 'com.google.android.gm',
-    expectedCountry: 'us',
-    description: 'Gmail US'
-  },
-  {
-    url: 'https://play.google.com/store/apps/details?id=com.roblox.client&gl=UK',
-    expectedId: 'com.roblox.client',
-    expectedCountry: 'uk',
-    description: 'Roblox UK'
-  }
-];
+const TEST_CONFIG = {
+  urls: [
+    {
+      url: 'https://play.google.com/store/apps/details?id=com.instagram.android&gl=us',
+      appId: 'com.instagram.android',
+      countryCode: 'us',
+      description: 'Instagram Android',
+      searchTerm: 'instagram'
+    },
+    {
+      url: 'https://play.google.com/store/apps/details?id=com.google.android.apps.photos',
+      appId: 'com.google.android.apps.photos',
+      countryCode: 'us',
+      description: 'Google Photos US'
+    },
+    {
+      url: 'https://play.google.com/store/apps/details?id=com.roblox.client&gl=UK',
+      appId: 'com.roblox.client',
+      countryCode: 'uk',
+      description: 'Roblox UK'
+    }
+  ],
+  searchTerms: ['instagram', 'gmail', 'maps']
+};
 
 /**
  * Tests URL parsing functions
@@ -42,7 +48,7 @@ async function testUrlParsing() {
   console.log('\n📋 TESTING URL PARSING FUNCTIONS');
   console.log('===============================');
   
-  for (const test of TEST_URLS) {
+  for (const test of TEST_CONFIG.urls) {
     console.log(`\n🔍 Testing ${test.description}:`);
     console.log(`URL: ${test.url}`);
     
@@ -50,14 +56,14 @@ async function testUrlParsing() {
       // Test ID extraction
       const extractedId = extractGooglePlayId(test.url);
       console.log(`Extracted ID: ${extractedId}`);
-      console.log(`Expected ID: ${test.expectedId}`);
-      console.log(`ID Extraction: ${extractedId === test.expectedId ? 'PASS ✅' : 'FAIL ❌'}`);
+      console.log(`Expected ID: ${test.appId}`);
+      console.log(`ID Extraction: ${extractedId === test.appId ? 'PASS ✅' : 'FAIL ❌'}`);
 
       // Test country code extraction
       const extractedCountry = extractCountryCode(test.url);
       console.log(`Extracted Country: ${extractedCountry}`);
-      console.log(`Expected Country: ${test.expectedCountry}`);
-      console.log(`Country Extraction: ${extractedCountry === test.expectedCountry ? 'PASS ✅' : 'FAIL ❌'}`);
+      console.log(`Expected Country: ${test.countryCode}`);
+      console.log(`Country Extraction: ${extractedCountry === test.countryCode ? 'PASS ✅' : 'FAIL ❌'}`);
     } catch (error) {
       console.error(`❌ Error: ${error.message}`);
     }
@@ -90,7 +96,7 @@ async function testAppDetails() {
   console.log('\n📋 TESTING APP DETAILS FETCHING');
   console.log('=============================');
   
-  for (const test of TEST_URLS) {
+  for (const test of TEST_CONFIG.urls) {
     try {
       const appId = extractGooglePlayId(test.url);
       const countryCode = extractCountryCode(test.url);
@@ -135,8 +141,8 @@ async function testAppReviews() {
   console.log('=============================');
   
   // Only test one app to avoid rate limiting
-  const testApp = TEST_URLS[0];
-  const testAppWithCountry = TEST_URLS[2]; // Roblox with UK country code
+  const testApp = TEST_CONFIG.urls[0];
+  const testAppWithCountry = TEST_CONFIG.urls[2]; // Roblox with UK country code
   
   try {
     // Test without country code
@@ -192,8 +198,8 @@ async function testFullWorkflow() {
   console.log('======================');
   
   // Test one app without country code and one with country code
-  const testApp = TEST_URLS[0];
-  const testAppWithCountry = TEST_URLS[2]; // Roblox with UK country code
+  const testApp = TEST_CONFIG.urls[0];
+  const testAppWithCountry = TEST_CONFIG.urls[2]; // Roblox with UK country code
   
   try {
     // Test without country code
@@ -205,7 +211,7 @@ async function testFullWorkflow() {
     console.log(`Total Reviews: ${result.reviews.total}`);
     
     // Verify details and reviews
-    const hasDetails = result.details && result.details.id === testApp.expectedId;
+    const hasDetails = result.details && result.details.id === testApp.appId;
     const hasReviews = result.reviews && result.reviews.total > 0;
     
     console.log(`Details Check: ${hasDetails ? 'PASS ✅' : 'FAIL ❌'}`);
@@ -221,7 +227,7 @@ async function testFullWorkflow() {
     console.log(`Total Reviews: ${resultWithCountry.reviews.total}`);
     
     // Verify details and reviews
-    const hasDetailsWithCountry = resultWithCountry.details && resultWithCountry.details.id === testAppWithCountry.expectedId;
+    const hasDetailsWithCountry = resultWithCountry.details && resultWithCountry.details.id === testAppWithCountry.appId;
     const hasReviewsWithCountry = resultWithCountry.reviews && resultWithCountry.reviews.total > 0;
     
     console.log(`Details Check (with country): ${hasDetailsWithCountry ? 'PASS ✅' : 'FAIL ❌'}`);
@@ -233,8 +239,112 @@ async function testFullWorkflow() {
 }
 
 /**
- * Main test runner
+ * Tests app search and similar apps functionality
  */
+async function testAppSearchAndSimilar() {
+  console.log('\n📋 TESTING APP SEARCH AND SIMILAR APPS');
+  console.log('=====================================');
+
+  const testApp = TEST_CONFIG.urls[0]; // Use Instagram as the test app
+
+  try {
+    // Test app search
+    console.log(`\n🔍 Testing app search for "${testApp.searchTerm}"...`);
+    const searchResults = await searchApps(testApp.searchTerm, {
+      country: testApp.countryCode,
+      num: 5
+    });
+
+    console.log(`Found ${searchResults.length} search results`);
+    if (searchResults.length > 0) {
+      console.log('Sample search result:', {
+        title: searchResults[0].title,
+        developer: searchResults[0].developer,
+        score: searchResults[0].score
+      });
+    }
+    console.log(`App Search: ${searchResults.length > 0 ? 'PASS ✅' : 'FAIL ❌'}`);
+
+    // Test similar apps
+    console.log(`\n🔍 Testing similar apps for ${testApp.description}...`);
+    const similarApps = await getSimilarApps(testApp.appId, {
+      country: testApp.countryCode
+    });
+
+    console.log(`Found ${similarApps.length} similar apps`);
+    if (similarApps.length > 0) {
+      console.log('Sample similar app:', {
+        title: similarApps[0].title,
+        developer: similarApps[0].developer,
+        score: similarApps[0].score
+      });
+    }
+    console.log(`Similar Apps: ${similarApps.length > 0 ? 'PASS ✅' : 'FAIL ❌'}`);
+  } catch (error) {
+    console.error('❌ Error testing search and similar:', error.message);
+  }
+}
+
+/**
+ * Tests search functionality
+ */
+async function testSearch() {
+  console.log('\n📱 TESTING GOOGLE PLAY SEARCH');
+  console.log('============================');
+  
+  const testApp = TEST_CONFIG.urls[0]; // Use Instagram as test case
+
+  try {
+    console.log(`\n🔍 Testing search for "${testApp.searchTerm}"`);
+    const results = await searchApps(testApp.searchTerm, {
+      country: testApp.countryCode,
+      num: 5
+    });
+
+    console.log(`Found ${results.length} results`);
+    if (results.length > 0) {
+      console.log('Sample result:', {
+        title: results[0].title,
+        developer: results[0].developer,
+        score: results[0].score
+      });
+    }
+    console.log(`Search Test: ${results.length > 0 ? 'PASS ✅' : 'FAIL ❌'}`);
+  } catch (error) {
+    console.error('❌ Search Error:', error.message);
+  }
+}
+
+/**
+ * Tests similar apps functionality
+ */
+async function testSimilarApps() {
+  console.log('\n📱 TESTING SIMILAR APPS');
+  console.log('======================');
+
+  const testApp = TEST_CONFIG.urls[0]; // Use Instagram as test case
+
+  try {
+    console.log(`\n🔍 Testing similar apps for ${testApp.description}`);
+    const results = await getSimilarApps(testApp.appId, {
+      country: testApp.countryCode
+    });
+
+    console.log(`Found ${results.length} similar apps`);
+    if (results.length > 0) {
+      console.log('Sample similar app:', {
+        title: results[0].title,
+        developer: results[0].developer,
+        score: results[0].score
+      });
+    }
+    console.log(`Similar Apps Test: ${results.length > 0 ? 'PASS ✅' : 'FAIL ❌'}`);
+  } catch (error) {
+    console.error('❌ Similar Apps Error:', error.message);
+  }
+}
+
+// Update main test runner to include new test
 async function runTests() {
   console.log('🚀 RUNNING GOOGLE PLAY SCRAPER INTEGRATION TESTS');
   console.log('=============================================');
@@ -244,6 +354,9 @@ async function runTests() {
     await testAppDetails();
     await testAppReviews();
     await testFullWorkflow();
+    await testAppSearchAndSimilar(); // Add new test function
+    await testSearch(); // Add new test
+    await testSimilarApps(); // Add new test
     
     console.log('\n✅ ALL TESTS COMPLETED');
   } catch (error) {
@@ -252,5 +365,5 @@ async function runTests() {
   }
 }
 
-// Run all tests
+// Remove describe blocks and just run tests
 runTests();

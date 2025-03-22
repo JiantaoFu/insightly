@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Insightly.top Chrome Extension",
+  "name": "Insightly - App Review Insights",
   "version": "1.0",
   "description": "A Chrome extension to get app review summary",
   "permissions": [
@@ -22,6 +22,12 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "insightly@insightly.top",
+      "strict_min_version": "58.0"
+    }
   },
   "web_accessible_resources": [{
     "resources": ["styles.css", "lib/*"],

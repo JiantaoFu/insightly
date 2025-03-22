@@ -45,6 +45,11 @@ app.use(cors({
       return callback(null, true);
     }
 
+    // Allow Firefox extensions
+    if (origin.startsWith('moz-extension://')) {
+      return callback(null, true);
+    }
+
     // Allow the specified client origin
     if (origin === CLIENT_ORIGIN) {
       return callback(null, true);

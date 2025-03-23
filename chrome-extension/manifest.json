@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Insightly - App Review Insights",
+  "name": "Insightly.top - App Review Insights",
   "version": "1.0",
   "description": "A Chrome extension to get app review summary",
   "permissions": [

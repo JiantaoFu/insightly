@@ -50,6 +50,10 @@ app.use(cors({
       return callback(null, true);
     }
 
+    if (origin.includes('github.com')) {
+      return callback(null, true);
+    }
+
     // Allow the specified client origin
     if (origin === CLIENT_ORIGIN) {
       return callback(null, true);
@@ -240,17 +244,17 @@ const COMPARISON_CACHE_MAX_SIZE = 50;  // Separate cache for comparison reports
 
 const analysisCache = new LRUCache({
   max: ANALYSIS_CACHE_MAX_SIZE,
-  maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+  maxAge: 1000 * 60 * 60 * 24 * 90
 });
 
 const comparisonCache = new LRUCache({
   max: COMPARISON_CACHE_MAX_SIZE,
-  maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+  maxAge: 1000 * 60 * 60 * 24 * 90
 });
 
 const RECORD_EXPIRATION_HOURS = process.env.RECORD_EXPIRATION_HOURS 
   ? parseInt(process.env.RECORD_EXPIRATION_HOURS, 10) 
-  : 24 * 7 * 90; // Default to 90 days
+  : 24 * 7 * 365;
 
 // Function to check if cache entry is expired
 const isRecordEntryExpired = (recordEntry) => {
@@ -905,6 +909,86 @@ app.get('/api/shared-competitor-report', (req, res) => {
 
   // Return the entire report directly
   res.json({ report: sharedReportEntry.finalReport });
+});
+
+// Add new endpoint to check if a report already exists
+app.get('/api/check-existing-report', async (req, res) => {
+  try {
+    const { urlHash } = req.query;
+    
+    if (!urlHash) {
+      return res.status(400).json({ error: 'URL hash is required' });
+    }
+    
+    // First check the in-memory cache
+    const cachedReport = analysisCache.get(urlHash);
+    if (cachedReport && !isRecordEntryExpired(cachedReport)) {
+      return res.json({
+        exists: true,
+        source: 'cache',
+        report: {
+          appDetails: cachedReport.appDetails,
+          reviewsSummary: cachedReport.reviewsSummary,
+          timestamp: cachedReport.timestamp
+        }
+      });
+    }
+    
+    // If not in cache, check the database
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .select('*')
+      .eq('hash_url', urlHash)
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // PGRST116 is the error code for "no rows returned"
+        return res.json({ exists: false });
+      }
+      throw error;
+    }
+    
+    // If we found a record in the database
+    if (data) {
+      // Check if the record is expired
+      if (isRecordEntryExpired({ timestamp: data.timestamp })) {
+        return res.json({ 
+          exists: false, 
+          reason: 'expired',
+          timestamp: data.timestamp
+        });
+      }
+      
+      // If not expired, return the record and add to cache
+      const cacheEntry = {
+        ...data.full_report,
+        getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${urlHash}`
+      };
+      
+      // Add to cache for future requests
+      analysisCache.set(urlHash, cacheEntry);
+      
+      return res.json({
+        exists: true,
+        source: 'database',
+        report: {
+          appDetails: data.full_report.appDetails,
+          reviewsSummary: data.full_report.reviewsSummary,
+          timestamp: data.timestamp
+        }
+      });
+    }
+    
+    // If we get here, no record was found
+    return res.json({ exists: false });
+  } catch (error) {
+    console.error('Error checking existing report:', error);
+    res.status(500).json({ 
+      error: 'Failed to check existing report', 
+      details: error.message 
+    });
+  }
 });
 
 // Optional: Add a route to clear or inspect the cache (for debugging)

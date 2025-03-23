@@ -1,0 +1,62 @@
+name: App Data Scraper and Report Generator
+
+on:
+  schedule:
+    # Runs at 00:00 every Sunday (weekly)
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    # Allows manual triggering from GitHub UI
+    inputs:
+      categories:
+        description: 'App categories to scrape (comma-separated, or "all" for all categories)'
+        required: false
+        default: 'all'
+      limit:
+        description: 'Number of apps to process per category-collection combination'
+        required: false
+        default: '10'
+      platforms:
+        description: 'Platforms to scrape (comma-separated)'
+        required: false
+        default: 'ios,android'
+      collections:
+        description: 'App store collections to scrape (comma-separated, "all" for all collections, or "top" for top collections only)'
+        required: false
+        default: 'top'
+
+jobs:
+  scrape-and-analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run app data scraper
+        env:
+          # Environment variables
+          API_BASE_URL: 'https://insightly-5iyw.onrender.com'
+          CLIENT_ORIGIN: 'https://insightly-app.vercel.app'
+        run: |
+          node scripts/run-batch-scraper.js \
+            --categories="${{ github.event.inputs.categories || 'all' }}" \
+            --limit="${{ github.event.inputs.limit || '10' }}" \
+            --platforms="${{ github.event.inputs.platforms || 'ios,android' }}" \
+            --collections="${{ github.event.inputs.collections || 'top' }}" \
+            --verbose
+      
+      - name: Upload report summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: scraping-report
+          path: reports/summary.json
+          retention-days: 7

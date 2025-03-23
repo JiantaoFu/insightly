@@ -4,12 +4,12 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { 
-  searchApps, 
-  getAppDetails, 
+import {
+  searchApps,
+  getAppDetails,
   getAppReviews,
   processAppStoreUrl,
-  extractAppStoreId 
+  extractAppStoreId
 } from './appStoreScraper.js';
 import { processGooglePlayUrl } from './googlePlayScraper.js';
 import Markdown from 'react-markdown';
@@ -89,11 +89,11 @@ const verifyMathChallenge = (req, res, next) => {
   }
 
   const challenge = req.headers['x-math-challenge'];
-  
+
   if (!challenge) {
-    console.warn('No math challenge provided', { 
-      path: req.path, 
-      method: req.method 
+    console.warn('No math challenge provided', {
+      path: req.path,
+      method: req.method
     });
     return res.status(403).json({ error: 'No math challenge provided' });
   }
@@ -102,11 +102,11 @@ const verifyMathChallenge = (req, res, next) => {
     // Validate math challenge format
     const challengeRegex = /^(\d+)([+\-*])(\d+)$/;
     const match = challenge.match(challengeRegex);
-    
+
     if (!match) {
-      console.warn('Invalid math challenge format', { 
+      console.warn('Invalid math challenge format', {
         challenge,
-        path: req.path 
+        path: req.path
       });
       return res.status(403).json({ error: 'Invalid math challenge' });
     }
@@ -132,9 +132,9 @@ const verifyMathChallenge = (req, res, next) => {
     }
 
     // Log successful verification
-    console.log('Math challenge verified successfully', { 
+    console.log('Math challenge verified successfully', {
       challenge,
-      path: req.path 
+      path: req.path
     });
 
     next();
@@ -148,7 +148,19 @@ const verifyMathChallenge = (req, res, next) => {
 };
 
 // Apply rate limiter to all routes
-app.use('/api', apiLimiter);
+app.use('/api', (req, res, next) => {
+  const origin = req.headers.origin || '';
+  const userAgent = req.headers['user-agent'] || '';
+
+  // Check if request is from GitHub Actions
+  if (origin.includes('github.com')) {
+    console.log('Bypassing rate limit for GitHub Actions request');
+    return next();
+  }
+
+  // Apply rate limiter for all other requests
+  return apiLimiter(req, res, next);
+});
 
 // App Store Routes
 app.get('/app-store/search', async (req, res) => {
@@ -199,20 +211,20 @@ app.post('/google-play/process-url', async (req, res) => {
 app.post('/app-store/process-url', async (req, res) => {
   try {
   const { url } = req.body;
-    
+
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
-    
+
     const result = await processAppStoreUrl(url);
     res.json(result);
   } catch (error) {
     console.error('Error processing App Store URL:', error);
-    
+
     if (error.message === 'Invalid App Store URL') {
       return res.status(400).json({ error: 'Invalid App Store URL' });
     }
-    
+
     res.status(500).json({ error: 'Failed to process App Store URL' });
   }
 });
@@ -221,20 +233,20 @@ app.post('/app-store/process-url', async (req, res) => {
 app.post('/app-store/extract-id', async (req, res) => {
   try {
     const { url } = req.body;
-    
+
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
-    
+
     const appId = extractAppStoreId(url);
     res.json({ appId });
   } catch (error) {
     console.error('Error extracting App Store ID:', error);
-    
+
     if (error.message === 'Invalid App Store URL') {
       return res.status(400).json({ error: 'Invalid App Store URL' });
     }
-    
+
     res.status(500).json({ error: 'Failed to extract App Store ID' });
   }
 });
@@ -252,8 +264,8 @@ const comparisonCache = new LRUCache({
   maxAge: 1000 * 60 * 60 * 24 * 90
 });
 
-const RECORD_EXPIRATION_HOURS = process.env.RECORD_EXPIRATION_HOURS 
-  ? parseInt(process.env.RECORD_EXPIRATION_HOURS, 10) 
+const RECORD_EXPIRATION_HOURS = process.env.RECORD_EXPIRATION_HOURS
+  ? parseInt(process.env.RECORD_EXPIRATION_HOURS, 10)
   : 24 * 7 * 365;
 
 // Function to check if cache entry is expired
@@ -420,15 +432,15 @@ const createComparisonCacheEntry = (urls, cacheKey, competitors, finalReport) =>
   return cacheEntry;
 };
 
-app.post('/api/analyze', 
-  ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
+app.post('/api/analyze',
+  ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(),
   async (req, res) => {
   const { url, customPrompt, force = false } = req.body;
   const hashUrl = generateUrlHash(url);
-  
+
   // Check if report is in cache
   const cachedReport = analysisCache.get(hashUrl);
-  
+
   // Check if cache entry is valid and not expired
   if (!force && cachedReport && !isRecordEntryExpired(cachedReport)) {
     console.log('Report found in cache:', url);
@@ -437,7 +449,7 @@ app.post('/api/analyze',
     const chunks = cachedReport.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
     chunks.forEach((chunk, index) => {
       res.write(JSON.stringify({ report: chunk }) + '\n');
-      
+
       if (index === chunks.length - 1) {
         res.end();
       }
@@ -452,9 +464,9 @@ app.post('/api/analyze',
 
   try {
     console.log('Full request body:', JSON.stringify(req.body, null, 2));
-    
+
     const { provider, model, appData } = req.body;
-    
+
     // Set headers for streaming
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Transfer-Encoding', 'chunked');
@@ -464,15 +476,15 @@ app.post('/api/analyze',
     console.log('Selected provider:', selectedProvider ? 'Found' : 'Not found');
     if (!selectedProvider) {
       console.error('Invalid provider:', provider);
-      return res.status(400).json({ 
-        error: 'Invalid LLM provider', 
-        availableProviders: Object.keys(LLM_PROVIDERS) 
+      return res.status(400).json({
+        error: 'Invalid LLM provider',
+        availableProviders: Object.keys(LLM_PROVIDERS)
       });
     }
 
     // Prepare prompt based on whether app data is provided
     let prompt = `You are an expert app review analyzer. Analyze the app at the following URL: ${url}. App information provided below:`;
-    
+
     if (appData && appData.reviews && appData.reviews.reviews) {
       // If App Store reviews are provided, include them in the prompt
       const reviewsText = appData.reviews.reviews
@@ -507,8 +519,8 @@ ${promptConfig.format}
     let finalReport = '';
     try {
       await selectedProvider.streamResponse(
-        model, 
-        prompt, 
+        model,
+        prompt,
         (chunk) => {
           // Accumulate the report for caching
           finalReport += chunk;
@@ -534,8 +546,8 @@ ${promptConfig.format}
       });
 
       if (!res.headersSent) {
-        res.status(500).json({ 
-          error: 'Failed to generate response', 
+        res.status(500).json({
+          error: 'Failed to generate response',
           details: generateError.message,
           providerDetails: {
             url: selectedProvider.url,
@@ -552,17 +564,17 @@ ${promptConfig.format}
     });
 
     if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Unexpected error analyzing reviews', 
-        details: error.message 
+      res.status(500).json({
+        error: 'Unexpected error analyzing reviews',
+        details: error.message
       });
     }
     res.end();
   }
 });
 
-app.post('/api/compare-competitors', 
-  ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(), 
+app.post('/api/compare-competitors',
+  ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(),
   async (req, res) => {
   try {
     const { competitors, provider, model, customComparisonPrompt, force = false } = req.body;
@@ -586,14 +598,14 @@ app.post('/api/compare-competitors',
     // Set headers for streaming
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Transfer-Encoding', 'chunked');
-    
+
     const selectedProvider = LLM_PROVIDERS[provider || process.env.LLM_PROVIDER || 'ollama'];
     console.log('Selected provider:', selectedProvider ? 'Found' : 'Not found');
     if (!selectedProvider) {
       console.error('Invalid provider:', provider);
-      return res.status(400).json({ 
-        error: 'Invalid LLM provider', 
-        availableProviders: Object.keys(LLM_PROVIDERS) 
+      return res.status(400).json({
+        error: 'Invalid LLM provider',
+        availableProviders: Object.keys(LLM_PROVIDERS)
       });
     }
 
@@ -604,12 +616,12 @@ app.post('/api/compare-competitors',
     }
 
     // Validate each competitor has required fields
-    const validCompetitors = competitors.filter(comp => 
+    const validCompetitors = competitors.filter(comp =>
       comp.name && comp.url && comp.platform && comp.description
     );
 
     if (validCompetitors.length < 2) {
-      res.status(400).json({ 
+      res.status(400).json({
         error: 'Insufficient valid competitor data',
         details: 'Each competitor must have name, url, platform, and description'
       });
@@ -622,7 +634,7 @@ app.post('/api/compare-competitors',
       const positiveReviews = comp.appData?.reviews?.reviews
         ?.filter(review => review.score >= 4)
         ?.map(review => `"${review.text}"`) || [];
-      
+
       const negativeReviews = comp.appData?.reviews?.reviews
         ?.filter(review => review.score <= 2)
         ?.map(review => `"${review.text}"`) || [];
@@ -662,7 +674,7 @@ ${competitorDetails}
     try {
       await selectedProvider.streamResponse(
         model,
-        comparisonPrompt, 
+        comparisonPrompt,
         (chunk) => {
           // Accumulate the report for caching
           finalReport += chunk;
@@ -688,8 +700,8 @@ ${competitorDetails}
       });
 
       if (!res.headersSent) {
-        res.status(500).json({ 
-          error: 'Failed to generate response', 
+        res.status(500).json({
+          error: 'Failed to generate response',
           details: generateError.message,
           providerDetails: {
             url: selectedProvider.url,
@@ -702,13 +714,13 @@ ${competitorDetails}
 
   } catch (error) {
     console.error('Competitor comparison error:', error);
-    
+
     // Ensure headers haven't been sent
     if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Internal server error during competitor comparison', 
+      res.status(500).json({
+        error: 'Internal server error during competitor comparison',
         details: error.message,
-        stack: error.stack 
+        stack: error.stack
       });
     }
   }
@@ -754,7 +766,7 @@ app.get('/api/cached-analyses', (req, res) => {
   try {
     // Explicitly clear any existing headers
     res.removeHeader('Content-Type');
-    
+
     const cachedResults = Array.from(analysisCache.entries())
       .sort((a, b) => b[1].timestamp - a[1].timestamp)
       .map(([hashUrl, entry]) => {
@@ -771,16 +783,16 @@ app.get('/api/cached-analyses', (req, res) => {
     res.contentType('application/json');
 
     console.log('Sending cached results:', cachedResults);
-    
+
     // Send JSON response
     res.json(cachedResults);
   } catch (error) {
     console.error('Error retrieving cached analyses:', error);
     res.status(500)
        .contentType('application/json')
-       .json({ 
-         error: 'Failed to retrieve cached analyses', 
-         details: error.message 
+       .json({
+         error: 'Failed to retrieve cached analyses',
+         details: error.message
        });
   }
 });
@@ -789,7 +801,7 @@ app.get('/api/cached-comparisons', (req, res) => {
  try {
    // Explicitly clear any existing headers
    res.removeHeader('Content-Type');
-   
+
    const cachedResults = Array.from(comparisonCache.entries())
      .sort((a, b) => b[1].timestamp - a[1].timestamp)
      .map(([hashUrl, entry]) => {
@@ -805,16 +817,16 @@ app.get('/api/cached-comparisons', (req, res) => {
    res.contentType('application/json');
 
    console.log('Sending cached comparison results:', cachedResults);
-   
+
    // Send JSON response
    res.json(cachedResults);
  } catch (error) {
    console.error('Error retrieving cached comparisons:', error);
    res.status(500)
       .contentType('application/json')
-      .json({ 
-        error: 'Failed to retrieve cached comparisons', 
-        details: error.message 
+      .json({
+        error: 'Failed to retrieve cached comparisons',
+        details: error.message
       });
  }
 });
@@ -822,21 +834,21 @@ app.get('/api/cached-comparisons', (req, res) => {
 // Add after existing routes
 app.get('/api/share-app-report', (req, res) => {
   const { url } = req.query;
-  
+
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
 
   const cachedReport = analysisCache.get(generateUrlHash(url));
-  
+
   if (!cachedReport) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Report not found. Please re-run the analysis.',
       shouldReanalyze: true
     });
   }
 
-  res.json({ 
+  res.json({
     shareLink: cachedReport.getShareLink(),
     expiresAt: Date.now() + analysisCache.maxAge
   });
@@ -844,15 +856,15 @@ app.get('/api/share-app-report', (req, res) => {
 
 app.get('/api/shared-app-report', (req, res) => {
   const { shareId } = req.query;
-  
+
   if (!shareId) {
     return res.status(400).json({ error: 'Share ID is required' });
   }
 
   const cachedReport = analysisCache.get(shareId);
-  
+
   if (!cachedReport) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Report expired. Please re-run the analysis.',
       shouldReanalyze: true
     });
@@ -867,7 +879,7 @@ app.get('/api/shared-app-report', (req, res) => {
 
 app.get('/api/share-competitor-report', (req, res) => {
   const { urls } = req.query;
-  
+
   if (!urls) {
     return res.status(400).json({ error: 'URLs are required' });
   }
@@ -875,17 +887,17 @@ app.get('/api/share-competitor-report', (req, res) => {
   // Sort and parse URLs
   const sortedUrls = JSON.parse(urls).sort();
   const cacheKey = createComparisonCacheKey(sortedUrls);
-  
+
   const cachedReport = comparisonCache.get(cacheKey);
-  
+
   if (!cachedReport) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Report not found. Please re-run the comparison.',
       shouldReanalyze: true
     });
   }
 
-  res.json({ 
+  res.json({
     shareLink: cachedReport.getShareLink(),
     expiresAt: Date.now() + comparisonCache.maxAge
   });
@@ -893,15 +905,15 @@ app.get('/api/share-competitor-report', (req, res) => {
 
 app.get('/api/shared-competitor-report', (req, res) => {
   const { shareId } = req.query;
-  
+
   if (!shareId) {
     return res.status(400).json({ error: 'Share ID is required' });
   }
 
   const sharedReportEntry = comparisonCache.get(shareId);
-  
+
   if (!sharedReportEntry) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Report expired. Please re-run the comparison.',
       shouldReanalyze: true
     });
@@ -915,11 +927,11 @@ app.get('/api/shared-competitor-report', (req, res) => {
 app.get('/api/check-existing-report', async (req, res) => {
   try {
     const { urlHash } = req.query;
-    
+
     if (!urlHash) {
       return res.status(400).json({ error: 'URL hash is required' });
     }
-    
+
     // First check the in-memory cache
     const cachedReport = analysisCache.get(urlHash);
     if (cachedReport && !isRecordEntryExpired(cachedReport)) {
@@ -933,14 +945,14 @@ app.get('/api/check-existing-report', async (req, res) => {
         }
       });
     }
-    
+
     // If not in cache, check the database
     const { data, error } = await supabase
       .from('analysis_reports')
       .select('*')
       .eq('hash_url', urlHash)
       .single();
-    
+
     if (error) {
       if (error.code === 'PGRST116') {
         // PGRST116 is the error code for "no rows returned"
@@ -948,27 +960,27 @@ app.get('/api/check-existing-report', async (req, res) => {
       }
       throw error;
     }
-    
+
     // If we found a record in the database
     if (data) {
       // Check if the record is expired
       if (isRecordEntryExpired({ timestamp: data.timestamp })) {
-        return res.json({ 
-          exists: false, 
+        return res.json({
+          exists: false,
           reason: 'expired',
           timestamp: data.timestamp
         });
       }
-      
+
       // If not expired, return the record and add to cache
       const cacheEntry = {
         ...data.full_report,
         getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${urlHash}`
       };
-      
+
       // Add to cache for future requests
       analysisCache.set(urlHash, cacheEntry);
-      
+
       return res.json({
         exists: true,
         source: 'database',
@@ -979,14 +991,14 @@ app.get('/api/check-existing-report', async (req, res) => {
         }
       });
     }
-    
+
     // If we get here, no record was found
     return res.json({ exists: false });
   } catch (error) {
     console.error('Error checking existing report:', error);
-    res.status(500).json({ 
-      error: 'Failed to check existing report', 
-      details: error.message 
+    res.status(500).json({
+      error: 'Failed to check existing report',
+      details: error.message
     });
   }
 });
@@ -1035,8 +1047,8 @@ setInterval(removeExpiredCacheEntries, CLEANUP_INTERVAL);
 
 // Health check endpoint
 app.get('/', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     availableProviders: Object.keys(LLM_PROVIDERS),
     currentProvider: process.env.LLM_PROVIDER || 'ollama'
   });
@@ -1049,7 +1061,7 @@ async function loadCacheFromDatabase() {
    // const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
 
    removeExpiredEntriesFromSupabase();
-   
+
    // Load analysis reports
    const { data: analysisData, error: analysisError } = await supabase
      .from('analysis_reports')
@@ -1064,7 +1076,7 @@ async function loadCacheFromDatabase() {
      analysisData.forEach(entry => {
        // Use the stored hash_url directly
        const hashUrl = entry.hash_url;
-       
+
        // Reconstruct the cache entry format
        const cacheEntry = {
          ...entry.full_report,
@@ -1092,7 +1104,7 @@ async function loadCacheFromDatabase() {
      comparisonData.forEach(entry => {
        // Use the stored hash_url directly
        const hashUrl = entry.hash_url;
-       
+
        // Reconstruct the cache entry format
        const cacheEntry = {
          competitors: JSON.parse(entry.competitors),

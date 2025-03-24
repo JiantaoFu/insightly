@@ -31,6 +31,7 @@ on:
 jobs:
   scrape-and-analyze:
     runs-on: ubuntu-latest
+    timeout-minutes: 60  # Adding timeout to prevent hung jobs
 
     steps:
       - name: Checkout repository
@@ -56,12 +57,18 @@ jobs:
             --limit="${{ github.event.inputs.limit || '10' }}" \
             --platforms="${{ github.event.inputs.platforms || 'ios,android' }}" \
             --collections="${{ github.event.inputs.collections || 'top' }}" \
-            --rate-limit="false" \
+            --rate-limit="${{ github.event.inputs.rate_limit || 'false' }}" \
             --verbose
 
       - name: Upload report summary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: scraping-report
           path: reports/summary.json
           retention-days: 7
+
+      - name: Handle potential failures
+        if: ${{ failure() }}
+        run: |
+          echo "Workflow failed. Check logs for details."
+          # You could add notification logic here

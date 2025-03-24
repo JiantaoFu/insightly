@@ -45,7 +45,7 @@ const MainAnalysis: React.FC = () => {
       textAreaRef.current.focus();
     }
   }, [customPrompt]);
-  
+
   const prepareChallengeAndSubmit = async (e: React.FormEvent, force: boolean = false) => {
     e.preventDefault();
     setIsRefresh(force);
@@ -57,8 +57,8 @@ const MainAnalysis: React.FC = () => {
   };
 
   const handleFinalSubmit = async (
-    currentProvider: keyof typeof PROVIDERS_CONFIG, 
-    currentModel: string, 
+    currentProvider: keyof typeof PROVIDERS_CONFIG,
+    currentModel: string,
     mathChallenge?: MathChallenge,
     force: boolean = false
   ) => {
@@ -69,7 +69,7 @@ const MainAnalysis: React.FC = () => {
 
     // Create new abort controller
     abortControllerRef.current = new AbortController();
-    
+
     // Reset previous states
     setLoading(true);
     setError('');
@@ -78,7 +78,7 @@ const MainAnalysis: React.FC = () => {
 
     try {
       let processUrlEndpoint = '';
-      
+
       // Detect URL type
       if (url.includes('apps.apple.com')) {
         processUrlEndpoint = `${SERVER_URL}/app-store/process-url`;
@@ -139,7 +139,7 @@ const MainAnalysis: React.FC = () => {
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) {
           console.log('Stream completed');
           setLoading(false);
@@ -151,12 +151,12 @@ const MainAnalysis: React.FC = () => {
 
         // Split chunk into lines and parse
         const lines = chunk.split('\n').filter(line => line.trim() !== '');
-        
+
         lines.forEach(line => {
           try {
             // console.log('Parsing line:', line);
             const parsedChunk = JSON.parse(line);
-            
+
             if (parsedChunk.report) {
               fullReport += parsedChunk.report;
               setReport(fullReport);
@@ -193,7 +193,7 @@ const MainAnalysis: React.FC = () => {
 
   const downloadReport = useCallback(() => {
     if (!report) return;
-    
+
     try {
       const blob = new Blob([report], { type: 'text/markdown' });
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -218,7 +218,7 @@ const MainAnalysis: React.FC = () => {
 
     // Prepare CSV
     const csvHeader = 'Timestamp,Score,User,Review\n';
-    const csvContent = appData.reviews.reviews.map(review => 
+    const csvContent = appData.reviews.reviews.map(review =>
       `"${review.timestamp || ''}","${review.score || 0}","${(review.userName || 'Anonymous').replace(/"/g, '""')}","${(review.text || '').replace(/"/g, '""')}"`)
       .join('\n');
     const csvBlob = new Blob([csvHeader + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -252,14 +252,14 @@ const MainAnalysis: React.FC = () => {
     }
   ];
 
-  function DemoSelector({ 
-    url, 
-    setUrl, 
-    handleSubmit 
-  }: { 
-    url: string, 
-    setUrl: (url: string) => void, 
-    handleSubmit: (e: React.FormEvent) => Promise<void> 
+  function DemoSelector({
+    url,
+    setUrl,
+    handleSubmit
+  }: {
+    url: string,
+    setUrl: (url: string) => void,
+    handleSubmit: (e: React.FormEvent) => Promise<void>
   }) {
     const handleDemoSelect = (demoApp: typeof demoApps[0]) => {
       // Ensure the URL is always set and the component re-renders
@@ -277,7 +277,7 @@ const MainAnalysis: React.FC = () => {
                 onClick={() => handleDemoSelect(app)}
                 className={`p-4 rounded-lg border transition-all duration-300 ${
                   url === app.placeholder
-                    ? 'bg-blue-500 text-white border-blue-600 shadow-lg' 
+                    ? 'bg-blue-500 text-white border-blue-600 shadow-lg'
                     : 'bg-gray-100 text-gray-800 hover:bg-gray-200 hover:shadow-md'
                 }`}
               >
@@ -294,12 +294,12 @@ const MainAnalysis: React.FC = () => {
   return (
     <div className="pt-20">
       <Navigation />
-      <div 
-        className="relative bg-cover bg-center bg-no-repeat 
+      <div
+        className="relative bg-cover bg-center bg-no-repeat
           py-8 md:py-16 px-4"
         style={{
           backgroundImage: `
-            linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)), 
+            linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)),
             url('https://images.unsplash.com/photo-1522252234503-e356532cafd5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1925&q=80')
           `,
           backgroundSize: 'cover',
@@ -308,13 +308,13 @@ const MainAnalysis: React.FC = () => {
       >
         <div className="container mx-auto">
           <div className="text-center max-w-3xl mx-auto mb-12">
-            <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 mb-4 
-              bg-clip-text text-transparent bg-gradient-to-r 
-              from-indigo-600 to-purple-600 leading-tight 
+            <h1 className="text-3xl md:text-5xl font-extrabold text-gray-900 mb-4
+              bg-clip-text text-transparent bg-gradient-to-r
+              from-indigo-600 to-purple-600 leading-tight
               tracking-tight">
               Uncover Deep Insights from App Reviews
             </h1>
-            <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto 
+            <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto
               leading-relaxed tracking-wide">
               Leverage AI to Drive Product Growth
             </p>
@@ -324,10 +324,10 @@ const MainAnalysis: React.FC = () => {
         <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
 
           {/* Demo Selector */}
-        <DemoSelector 
-          url={url} 
-          setUrl={setUrl} 
-          handleSubmit={prepareChallengeAndSubmit} 
+        <DemoSelector
+          url={url}
+          setUrl={setUrl}
+          handleSubmit={prepareChallengeAndSubmit}
         />
 
           <form onSubmit={(e) => prepareChallengeAndSubmit(e, false)} className="mb-12">
@@ -388,8 +388,8 @@ const MainAnalysis: React.FC = () => {
                     value={customPrompt}
                     onChange={handleTextareaChange}
                     placeholder={DEFAULT_APP_ANALYZE_PROMPT}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 
-                      focus:ring-2 focus:ring-blue-500 focus:border-transparent 
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300
+                      focus:ring-2 focus:ring-blue-500 focus:border-transparent
                       outline-none placeholder-gray-400 resize-none"
                     minRows={20}
                     maxRows={40}
@@ -401,7 +401,6 @@ const MainAnalysis: React.FC = () => {
             )}
           </div>
 
-          {/* Add ReviewPreview here, right after the report */}
           {appData?.reviews?.reviews && appData?.reviews?.reviews.length > 0 && (
             <ReviewPreview
               reviews={appData?.reviews?.reviews.map(review => ({
@@ -419,7 +418,7 @@ const MainAnalysis: React.FC = () => {
             <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
               {!loading && (
               <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-                <button 
+                <button
                   onClick={downloadReport}
                   className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
                 >
@@ -427,8 +426,8 @@ const MainAnalysis: React.FC = () => {
                   Download Report
                 </button>
                 {appData?.reviews?.reviews && (
-                  <button 
-                    onClick={downloadReviews} 
+                  <button
+                    onClick={downloadReviews}
                     className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
                   >
                     <Download className="w-4 h-4 mr-2" /> Download Reviews
@@ -437,7 +436,7 @@ const MainAnalysis: React.FC = () => {
                 <div className="w-full sm:w-auto">
                   <ShareButton url={url} />
                 </div>
-                <button 
+                <button
                   onClick={handleRefresh}
                   className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
                 >
@@ -456,7 +455,7 @@ const MainAnalysis: React.FC = () => {
         </div>
 
         {ENABLE_MATH_CHALLENGE && showChallenge && (
-          <MathChallengeComponent 
+          <MathChallengeComponent
             isOpen={showChallenge}
             onClose={() => setShowChallenge(false)}
             onChallengeComplete={(mathChallenge) => {

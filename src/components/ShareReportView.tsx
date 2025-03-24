@@ -6,6 +6,7 @@ import Navigation from './Navigation';
 import ProductHuntBadge from './ProductHuntBadge';
 import remarkGfm from 'remark-gfm';
 import { ShareComponent } from './ShareButton';
+import ReviewPreview from './ReviewPreview';
 
 interface SharedReportViewProps {
   reportType: 'app' | 'competitor';
@@ -125,6 +126,20 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
           )}
         </div>
       </div>
+
+
+      {appData?.reviews && appData?.reviews?.length > 0 && (
+        <ReviewPreview
+          reviews={appData?.reviews.map(review => ({
+            id: review.id || crypto.randomUUID(),
+            text: review.text,
+            score: review.score,
+            userName: review.userName,
+            timestamp: review.timestamp
+          }))}
+        />
+      )}
+      <div className="border-t border-gray-200 my-8"></div>
 
       <div className="prose prose-sm max-w-none mb-8">
         {report ? (

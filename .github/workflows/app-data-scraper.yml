@@ -23,24 +23,28 @@ on:
         description: 'App store collections to scrape (comma-separated, "all" for all collections, or "top" for top collections only)'
         required: false
         default: 'top'
+      rate_limit:
+        description: 'Enable rate limiting (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   scrape-and-analyze:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run app data scraper
         env:
           # Environment variables
@@ -52,8 +56,9 @@ jobs:
             --limit="${{ github.event.inputs.limit || '10' }}" \
             --platforms="${{ github.event.inputs.platforms || 'ios,android' }}" \
             --collections="${{ github.event.inputs.collections || 'top' }}" \
+            --rate-limit="false" \
             --verbose
-      
+
       - name: Upload report summary
         uses: actions/upload-artifact@v3
         with:

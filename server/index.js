@@ -292,7 +292,7 @@ async function saveToSupabase(cacheEntry, url, hashUrl) {
         app_url: url,
         hash_url: hashUrl,
         app_score: cacheEntry.appDetails.score,
-        reviews: cacheEntry.appDetails.reviews,
+        reviews: cacheEntry.appDetails.reviews.length,
         icon: cacheEntry.appDetails.icon,
         platform: cacheEntry.appDetails.platform,
         total_reviews: cacheEntry.reviewsSummary.totalReviews,

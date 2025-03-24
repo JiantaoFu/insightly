@@ -27,6 +27,10 @@ on:
         description: 'Enable rate limiting (true/false)'
         required: false
         default: 'false'
+      stop_on_error:
+        description: 'Stop execution when an error occurs (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   scrape-and-analyze:
@@ -50,18 +54,33 @@ jobs:
         env:
           # Environment variables
           API_BASE_URL: 'https://insightly-5iyw.onrender.com'
-          CLIENT_ORIGIN: 'https://insightly-app.vercel.app'
+          LLM_PROVIDER: 'gemini'
+          LLM_MODEL: 'gemini-2.0-flash'
         run: |
-          node scripts/run-batch-scraper.js \
-            --categories="${{ github.event.inputs.categories || 'all' }}" \
-            --limit="${{ github.event.inputs.limit || '10' }}" \
-            --platforms="${{ github.event.inputs.platforms || 'ios,android' }}" \
-            --collections="${{ github.event.inputs.collections || 'top' }}" \
-            --rate-limit="${{ github.event.inputs.rate_limit || 'false' }}" \
-            --verbose
+          # Build the command with conditional flags
+          CMD="node scripts/run-batch-scraper.js \
+            --categories=\"${{ github.event.inputs.categories || 'all' }}\" \
+            --limit=\"${{ github.event.inputs.limit || '10' }}\" \
+            --platforms=\"${{ github.event.inputs.platforms || 'ios,android' }}\" \
+            --collections=\"${{ github.event.inputs.collections || 'top' }}\" \
+            --verbose"
+
+          # Only add the rateLimit flag if rate_limit input is 'true'
+          if [ "${{ github.event.inputs.rate_limit || 'false' }}" = "true" ]; then
+            CMD="$CMD --rateLimit"
+          fi
+
+          # Only add the stopOnError flag if stop_on_error input is 'true'
+          if [ "${{ github.event.inputs.stop_on_error || 'false' }}" = "true" ]; then
+            CMD="$CMD --stopOnError"
+          fi
+
+          # Execute the command
+          echo "Executing: $CMD"
+          eval $CMD
 
       - name: Upload report summary
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: scraping-report
           path: reports/summary.json

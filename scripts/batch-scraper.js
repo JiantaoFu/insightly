@@ -260,12 +260,17 @@ function parseCommandLineArgs() {
       rateLimit: {
         type: 'boolean',
         short: 'r',
-        default: true // Enable rate limiting by default
+        default: false // Enable rate limiting by default
       },
       maxApps: {
         type: 'string',
         short: 'm',
         default: '0' // 0 means no limit
+      },
+      stopOnError: {
+        type: 'boolean',
+        short: 's',
+        default: false // Don't stop on error by default
       }
     }
   });
@@ -292,7 +297,8 @@ function parseCommandLineArgs() {
     forceRefresh: values.force,
     verbose: values.verbose,
     rateLimit: values.rateLimit,
-    maxApps: parseInt(values.maxApps, 10) || 0 // 0 means no limit
+    maxApps: parseInt(values.maxApps, 10) || 0, // 0 means no limit
+    stopOnError: values.stopOnError
   };
 }
 
@@ -389,6 +395,7 @@ async function main(config = null) {
   console.log(`Collections: ${collectionsInput.length === 0 ? 'all' : collectionsInput.length === 1 && collectionsInput[0] === 'top' ? 'top' : collectionsInput.join(', ')}`);
   console.log(`Limit per collection: ${limit}`);
   console.log(`Rate limiting: ${rateLimit ? 'Enabled' : 'Disabled'}`);
+  console.log(`Stop on error: ${config.stopOnError ? 'Enabled' : 'Disabled'}`);
 
   console.log(`Maximum apps to process: ${maxApps > 0 ? maxApps : 'No limit'}`);
 
@@ -499,6 +506,14 @@ async function main(config = null) {
                   error: appError.message
                 });
                 results.appsByCollection[collectionKey].errors++;
+
+                // Exit the process if stopOnError is enabled
+                if (config.stopOnError) {
+                  console.error('Stopping execution due to error (--stopOnError flag is enabled)');
+                  results.endTime = new Date().toISOString();
+                  await saveResults(results, reportsDir);
+                  process.exit(1);
+                }
               }
             }
           } catch (collectionError) {
@@ -509,6 +524,14 @@ async function main(config = null) {
               category,
               error: collectionError.message
             });
+
+            // Exit the process if stopOnError is enabled
+            if (config.stopOnError) {
+              console.error('Stopping execution due to error (--stopOnError flag is enabled)');
+              results.endTime = new Date().toISOString();
+              await saveResults(results, reportsDir);
+              process.exit(1);
+            }
           }
         }
       }
@@ -519,6 +542,11 @@ async function main(config = null) {
       fatal: true,
       error: error.message
     });
+
+    // Always exit on fatal errors
+    results.endTime = new Date().toISOString();
+    await saveResults(results, reportsDir);
+    process.exit(1);
   } finally {
     // Save results
     results.endTime = new Date().toISOString();

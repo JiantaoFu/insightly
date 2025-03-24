@@ -463,7 +463,7 @@ app.post('/api/analyze',
   }
 
   try {
-    console.log('Full request body:', JSON.stringify(req.body, null, 2));
+    // console.log('Full request body:', JSON.stringify(req.body, null, 2));
 
     const { provider, model, appData } = req.body;
 
@@ -513,8 +513,8 @@ ${promptConfig.format}
       prompt += '\n\nPlease analyze this URL and provide insights.';
     }
 
-    console.log('Prompt:', prompt);
-    console.log('Prompt length:', prompt.length);
+    // console.log('Prompt:', prompt);
+    // console.log('Prompt length:', prompt.length);
 
     let finalReport = '';
     try {
@@ -530,7 +530,7 @@ ${promptConfig.format}
         }
       );
 
-      console.log('Final report:', finalReport);
+      // console.log('Final report:', finalReport);
 
       // Store in cache with comprehensive metadata
       const cacheEntry = createCacheEntry(url, hashUrl, finalReport, appData);
@@ -668,7 +668,7 @@ ${competitorDetails}
 \`\`\`
 `;
 
-    console.log(comparisonPrompt);
+    // console.log(comparisonPrompt);
 
     let finalReport = '';
     try {
@@ -684,7 +684,7 @@ ${competitorDetails}
         }
       );
 
-      console.log('Final report:', finalReport);
+      // console.log('Final report:', finalReport);
 
       // Cache the comparison report
       const cacheEntry = createComparisonCacheEntry(sortedUrls, cacheKey, validCompetitors, finalReport);
@@ -782,7 +782,7 @@ app.get('/api/cached-analyses', (req, res) => {
     // Explicitly set JSON content type
     res.contentType('application/json');
 
-    console.log('Sending cached results:', cachedResults);
+    // console.log('Sending cached results:', cachedResults);
 
     // Send JSON response
     res.json(cachedResults);
@@ -816,7 +816,7 @@ app.get('/api/cached-comparisons', (req, res) => {
    // Explicitly set JSON content type
    res.contentType('application/json');
 
-   console.log('Sending cached comparison results:', cachedResults);
+   // console.log('Sending cached comparison results:', cachedResults);
 
    // Send JSON response
    res.json(cachedResults);

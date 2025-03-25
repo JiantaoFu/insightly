@@ -236,19 +236,19 @@ const MainAnalysis: React.FC = () => {
 
   const demoApps = [
     {
-      name: "Instagram",
-      placeholder: "https://apps.apple.com/us/app/instagram/id389801252",
-      description: "Social Media Networking App"
+      name: "Design Tools",
+      placeholder: "https://apps.apple.com/us/app/figma-design-and-prototyping/id1152747299",
+      description: "Explore gaps in the design tools market"
     },
     {
-      name: "Spotify",
-      placeholder: "https://play.google.com/store/apps/details?id=com.spotify.music",
-      description: "Music Streaming Platform"
+      name: "Productivity Apps",
+      placeholder: "https://play.google.com/store/apps/details?id=com.todoist",
+      description: "Discover unmet productivity needs"
     },
     {
-      name: "Duolingo",
-      placeholder: "https://apps.apple.com/us/app/duolingo/id570060128",
-      description: "Language Learning App"
+      name: "Health & Fitness",
+      placeholder: "https://apps.apple.com/us/app/myfitnesspal/id341232718",
+      description: "Identify wellness market opportunities"
     }
   ];
 
@@ -312,12 +312,27 @@ const MainAnalysis: React.FC = () => {
               bg-clip-text text-transparent bg-gradient-to-r
               from-indigo-600 to-purple-600 leading-tight
               tracking-tight">
-              Uncover Deep Insights from App Reviews
+              Uncover Market Gaps from Online Reviews
             </h1>
             <p className="text-base md:text-xl text-gray-600 max-w-2xl mx-auto
               leading-relaxed tracking-wide">
-              Leverage AI to Drive Product Growth
+              AI-Powered Market Research for Entrepreneurs & Product Innovators
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
+            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-lg shadow-md">
+              <h3 className="text-lg font-bold text-indigo-600 mb-2">Instant Opportunity Detection</h3>
+              <p className="text-gray-600">Discover validated, high-impact problems in real-time through AI-driven review analysis</p>
+            </div>
+            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-lg shadow-md">
+              <h3 className="text-lg font-bold text-indigo-600 mb-2">Strategic Insights</h3>
+              <p className="text-gray-600">Make data-backed decisions with AI-powered market gap analysis</p>
+            </div>
+            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-lg shadow-md">
+              <h3 className="text-lg font-bold text-indigo-600 mb-2">Competitive Edge</h3>
+              <p className="text-gray-600">Stay ahead by identifying unmet user demands and emerging trends</p>
+            </div>
           </div>
         </div>
 

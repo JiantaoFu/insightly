@@ -570,12 +570,12 @@ function getCollectionsForPlatform(platform, collectionsInput) {
   // Define valid collections for each platform
   const iosCollections = [
     'newapplications', 'newfreeapplications', 'newpaidapplications',
-    'topfreeapplications', 'topfreeipadapplications', 'topgrossingapplications',
+    'topfreeapplications', 'topgrossingapplications',
     'topgrossingipadapplications', 'toppaidapplications', 'toppaidipadapplications'
   ];
 
   const iosTopCollections = [
-    'topfreeapplications', 'topfreeipadapplications', 'topgrossingapplications',
+    'topfreeapplications', 'topgrossingapplications',
     'topgrossingipadapplications', 'toppaidapplications', 'toppaidipadapplications'
   ];
 

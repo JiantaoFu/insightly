@@ -2,8 +2,8 @@ name: App Data Scraper and Report Generator
 
 on:
   schedule:
-    # Runs at 00:00 every Sunday (weekly)
-    - cron: '0 0 * * 0'
+    # Runs at 00:00 every day
+    - cron: '0 0 * * *'
   workflow_dispatch:
     # Allows manual triggering from GitHub UI
     inputs:

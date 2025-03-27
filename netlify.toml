@@ -3,6 +3,12 @@
   publish = "dist"
 
 [[redirects]]
+  from = "/sitemap.xml"
+  to = "https://insightly-5iyw.onrender.com/sitemap.xml"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

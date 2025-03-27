@@ -110,23 +110,37 @@ export async function generateSitemap(origin) {
 // Update initialization to use sorted array
 export async function initializeSitemap() {
   try {
-    const { data, error } = await supabase
-      .from('analysis_reports')
-      .select('app_title, hash_url, timestamp')  // Removed description
-      .order('timestamp', { ascending: false }); // Changed to descending
+    let allRecords = [];
+    let page = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data, error, count } = await supabase
+        .from('analysis_reports')
+        .select('app_title, hash_url, timestamp', { count: 'exact' })
+        .order('timestamp', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    // Simplified record format
-    sitemapState.urls = data.map(record => ({
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      allRecords = allRecords.concat(data);
+      console.log(`Loaded page ${page + 1} with ${data.length} records`);
+
+      if (data.length < pageSize) break;
+      page++;
+    }
+
+    // Initialize the sorted array directly (no need to sort again as records are already sorted)
+    sitemapState.urls = allRecords.map(record => ({
       hash_url: record.hash_url,
       timestamp: record.timestamp,
       title: record.app_title
     }));
 
     // Set the last update timestamp
-    sitemapState.lastUpdateTimestamp = data.length > 0
-      ? Math.max(...data.map(r => r.timestamp))
+    sitemapState.lastUpdateTimestamp = allRecords.length > 0
+      ? Math.max(...allRecords.map(r => r.timestamp))
       : Date.now();
 
     // Generate initial XML
@@ -154,7 +168,7 @@ export async function initializeSitemap() {
     sitemapState.xml = root.end({ prettyPrint: true });
     sitemapState.lastGenerated = Date.now();
 
-    console.log(`Initialized sitemap with ${sitemapState.urls.length} URLs`);
+    console.log(`Initialized sitemap with ${sitemapState.urls.length} URLs (${page + 1} pages)`);
   } catch (error) {
     console.error('Error initializing sitemap:', error);
     throw error;

@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  server: {
+    proxy: {
+      '/sitemap.xml': {
+        target: process.env.VITE_SERVER_URL || 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    }
+  },
   plugins: [
     react(),
     VitePWA({

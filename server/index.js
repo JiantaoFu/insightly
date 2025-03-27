@@ -19,6 +19,7 @@ import { LLM_PROVIDERS } from './llmProviders.js';
 import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
 import { supabase } from './supabaseClient.js';
+import { generateSitemap, initializeSitemap } from './sitemap.js';
 
 dotenv.config();
 
@@ -1137,6 +1138,21 @@ app.get('/', (req, res) => {
   });
 });
 
+// Sitemap endpoint
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+    const sitemap = await generateSitemap(origin);
+
+    res.header('Content-Type', 'application/xml');
+    res.header('Content-Length', Buffer.byteLength(sitemap));
+    res.send(sitemap);
+  } catch (error) {
+    console.error('Error serving sitemap:', error);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
 // Function to load existing analyses from database
 async function loadCacheFromDatabase() {
   try {
@@ -1197,6 +1213,9 @@ const startServer = async () => {
   try {
     // Load existing analyses from database
     await loadCacheFromDatabase();
+
+    // Initialize sitemap
+    await initializeSitemap();
 
     // Start the server
     app.listen(PORT, () => {

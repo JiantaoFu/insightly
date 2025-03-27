@@ -1,7 +1,8 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://insightly.top/sitemap.xml
+# Point to dynamic sitemap
+Sitemap: /sitemap.xml
 
 # Directories to exclude
 Disallow: /private/

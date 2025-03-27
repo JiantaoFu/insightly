@@ -42,7 +42,8 @@
     "react-router-dom": "^7.1.5",
     "react-textarea-autosize": "^8.5.7",
     "remark-gfm": "^4.0.1",
-    "web-vitals": "^4.2.4"
+    "web-vitals": "^4.2.4",
+    "xmlbuilder2": "^3.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",

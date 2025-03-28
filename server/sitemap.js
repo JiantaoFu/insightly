@@ -14,7 +14,7 @@ const SITEMAP_CACHE_DURATION = 3600000; // 1 hour in milliseconds
 async function fetchNewRecords(since) {
   const { data, error } = await supabase
     .from('analysis_reports')
-    .select('app_title, hash_url, timestamp')  // Removed description
+    .select('hash_url, timestamp')  // Removed description
     .gt('timestamp', since)
     .order('timestamp', { ascending: true });
 
@@ -31,7 +31,6 @@ async function updateSitemapUrls() {
       const formattedRecords = newRecords.map(record => ({
         hash_url: record.hash_url,
         timestamp: record.timestamp,
-        title: record.app_title
       }));
 
       // If urls array is empty, just assign sorted new records
@@ -86,12 +85,6 @@ export async function generateSitemap(origin) {
       url.ele('lastmod').txt(new Date(record.timestamp).toISOString());
       url.ele('changefreq').txt('hourly');
       url.ele('priority').txt('0.8');
-
-      // Simplified metadata
-      if (record.title) {
-        const metaInfo = url.ele('meta:data');
-        metaInfo.ele('meta:title').txt(record.title);
-      }
     });
 
     const xml = root.end({ prettyPrint: true });
@@ -117,7 +110,7 @@ export async function initializeSitemap() {
     while (true) {
       const { data, error, count } = await supabase
         .from('analysis_reports')
-        .select('app_title, hash_url, timestamp', { count: 'exact' })
+        .select('hash_url, timestamp', { count: 'exact' })
         .order('timestamp', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -134,8 +127,7 @@ export async function initializeSitemap() {
     // Initialize the sorted array directly (no need to sort again as records are already sorted)
     sitemapState.urls = allRecords.map(record => ({
       hash_url: record.hash_url,
-      timestamp: record.timestamp,
-      title: record.app_title
+      timestamp: record.timestamp
     }));
 
     // Set the last update timestamp
@@ -147,8 +139,7 @@ export async function initializeSitemap() {
     const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
     const root = create({ version: '1.0', encoding: 'UTF-8' })
       .ele('urlset', {
-        xmlns: 'http://www.sitemaps.org/schemas/sitemap/0.9',
-        'xmlns:meta': 'http://www.google.com/schemas/sitemap-meta/1.0'
+        xmlns: 'http://www.sitemaps.org/schemas/sitemap/0.9'
       });
 
     // No need to sort, array is already sorted
@@ -158,11 +149,6 @@ export async function initializeSitemap() {
       url.ele('lastmod').txt(new Date(record.timestamp).toISOString());
       url.ele('changefreq').txt('hourly');
       url.ele('priority').txt('0.8');
-
-      if (record.title) {
-        const metaInfo = url.ele('meta:data');
-        metaInfo.ele('meta:title').txt(record.title);
-      }
     });
 
     sitemapState.xml = root.end({ prettyPrint: true });

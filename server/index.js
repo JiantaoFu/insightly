@@ -38,6 +38,10 @@ const ENABLE_MATH_CHALLENGE = process.env.ENABLE_MATH_CHALLENGE === 'true';
 // Get client origin from environment
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
+// Add these constants near the top with other constants
+const MAX_DB_QUERY_LIMIT = 50; // Maximum number of records per page
+const DEFAULT_DB_QUERY_LIMIT = 10; // Default number of records per page
+
 // Middleware
 app.use(cors({
   origin: function(origin, callback) {
@@ -837,6 +841,64 @@ app.get('/api/cached-analyses', (req, res) => {
   }
 });
 
+// New endpoint for database queries with pagination
+app.get('/api/db-analyses', async (req, res) => {
+  try {
+    const { page = 1, limit = DEFAULT_DB_QUERY_LIMIT, sortBy = 'timestamp', sortOrder = 'desc' } = req.query;
+    const safeLimit = Math.min(parseInt(limit), MAX_DB_QUERY_LIMIT);
+    const offset = (page - 1) * safeLimit;
+
+    // Validate sort parameters
+    const validSortFields = ['timestamp', 'app_title', 'developer', 'app_score', 'total_reviews'];
+    const validSortOrders = ['asc', 'desc'];
+
+    const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'timestamp';
+    const finalSortOrder = validSortOrders.includes(sortOrder) ? sortOrder : 'desc';
+
+    // Fetch from database with pagination and sorting
+    const { data, error, count } = await supabase
+      .from('analysis_reports')
+      .select('*', { count: 'exact' })
+      .order(finalSortBy, { ascending: finalSortOrder === 'asc' })
+      .range(offset, offset + safeLimit - 1);
+
+    if (error) throw error;
+
+    const results = data.map(entry => ({
+      shareLink: `${process.env.CLIENT_ORIGIN}/shared-app-report/${entry.hash_url}`,
+      appDetails: entry.full_report.appDetails,
+      reviewsSummary: entry.full_report.reviewsSummary,
+      analysisDate: new Date(entry.timestamp).toLocaleString(),
+      metadata: {
+        hashUrl: entry.hash_url,
+        appUrl: entry.app_url,
+        platform: entry.platform
+      }
+    }));
+
+    res.json({
+      results,
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        limit: safeLimit,
+        totalPages: Math.ceil(count / safeLimit),
+        hasMore: offset + safeLimit < count
+      },
+      sorting: {
+        sortBy: finalSortBy,
+        sortOrder: finalSortOrder
+      }
+    });
+  } catch (error) {
+    console.error('Error retrieving analyses from database:', error);
+    res.status(500).json({
+      error: 'Failed to retrieve analyses from database',
+      details: error.message
+    });
+  }
+});
+
 app.get('/api/cached-comparisons', (req, res) => {
  try {
    // Explicitly clear any existing headers
@@ -869,6 +931,63 @@ app.get('/api/cached-comparisons', (req, res) => {
         details: error.message
       });
  }
+});
+
+// New endpoint for database queries of comparison reports with pagination
+app.get('/api/db-comparisons', async (req, res) => {
+  try {
+    const { page = 1, limit = DEFAULT_DB_QUERY_LIMIT, sortBy = 'timestamp', sortOrder = 'desc' } = req.query;
+    const safeLimit = Math.min(parseInt(limit), MAX_DB_QUERY_LIMIT);
+    const offset = (page - 1) * safeLimit;
+
+    // Validate sort parameters
+    const validSortFields = ['timestamp', 'hash_url'];
+    const validSortOrders = ['asc', 'desc'];
+
+    const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'timestamp';
+    const finalSortOrder = validSortOrders.includes(sortOrder) ? sortOrder : 'desc';
+
+    // Fetch from database with pagination and sorting
+    const { data, error, count } = await supabase
+      .from('comparison_reports')
+      .select('*', { count: 'exact' })
+      .order(finalSortBy, { ascending: finalSortOrder === 'asc' })
+      .range(offset, offset + safeLimit - 1);
+
+    if (error) throw error;
+
+    const results = data.map(entry => ({
+      shareLink: `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${entry.hash_url}`,
+      competitors: entry.competitors,
+      urls: entry.urls,
+      comparisonDate: new Date(entry.timestamp).toLocaleString(),
+      metadata: {
+        hashUrl: entry.hash_url,
+        timestamp: entry.timestamp
+      }
+    }));
+
+    res.json({
+      results,
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        limit: safeLimit,
+        totalPages: Math.ceil(count / safeLimit),
+        hasMore: offset + safeLimit < count
+      },
+      sorting: {
+        sortBy: finalSortBy,
+        sortOrder: finalSortOrder
+      }
+    });
+  } catch (error) {
+    console.error('Error retrieving comparisons from database:', error);
+    res.status(500).json({
+      error: 'Failed to retrieve comparisons from database',
+      details: error.message
+    });
+  }
 });
 
 // Add after existing routes

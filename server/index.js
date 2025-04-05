@@ -20,6 +20,7 @@ import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
 import { supabase } from './supabaseClient.js';
 import { generateSitemap, initializeSitemap } from './sitemap.js';
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 dotenv.config();
 
@@ -1348,3 +1349,67 @@ const startServer = async () => {
 
 // Call the startup function
 startServer();
+
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+const model = genAI.getGenerativeModel({
+  model: process.env.VITE_GEMINI_DEFAULT_MODEL,
+  generationConfig: {
+    maxOutputTokens: 8192,
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.95,
+  }
+})
+
+// Chat endpoint
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, history = [] } = req.body
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' })
+    }
+
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('Transfer-Encoding', 'chunked')
+
+    // Format history for Gemini API
+    const formattedHistory = history.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : msg.role, // Map 'assistant' to 'model'
+      parts: [{ text: String(msg.content || '') }] // Ensure content is a string
+    }))
+
+    // Initialize chat with properly formatted history
+    const chat = model.startChat({
+      history: formattedHistory
+    })
+
+    // Send message and get response
+    const result = await chat.sendMessage(message)
+
+    // Stream response in chunks
+    const response = await result.response
+    const text = response.text()
+
+    // Split text into smaller chunks and stream
+    const chunkSize = 100
+    for (let i = 0; i < text.length; i += chunkSize) {
+      const chunk = text.slice(i, i + chunkSize)
+      res.write(JSON.stringify({ chunk }) + '\n')
+    }
+
+    res.end()
+  } catch (error) {
+    console.error('Chat error:', error)
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Error processing chat message',
+        details: error.message
+      })
+    }
+    res.end()
+  }
+})
+

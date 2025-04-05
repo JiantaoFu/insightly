@@ -21,6 +21,7 @@ import { generateUrlHash } from './utils.js';
 import { supabase } from './supabaseClient.js';
 import { generateSitemap, initializeSitemap } from './sitemap.js';
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { embeddingService } from './services/EmbeddingService.js'
 
 dotenv.config();
 
@@ -1365,51 +1366,130 @@ const model = genAI.getGenerativeModel({
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history = [] } = req.body
+    const { message, history = [] } = req.body;
 
     if (!message) {
-      return res.status(400).json({ error: 'Message is required' })
+      return res.status(400).json({ error: 'Message is required' });
     }
 
     // Set headers for streaming
-    res.setHeader('Content-Type', 'application/json')
-    res.setHeader('Transfer-Encoding', 'chunked')
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    // Generate embedding for query
+    const queryEmbedding = await embeddingService.generateEmbedding(message);
+
+    // Search for relevant content
+    const matches = await embeddingService.searchSimilar(queryEmbedding);
+
+    // Log search results
+    console.log('Found matching sections:', matches.length)
+    console.log('Sample matches:', matches.slice(0, 2).map(m => ({
+      report_id: m.report_id,
+      similarity: m.similarity.toFixed(3),
+      content_preview: m.content.substring(0, 100) + '...'
+    })))
+
+    // Format context from matches with better logging
+    const contextMessages = matches.map(match => {
+      console.log(`Processing match from report ${match.report_id}:`, {
+        similarity: match.similarity.toFixed(3),
+        contentLength: match.content.length
+      })
+
+      return {
+        role: 'user',
+        parts: [{ text: `[Source ${match.report_id}]: ${match.content}` }]
+      }
+    })
 
     // Format history for Gemini API
     const formattedHistory = history.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : msg.role, // Map 'assistant' to 'model'
-      parts: [{ text: String(msg.content || '') }] // Ensure content is a string
-    }))
+      role: msg.role === 'assistant' ? 'model' : msg.role,
+      parts: [{ text: String(msg.content || '') }]
+    }));
 
-    // Initialize chat with properly formatted history
+    // Log formatted history
+    console.log('Formatted message history:', history.map(msg => ({
+      role: msg.role,
+      contentLength: msg.content.length
+    })))
+
+    // Add RAG context to history
+    const fullHistory = [...contextMessages, ...formattedHistory];
+
+    // Define the system instruction separately
+    const systemInstruction = ["You are a helpful AI assistant."];
+
+    // Initialize chat with context and history
     const chat = model.startChat({
-      history: formattedHistory
-    })
+      history: fullHistory,
+      generationConfig: {
+        maxOutputTokens: 8192,
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+      ],
+      // systemInstruction: systemInstruction
+    });
 
     // Send message and get response
-    const result = await chat.sendMessage(message)
+    console.log('Sending message to Gemini:', {
+      historyLength: fullHistory.length,
+      messageLength: message.length
+    })
 
-    // Stream response in chunks
+    const result = await chat.sendMessage(message)
     const response = await result.response
+
+    console.log('Got response from Gemini:', {
+      responseText: response.text(),
+      promptTokens: result.promptTokens,
+      candidatesLength: result.candidates?.length,
+      safetyRatings: result.safetyRatings
+    })
+
     const text = response.text()
 
-    // Split text into smaller chunks and stream
-    const chunkSize = 100
+    // Stream response in chunks
+    const chunkSize = 100;
     for (let i = 0; i < text.length; i += chunkSize) {
-      const chunk = text.slice(i, i + chunkSize)
-      res.write(JSON.stringify({ chunk }) + '\n')
+      const chunk = text.slice(i, i + chunkSize);
+      res.write(JSON.stringify({ chunk }) + '\n');
     }
 
-    res.end()
+    res.end();
   } catch (error) {
-    console.error('Chat error:', error)
+    console.error('Chat error:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    })
     if (!res.headersSent) {
       res.status(500).json({
         error: 'Error processing chat message',
         details: error.message
-      })
+      });
     }
-    res.end()
+    res.end();
   }
-})
+});
 

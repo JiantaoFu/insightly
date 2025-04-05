@@ -92,40 +92,77 @@ export function ChatBox() {
               className={`max-w-[90%] rounded-lg p-3 break-words ${
                 msg.role === 'user'
                   ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200'
+                  : 'bg-gray-200 text-gray-900'
               }`}
             >
               {msg.role === 'assistant' ? (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    // This is the key change:
-                    // We are now rendering code blocks directly,
-                    // and not wrapping them in <p> tags.
-                    code({ node, inline, className, children, ...props }) {
-                      const codeContent = String(children);
-                      return !inline ? (
-                        <pre className="bg-gray-800 text-white p-3 rounded-md overflow-x-auto">
-                          <code {...props}>{codeContent}</code>
-                        </pre>
-                      ) : (
-                        <code className="bg-gray-200 px-1 rounded" {...props}>
-                          {codeContent}
-                        </code>
-                      );
-                    },
-                    // This is the key change:
-                    // We are now rendering paragraphs directly,
-                    // and not wrapping them in <p> tags.
-                    p: ({ node, children }) => {
-                      return <>{children}</>;
-                    },
-                  }}
-                >
-                  {msg.content}
-                </ReactMarkdown>
+                <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      ul: ({ children }) => (
+                        <ul className="list-disc list-inside mb-3 space-y-1 text-gray-800">
+                          {children}
+                        </ul>
+                      ),
+                      ol: ({ children }) => (
+                        <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-800">
+                          {children}
+                        </ol>
+                      ),
+                      li: ({ children }) => (
+                        <li className="ml-4 text-gray-800">{children}</li>
+                      ),
+                      p: ({ children }) => (
+                        <p className="mb-3 leading-relaxed text-gray-800">{children}</p>
+                      ),
+                      strong: ({ children }) => (
+                        <strong className="font-semibold text-gray-900">{children}</strong>
+                      ),
+                      em: ({ children }) => (
+                        <em className="italic text-gray-700">{children}</em>
+                      ),
+                      blockquote: ({ children }) => (
+                        <blockquote className="border-l-4 border-gray-300 pl-4 my-3 italic text-gray-700">
+                          {children}
+                        </blockquote>
+                      ),
+                      code({ node, inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        return !inline ? (
+                          <div className="relative">
+                            <pre className="rounded-md bg-gray-800 p-4 overflow-x-auto">
+                              <code
+                                className={`${match ? `language-${match[1]}` : ''} text-sm text-gray-100`}
+                                {...props}
+                              >
+                                {String(children).replace(/\n$/, '')}
+                              </code>
+                            </pre>
+                          </div>
+                        ) : (
+                          <code className="px-1.5 py-0.5 rounded-md bg-gray-200 text-gray-800 text-sm">
+                            {children}
+                          </code>
+                        );
+                      },
+                      a: ({ children, href }) => (
+                        <a
+                          href={href}
+                          className="text-blue-600 hover:underline"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {children}
+                        </a>
+                      ),
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
               ) : (
-                msg.content
+                <div className="whitespace-pre-wrap">{msg.content}</div>
               )}
             </div>
           </div>

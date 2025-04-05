@@ -1,3 +1,51 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Citation styling */
+.citation {
+  color: #4B5563;
+  font-size: 0.75rem;
+  font-weight: 500;
+  vertical-align: super;
+  margin-left: 1px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background-color: #E5E7EB;
+}
+
+/* Enhanced code block styling */
+pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* List styling */
+.prose ul > li::marker {
+  color: #6B7280;
+}
+
+.prose ol > li::marker {
+  color: #6B7280;
+  font-weight: 500;
+}
+
+/* Table styling */
+.prose table {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.prose thead {
+  background-color: #F3F4F6;
+}
+
+.prose thead th {
+  font-weight: 600;
+  color: #374151;
+}
+
+.prose tbody tr:nth-child(even) {
+  background-color: #F9FAFB;
+}

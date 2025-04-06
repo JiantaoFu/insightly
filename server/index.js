@@ -1384,7 +1384,7 @@ const model = genAI.getGenerativeModel({
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history = [] } = req.body;
+    const { message, promptId, history = [] } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -1473,7 +1473,7 @@ app.post('/api/chat', async (req, res) => {
         matches: app.matches || [],
       }));
 
-    console.log('Prepared citations:', citations);
+    // console.log('Prepared citations:', citations);
 
     // Send citations at the beginning of the response
     res.write(JSON.stringify({ citations }) + '\n');
@@ -1484,7 +1484,7 @@ app.post('/api/chat', async (req, res) => {
       parts: [{ text: `[Source ${appDetailsMap[match.report_id]?.appTitle || 'Unknown App'}]: ${match.content}` }],
     }));
 
-    console.log('Formatted context messages:', contextMessages);
+    // console.log('Formatted context messages:', contextMessages);
 
     // Format history for Gemini API
     const formattedHistory = history.map(msg => ({
@@ -1492,14 +1492,32 @@ app.post('/api/chat', async (req, res) => {
       parts: [{ text: String(msg.content || '') }],
     }));
 
-    console.log('Formatted history:', formattedHistory);
+    // console.log('Formatted history:', formattedHistory);
 
     // Add RAG context to history
     const fullHistory = [...contextMessages, ...formattedHistory];
 
+    // Format context with template if promptId is provided
+    let promptTemplate;
+    if (promptId && promptConfig.chatPrompts[promptId]) {
+      promptTemplate = promptConfig.chatPrompts[promptId].template;
+    }
+
+    // Format the prompt with context and query if template exists
+    const formattedPrompt = promptTemplate
+      ? promptTemplate
+          .replace('{context}', contextMessages.map(msg => msg.parts[0].text).join('\n\n'))
+          .replace('{query}', message)
+      : message;
+
     // Initialize chat with context and history
     const chat = model.startChat({
       history: fullHistory,
+      systemInstruction: {
+        parts: [
+          { text: "You are a helpful AI assistant that analyzes app reviews and provides insights." },
+        ],
+      },
       generationConfig: {
         maxOutputTokens: 8192,
         temperature: 0.7,
@@ -1527,7 +1545,7 @@ app.post('/api/chat', async (req, res) => {
     });
 
     // Send message and get response
-    const result = await chat.sendMessage(message);
+    const result = await chat.sendMessage(formattedPrompt);
     const response = await result.response;
 
     const text = response.text();
@@ -1563,13 +1581,7 @@ function calculateCosineSimilarity(vecA, vecB) {
 
 // Endpoint to fetch predefined prompts
 app.get('/api/prompts', (req, res) => {
-  const prompts = [
-    { id: '1', label: 'General Inquiry', value: 'Can you help me with general insights?' },
-    { id: '2', label: 'Competitive Analysis', value: 'Provide a competitive analysis for the market.' },
-    { id: '3', label: 'User Sentiment', value: 'Analyze user sentiment based on the provided data.' },
-    { id: '4', label: 'Market Trends', value: 'What are the emerging market trends?' },
-    { id: '5', label: 'Business Opportunities', value: 'Identify potential business opportunities.' }
-  ]
+  const prompts = Object.values(promptConfig.chatPrompts)
+  console.log('Sending prompts:', prompts) // Debug log
   res.json({ prompts })
 })
-

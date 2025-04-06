@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import TextareaAutosize from 'react-textarea-autosize'
 
 interface Message {
+  id: string; // Add this new field
   role: 'user' | 'assistant'
   content: string
   citations?: Citation[]
@@ -29,6 +30,14 @@ interface Prompt {
   id: string
   label: string
   description: string
+  value: string
+}
+
+interface ChatHistory {
+  id: string;
+  prompt?: string;
+  messages: Message[];
+  timestamp: number;
 }
 
 export function ChatBox() {
@@ -36,6 +45,7 @@ export function ChatBox() {
   const [input, setInput] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [prompts, setPrompts] = useState<Prompt[]>([])
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
 
@@ -81,11 +91,64 @@ export function ChatBox() {
     fetchPrompts()
   }, [])
 
+  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
+  const [error, setError] = useState<string | null>(null);
+
+  const handlePromptClick = (prompt: Prompt) => {
+    // If clicking the already selected prompt, deselect it
+    if (selectedPromptId === prompt.id) {
+      setSelectedPromptId(null);
+      // Save current chat if it has messages
+      if (messages.length > 0) {
+        saveChatHistory();
+      }
+      // Start new chat
+      setCurrentChatId(Date.now().toString());
+      setMessages([]);
+    } else {
+      // Save current chat if it has messages
+      if (messages.length > 0) {
+        saveChatHistory();
+      }
+      // Select new prompt and start fresh chat
+      setSelectedPromptId(prompt.id);
+      setCurrentChatId(Date.now().toString());
+      setMessages([]);
+    }
+  };
+
+  const saveChatHistory = () => {
+    const currentPrompt = prompts.find(p => p.id === selectedPromptId);
+    const chatHistory: ChatHistory = {
+      id: currentChatId,
+      prompt: currentPrompt?.label,
+      messages,
+      timestamp: Date.now()
+    };
+    setChatHistories(prev => [chatHistory, ...prev]);
+  };
+
+  const loadChatHistory = (chatHistory: ChatHistory) => {
+    setMessages(chatHistory.messages);
+    setCurrentChatId(chatHistory.id);
+    // Find and set the corresponding prompt if it exists
+    const prompt = prompts.find(p => p.label === chatHistory.prompt);
+    setSelectedPromptId(prompt?.id || null);
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
-    const userMessage: Message = { role: 'user', content: input }
+    setError(null) // Clear any previous errors
+
+    const userMessage: Message = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Add unique id
+      role: 'user',
+      content: input
+    }
+
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
@@ -96,6 +159,7 @@ export function ChatBox() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: input,
+          promptId: selectedPromptId, // Add promptId to request
           history: messages
         })
       })
@@ -128,7 +192,12 @@ export function ChatBox() {
                 lastMessage.content += parsed.chunk
                 lastMessage.citations = citations // Ensure citations are updated
               } else {
-                newMessages.push({ role: 'assistant', content: parsed.chunk, citations })
+                newMessages.push({
+                  id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Add unique id
+                  role: 'assistant',
+                  content: parsed.chunk,
+                  citations
+                })
               }
               return newMessages
             })
@@ -137,6 +206,10 @@ export function ChatBox() {
       }
     } catch (error) {
       console.error('Chat error:', error)
+      setError('An unexpected error occurred. Please try again.')
+
+      // Remove the last user message if there was an error
+      setMessages(prev => prev.slice(0, -1))
     } finally {
       setIsLoading(false)
     }
@@ -153,11 +226,19 @@ export function ChatBox() {
           {prompts.map(prompt => (
             <li
               key={prompt.id}
-              className="p-3 bg-gray-50 rounded-lg shadow hover:bg-gray-100 cursor-pointer"
-              onClick={() => setInput(prompt.label)}
+              className={`p-3 rounded-lg shadow cursor-pointer transition-all duration-200 ${
+                selectedPromptId === prompt.id
+                  ? 'bg-blue-50 border-2 border-blue-500 shadow-md scale-[1.02]'
+                  : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+              }`}
+              onClick={() => handlePromptClick(prompt)}
             >
-              <h3 className="text-sm font-medium text-gray-800">{prompt.label}</h3>
-              <p className="text-xs text-gray-600">{prompt.description}</p>
+              <h3 className={`text-sm font-semibold mb-2 ${
+                selectedPromptId === prompt.id ? 'text-blue-700' : 'text-gray-800'
+              }`}>
+                {prompt.label}
+              </h3>
+              <p className="text-xs text-gray-600 leading-relaxed">{prompt.description}</p>
             </li>
           ))}
         </ul>
@@ -166,25 +247,45 @@ export function ChatBox() {
       {/* Main chat area */}
       <div className="flex flex-col flex-1 items-center">
         {/* Header */}
-        <div className="w-full max-w-4xl flex items-center justify-between bg-white shadow px-4 py-2">
-          <Link to="/" className="text-blue-500 hover:underline">
-            Back
-          </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Chat Assistant</h1>
-          <div />
+        <div className="w-full bg-white shadow">
+          <div className="w-full max-w-4xl mx-auto flex items-center justify-between px-4 py-2">
+            <Link to="/" className="text-blue-500 hover:underline">
+              Back
+            </Link>
+            <h1 className="text-lg font-semibold text-gray-800">Chat Assistant</h1>
+            <div />
+          </div>
         </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="w-full max-w-4xl p-4">
+            <div className="bg-red-50 border-l-4 border-red-400 p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Chat Area */}
         <div className="flex-1 w-full max-w-4xl overflow-y-auto p-4 space-y-4">
-          {messages.map((msg, i) => (
+          {messages.map((msg) => (
             <div
-              key={i}
-              className={`flex ${msg.role === 'user' ? 'justify-end w-full' : 'w-full'}`}
+              key={msg.id}
+              className={`flex ${msg.role === 'user' ? 'justify-end w-full' : 'w-full'}`}  // Re-add justify-end
             >
               <div
                 className={`${
                   msg.role === 'user'
-                    ? 'max-w-[75%] bg-blue-500 text-white text-right self-end'
+                    ? 'max-w-[75%] bg-blue-500 text-white text-left self-end'  // Keep text-left but change back to self-end
                     : 'w-full bg-gray-200 text-gray-900 text-left self-start'
                 } p-3 rounded-lg break-words overflow-hidden`}
               >
@@ -337,9 +438,13 @@ export function ChatBox() {
             placeholder="Type your message..."
             minRows={2}
             maxRows={6}
-            className="flex-1 p-2 border rounded-lg resize-none focus:outline-none focus:ring focus:ring-blue-300"
+            className="flex-1 p-2 border rounded-lg resize-none focus:outline-none focus:ring focus:ring-blue-300 overflow-y-auto"
             disabled={isLoading}
-            style={{ overflow: 'hidden', wordWrap: 'break-word' }} // Ensure proper resizing
+            style={{
+              overflowX: 'hidden', // Hide horizontal scrollbar
+              overflowY: 'auto',   // Show vertical scrollbar when needed
+              wordWrap: 'break-word'
+            }}
           />
           <button
             type="submit"
@@ -349,6 +454,36 @@ export function ChatBox() {
             Send
           </button>
         </form>
+      </div>
+
+      {/* Right panel for chat history */}
+      <div className="w-64 bg-white border-l shadow-md overflow-y-auto">
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold text-gray-800">Chat History</h2>
+        </div>
+        <div className="p-4 space-y-4">
+          {chatHistories.map((chat) => (
+            <button
+              key={chat.id}
+              onClick={() => loadChatHistory(chat)}
+              className={`w-full p-3 rounded-lg text-left transition-all duration-200 ${
+                currentChatId === chat.id
+                  ? 'bg-blue-50 border-2 border-blue-500'
+                  : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+              }`}
+            >
+              <div className="text-sm font-semibold text-gray-800">
+                {chat.prompt || 'Free Chat'}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {new Date(chat.timestamp).toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-600 mt-1 truncate">
+                {chat.messages[chat.messages.length - 1]?.content.substring(0, 50)}...
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -141,7 +141,177 @@ Based on the app reviews provided, generate a structured markdown report that in
 export const promptConfig = {
   appReviewAnalysis: appReviewAnalysisPrompt,
   format: formatPrompt,
-  appComparison: appComparisonPrompt
+  appComparison: appComparisonPrompt,
+  chatPrompts: {
+    competitive: {
+      id: 'competitive',
+      label: 'Competitive Analysis',
+      description: 'Analyze competitive research and market gaps, focusing on differentiation, features, pricing, and positioning.',
+      template: `Analyze these insights about competitive research and market gaps. For each insight:
+1. State the finding
+2. Support it with specific quotes and examples from the source data
+3. Cite the specific apps where this evidence comes from
+
+Context:
+{context}
+
+Question: {query}
+
+Format your response like this:
+Key Finding 1:
+- Finding: [state the insight]
+- Evidence:
+  * "[exact quote]" - [App Name]
+  * "[exact quote]" - [App Name]
+- Analysis: [your interpretation]
+
+Key Finding 2:
+[etc...]
+
+Focus on competitive differentiation, feature gaps, pricing models, and market positioning.
+Only include findings that you can support with direct evidence from the context.`
+    },
+    sentiment: {
+      id: 'sentiment',
+      label: 'User Sentiment',
+      description: 'Analyze user sentiment and feedback, focusing on needs, complaints, feature requests, and pain points.',
+      template: `Analyze the available data about user sentiment and feedback. For each insight:
+1. State the key finding
+2. Support with specific examples
+3. Focus on:
+   - Common user needs and pain points
+   - Feature requests and suggestions
+   - Satisfaction drivers and detractors
+   - User experience patterns
+
+Context:
+{context}
+
+Question: {query}
+
+Format your response like this:
+Key Finding 1:
+- Finding: [state the insight]
+- Evidence:
+  * "[exact quote]" - [App Name]
+  * "[exact quote]" - [App Name]
+- Analysis: [your interpretation]
+
+Key Finding 2:
+[etc...]
+
+Only include findings that you can support with direct evidence from the context.`
+    },
+    trends: {
+      id: 'trends',
+      label: 'Market Trends',
+      description: 'Identify emerging patterns, user expectation shifts, and industry trends from the available data.',
+      template: `Analyze the market trends and patterns in the available data. For each trend:
+1. Identify the trend
+2. Provide supporting evidence
+3. Focus on:
+   - Emerging user behaviors
+   - Technology adoption patterns
+   - Industry direction indicators
+   - Market evolution signs
+
+Context:
+{context}
+
+Question: {query}
+
+Format your response like this:
+Trend 1:
+- Trend: [state the trend]
+- Evidence:
+  * "[exact quote]" - [App Name]
+  * "[exact quote]" - [App Name]
+- Analysis: [your interpretation]
+
+Trend 2:
+[etc...]
+
+Only include trends that you can support with direct evidence from the context.`
+    },
+    business: {
+      id: 'business',
+      label: 'Business Opportunities',
+      description: 'Discover product opportunities, business models, and revenue strategies.',
+      template: `Analyze business opportunities in the available data. For each opportunity:
+1. Describe the opportunity
+2. Support with market evidence
+3. Focus on:
+   - Revenue potential areas
+   - Business model innovations
+   - Market gaps
+   - Growth strategies
+
+Context:
+{context}
+
+Question: {query}
+
+Format your response like this:
+Opportunity 1:
+- Opportunity: [describe the opportunity]
+- Evidence:
+  * "[exact quote]" - [App Name]
+  * "[exact quote]" - [App Name]
+- Analysis: [your interpretation]
+
+Opportunity 2:
+[etc...]
+
+Only include opportunities that you can support with direct evidence from the context.`
+    },
+    pmf: {
+      id: 'pmf',
+      label: 'Product Market Fit',
+      description: 'Evaluate product-market fit with analysis of target markets, user problems, and business model insights.',
+      template: `Analyze product-market fit indicators in the available data. Cover:
+1. Target Market Evidence:
+   - User demographics and segments
+   - Market size indicators
+2. Problem-Solution Fit:
+   - Key user problems
+   - Solution effectiveness
+3. Business Model Validation:
+   - Willingness to pay
+   - Customer acquisition
+4. Recommendations:
+   - Areas for improvement
+   - Expansion opportunities
+
+Context:
+{context}
+
+Question: {query}
+
+Format your response like this:
+Target Market Evidence:
+- Evidence:
+  * "[exact quote]" - [App Name]
+  * "[exact quote]" - [App Name]
+- Analysis: [your interpretation]
+
+Problem-Solution Fit:
+- Evidence:
+  * "[exact quote]" - [App Name]
+  * "[exact quote]" - [App Name]
+- Analysis: [your interpretation]
+
+Business Model Validation:
+- Evidence:
+  * "[exact quote]" - [App Name]
+  * "[exact quote]" - [App Name]
+- Analysis: [your interpretation]
+
+Recommendations:
+- [state the recommendation]
+
+Only include findings that you can support with direct evidence from the context.`
+    }
+  }
 };
 
 export default promptConfig;

@@ -5,10 +5,22 @@ import remarkGfm from 'remark-gfm'
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  citations?: Citation[]
+}
+
+interface Citation {
+  appTitle: string
+  description: string
+  shareLink: string
+  matches: {
+    content: string
+    similarity: number
+  }[]
 }
 
 interface ChatResponse {
   chunk: string
+  citations?: Citation[]
 }
 
 export function ChatBox() {
@@ -50,6 +62,7 @@ export function ChatBox() {
 
       const decoder = new TextDecoder()
       let assistantResponse = ''
+      let citations: Citation[] = []
 
       while (true) {
         const { done, value } = await reader.read()
@@ -59,18 +72,24 @@ export function ChatBox() {
         const lines = chunk.split('\n').filter(Boolean)
 
         for (const line of lines) {
-          const { chunk: text } = JSON.parse(line) as ChatResponse
-          assistantResponse += text
-          setMessages(prev => {
-            const newMessages = [...prev]
-            const lastMessage = newMessages[newMessages.length - 1]
-            if (lastMessage?.role === 'assistant') {
-              lastMessage.content += text
-            } else {
-              newMessages.push({ role: 'assistant', content: text })
-            }
-            return newMessages
-          })
+          const parsed = JSON.parse(line) as ChatResponse
+          if (parsed.citations) {
+            citations = parsed.citations // Update citations when received
+          }
+          if (parsed.chunk) {
+            assistantResponse += parsed.chunk
+            setMessages(prev => {
+              const newMessages = [...prev]
+              const lastMessage = newMessages[newMessages.length - 1]
+              if (lastMessage?.role === 'assistant') {
+                lastMessage.content += parsed.chunk
+                lastMessage.citations = citations // Ensure citations are updated
+              } else {
+                newMessages.push({ role: 'assistant', content: parsed.chunk, citations })
+              }
+              return newMessages
+            })
+          }
         }
       }
     } catch (error) {
@@ -160,6 +179,46 @@ export function ChatBox() {
                   >
                     {msg.content}
                   </ReactMarkdown>
+                  {msg.citations && (
+                    <div className="mt-4 bg-gray-100 p-4 rounded">
+                      <h4 className="text-sm font-semibold text-gray-700">Citations:</h4>
+                      {msg.citations.map((citation, index) => (
+                        <div key={index} className="mb-4">
+                          <h5 className="text-base font-semibold text-gray-800">
+                            <a
+                              href={citation.shareLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline"
+                            >
+                              {citation.appTitle}
+                            </a>
+                          </h5>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            className="text-sm text-gray-600 mb-2"
+                          >
+                            {citation.description}
+                          </ReactMarkdown>
+                          <ul className="list-disc list-inside text-gray-600">
+                            {(citation.matches || []).map((match, matchIndex) => (
+                              <li key={matchIndex} className="mb-1">
+                                <span className="text-gray-800 font-medium">
+                                  {`Score: ${(match.similarity * 100).toFixed(1)}%`}
+                                </span>
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  className="text-sm text-gray-700"
+                                >
+                                  {match.content}
+                                </ReactMarkdown>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="whitespace-pre-wrap">{msg.content}</div>

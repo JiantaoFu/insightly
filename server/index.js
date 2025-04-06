@@ -280,11 +280,22 @@ const RECORD_EXPIRATION_HOURS = process.env.RECORD_EXPIRATION_HOURS
 
 // Function to check if cache entry is expired
 const isRecordEntryExpired = (recordEntry) => {
-  if (!recordEntry || !recordEntry.timestamp) return true;
+  if (!recordEntry || !recordEntry.timestamp) {
+    console.log('Record entry is missing or timestamp is undefined:', recordEntry);
+    return true;
+  }
 
   const currentTime = Date.now();
   const entryAge = currentTime - recordEntry.timestamp;
   const expirationMs = RECORD_EXPIRATION_HOURS * 60 * 60 * 1000;
+
+  // console.log('Checking record expiration:', {
+  //   currentTime,
+  //   recordTimestamp: recordEntry.timestamp,
+  //   entryAge,
+  //   expirationMs,
+  //   isExpired: entryAge > expirationMs
+  // });
 
   return entryAge > expirationMs;
 };
@@ -1061,9 +1072,16 @@ app.get('/api/shared-app-report', (req, res) => {
     .eq('hash_url', shareId)
     .single()
     .then(({ data, error }) => {
-      if (error || !data || isRecordEntryExpired({ timestamp: data.timestamp })) {
+      if (error || !data) {
         return res.status(404).json({
-          error: 'Report expired or not found. Please re-run the analysis.',
+          error: 'Report not found. Please re-run the analysis.',
+          shouldReanalyze: true
+        });
+      }
+
+      if (isRecordEntryExpired({ timestamp: data.timestamp })) {
+        return res.status(410).json({
+          error: 'Report expired. Please re-run the analysis.',
           shouldReanalyze: true
         });
       }
@@ -1376,50 +1394,83 @@ app.post('/api/chat', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Transfer-Encoding', 'chunked');
 
+    console.log('Received message:', message);
+
     // Generate embedding for query
     const queryEmbedding = await embeddingService.generateEmbedding(message);
+    console.log('Generated query embedding:', queryEmbedding.slice(0, 5), '...');
 
     // Search for relevant content
     const matches = await embeddingService.searchSimilar(queryEmbedding);
+    console.log('Found matches:', matches.length);
 
-    // Log search results
-    console.log('Found matching sections:', matches.length)
-    console.log('Sample matches:', matches.slice(0, 2).map(m => ({
-      report_id: m.report_id,
-      similarity: m.similarity.toFixed(3),
-      content_preview: m.content.substring(0, 100) + '...'
-    })))
+    // Fetch app details for citations
+    const reportIds = matches.map(match => match.report_id);
+    console.log('Report IDs for matches:', reportIds);
 
-    // Format context from matches with better logging
-    const contextMessages = matches.map(match => {
-      console.log(`Processing match from report ${match.report_id}:`, {
-        similarity: match.similarity.toFixed(3),
-        contentLength: match.content.length
-      })
+    const { data: apps, error: appsError } = await supabase
+      .from('analysis_reports')
+      .select('id, app_title, description, hash_url') // Include hash_url
+      .in('id', reportIds);
 
-      return {
-        role: 'user',
-        parts: [{ text: `[Source ${match.report_id}]: ${match.content}` }]
+    if (appsError) {
+      console.error('Error fetching app details for citations:', appsError);
+      return res.status(500).json({ error: 'Failed to fetch app details for citations' });
+    }
+
+    console.log('Fetched app details:', apps);
+
+    // Map report IDs to app details
+    const appDetailsMap = apps.reduce((map, app) => {
+      map[app.id] = {
+        appTitle: app.app_title,
+        description: app.description,
+        shareLink: `${process.env.CLIENT_ORIGIN}/shared-app-report/${app.hash_url}`, // Generate shared report link
+        matches: [], // Ensure matches is always an array
+      };
+      return map;
+    }, {});
+
+    // Group matches by app
+    matches.forEach(match => {
+      const app = appDetailsMap[match.report_id];
+      if (app) {
+        app.matches.push({
+          content: match.content,
+          similarity: match.similarity,
+        });
       }
-    })
+    });
+
+    // Extract structured citations
+    const citations = Object.values(appDetailsMap).map(app => ({
+      ...app,
+      matches: app.matches || [], // Ensure matches is always defined
+    }));
+
+    console.log('Prepared citations:', citations);
+
+    // Send citations at the beginning of the response
+    res.write(JSON.stringify({ citations }) + '\n');
+
+    // Format context from matches
+    const contextMessages = matches.map(match => ({
+      role: 'user',
+      parts: [{ text: `[Source ${appDetailsMap[match.report_id]?.appTitle || 'Unknown App'}]: ${match.content}` }],
+    }));
+
+    console.log('Formatted context messages:', contextMessages);
 
     // Format history for Gemini API
     const formattedHistory = history.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : msg.role,
-      parts: [{ text: String(msg.content || '') }]
+      parts: [{ text: String(msg.content || '') }],
     }));
 
-    // Log formatted history
-    console.log('Formatted message history:', history.map(msg => ({
-      role: msg.role,
-      contentLength: msg.content.length
-    })))
+    console.log('Formatted history:', formattedHistory);
 
     // Add RAG context to history
     const fullHistory = [...contextMessages, ...formattedHistory];
-
-    // Define the system instruction separately
-    const systemInstruction = ["You are a helpful AI assistant."];
 
     // Initialize chat with context and history
     const chat = model.startChat({
@@ -1448,46 +1499,30 @@ app.post('/api/chat', async (req, res) => {
           threshold: "BLOCK_MEDIUM_AND_ABOVE",
         },
       ],
-      // systemInstruction: systemInstruction
     });
 
     // Send message and get response
-    console.log('Sending message to Gemini:', {
-      historyLength: fullHistory.length,
-      messageLength: message.length
-    })
+    const result = await chat.sendMessage(message);
+    const response = await result.response;
 
-    const result = await chat.sendMessage(message)
-    const response = await result.response
+    const text = response.text();
 
-    console.log('Got response from Gemini:', {
-      responseText: response.text(),
-      promptTokens: result.promptTokens,
-      candidatesLength: result.candidates?.length,
-      safetyRatings: result.safetyRatings
-    })
+    console.log('Generated response text:', text.slice(0, 100), '...');
 
-    const text = response.text()
-
-    // Stream response in chunks
+    // Stream response in chunks without citations
     const chunkSize = 100;
     for (let i = 0; i < text.length; i += chunkSize) {
       const chunk = text.slice(i, i + chunkSize);
-      res.write(JSON.stringify({ chunk }) + '\n');
+      if (chunk.trim()) { // Ensure the chunk is not empty
+        res.write(JSON.stringify({ chunk }) + '\n');
+      }
     }
 
     res.end();
   } catch (error) {
-    console.error('Chat error:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    })
+    console.error('Chat error:', error);
     if (!res.headersSent) {
-      res.status(500).json({
-        error: 'Error processing chat message',
-        details: error.message
-      });
+      res.status(500).json({ error: 'Error processing chat message', details: error.message });
     }
     res.end();
   }

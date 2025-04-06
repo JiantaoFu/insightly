@@ -1410,7 +1410,7 @@ app.post('/api/chat', async (req, res) => {
 
     const { data: apps, error: appsError } = await supabase
       .from('analysis_reports')
-      .select('id, app_title, description, hash_url') // Include hash_url
+      .select('id, app_title, description, hash_url')
       .in('id', reportIds);
 
     if (appsError) {
@@ -1418,35 +1418,60 @@ app.post('/api/chat', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch app details for citations' });
     }
 
-    console.log('Fetched app details:', apps);
+    // Calculate similarity between query and each app's description
+    const appsWithSimilarity = await Promise.all(apps.map(async app => {
+      if (!app.description) return { ...app, descriptionSimilarity: 0 };
 
-    // Map report IDs to app details
-    const appDetailsMap = apps.reduce((map, app) => {
+      const descriptionEmbedding = await embeddingService.generateEmbedding(app.description);
+
+      // Calculate cosine similarity between query and description
+      const similarity = calculateCosineSimilarity(queryEmbedding, descriptionEmbedding);
+      return { ...app, descriptionSimilarity: similarity };
+    }));
+
+    // Increase threshold from 0.6 to 0.7 to match other similarity thresholds
+    const SIMILARITY_THRESHOLD = parseFloat(process.env.SIMILARITY_THRESHOLD) || 0.7; // Default to 0.7 if not set
+    const relevantApps = appsWithSimilarity
+      .filter(app => app.descriptionSimilarity > SIMILARITY_THRESHOLD)
+      .sort((a, b) => b.descriptionSimilarity - a.descriptionSimilarity);
+
+    // Group matches by app and apply description similarity score
+    const appDetailsMap = relevantApps.reduce((map, app) => {
       map[app.id] = {
         appTitle: app.app_title,
         description: app.description,
-        shareLink: `${process.env.CLIENT_ORIGIN}/shared-app-report/${app.hash_url}`, // Generate shared report link
-        matches: [], // Ensure matches is always an array
+        shareLink: `${process.env.CLIENT_ORIGIN}/shared-app-report/${app.hash_url}`,
+        descriptionSimilarity: app.descriptionSimilarity,
+        matches: [],
       };
       return map;
     }, {});
 
-    // Group matches by app
+    // Group matches and factor in description similarity
     matches.forEach(match => {
       const app = appDetailsMap[match.report_id];
       if (app) {
+        // Combine content similarity with description similarity
+        const combinedSimilarity = (match.similarity + app.descriptionSimilarity) / 2;
         app.matches.push({
           content: match.content,
-          similarity: match.similarity,
+          similarity: combinedSimilarity,
         });
       }
     });
 
     // Extract structured citations
-    const citations = Object.values(appDetailsMap).map(app => ({
-      ...app,
-      matches: app.matches || [], // Ensure matches is always defined
-    }));
+    const citations = Object.values(appDetailsMap)
+      .sort((a, b) => {
+        // Sort by highest match similarity and description similarity
+        const aMaxSim = Math.max(...(a.matches?.map(m => m.similarity) || [0]));
+        const bMaxSim = Math.max(...(b.matches?.map(m => m.similarity) || [0]));
+        return bMaxSim - aMaxSim;
+      })
+      .map(app => ({
+        ...app,
+        matches: app.matches || [],
+      }));
 
     console.log('Prepared citations:', citations);
 
@@ -1527,4 +1552,24 @@ app.post('/api/chat', async (req, res) => {
     res.end();
   }
 });
+
+// Add utility function for cosine similarity if not already present
+function calculateCosineSimilarity(vecA, vecB) {
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const normA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const normB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+  return dotProduct / (normA * normB);
+}
+
+// Endpoint to fetch predefined prompts
+app.get('/api/prompts', (req, res) => {
+  const prompts = [
+    { id: '1', label: 'General Inquiry', value: 'Can you help me with general insights?' },
+    { id: '2', label: 'Competitive Analysis', value: 'Provide a competitive analysis for the market.' },
+    { id: '3', label: 'User Sentiment', value: 'Analyze user sentiment based on the provided data.' },
+    { id: '4', label: 'Market Trends', value: 'What are the emerging market trends?' },
+    { id: '5', label: 'Business Opportunities', value: 'Identify potential business opportunities.' }
+  ]
+  res.json({ prompts })
+})
 

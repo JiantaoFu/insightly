@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Link } from 'react-router-dom'
+import TextareaAutosize from 'react-textarea-autosize'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -24,12 +25,38 @@ interface ChatResponse {
   citations?: Citation[]
 }
 
+interface Prompt {
+  id: string
+  label: string
+  description: string
+}
+
 export function ChatBox() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [prompts, setPrompts] = useState<Prompt[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
+
+  // Add new state for tracking expanded citations
+  const [expandedCitations, setExpandedCitations] = useState<{[key: string]: boolean}>({});
+  const [expandedMatches, setExpandedMatches] = useState<{[key: string]: boolean}>({});
+
+  // Add toggle functions
+  const toggleDescription = (citationId: string) => {
+    setExpandedCitations(prev => ({
+      ...prev,
+      [citationId]: !prev[citationId]
+    }));
+  };
+
+  const toggleMatches = (citationId: string) => {
+    setExpandedMatches(prev => ({
+      ...prev,
+      [citationId]: !prev[citationId]
+    }));
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -38,6 +65,21 @@ export function ChatBox() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    // Fetch available prompts from the server
+    const fetchPrompts = async () => {
+      try {
+        const response = await fetch(`${SERVER_URL}/api/prompts`)
+        const data = await response.json()
+        setPrompts(data.prompts || [])
+      } catch (error) {
+        console.error('Failed to fetch prompts:', error)
+      }
+    }
+
+    fetchPrompts()
+  }, [])
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,38 +143,53 @@ export function ChatBox() {
   }
 
   return (
-    <div className="relative flex flex-col h-[calc(100vh-4rem)] w-full max-w-4xl mx-auto mt-4">
-      {/* Back button */}
-      <div className="absolute top-4 left-4">
-        <Link to="/" className="flex items-center text-gray-600 hover:text-gray-900">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </Link>
+    <div className="flex h-screen bg-gray-100">
+      {/* Left-side panel for prompts */}
+      <div className="w-64 bg-white border-r shadow-md">
+        <div className="p-4 border-b">
+          <h2 className="text-lg font-semibold text-gray-800">Available Prompts</h2>
+        </div>
+        <ul className="p-4 space-y-2">
+          {prompts.map(prompt => (
+            <li
+              key={prompt.id}
+              className="p-3 bg-gray-50 rounded-lg shadow hover:bg-gray-100 cursor-pointer"
+              onClick={() => setInput(prompt.label)}
+            >
+              <h3 className="text-sm font-medium text-gray-800">{prompt.label}</h3>
+              <p className="text-xs text-gray-600">{prompt.description}</p>
+            </li>
+          ))}
+        </ul>
       </div>
 
-      <div className="flex flex-col flex-1 border rounded-lg">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Main chat area */}
+      <div className="flex flex-col flex-1 items-center">
+        {/* Header */}
+        <div className="w-full max-w-4xl flex items-center justify-between bg-white shadow px-4 py-2">
+          <Link to="/" className="text-blue-500 hover:underline">
+            Back
+          </Link>
+          <h1 className="text-lg font-semibold text-gray-800">Chat Assistant</h1>
+          <div />
+        </div>
+
+        {/* Chat Area */}
+        <div className="flex-1 w-full max-w-4xl overflow-y-auto p-4 space-y-4">
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${msg.role === 'user' ? 'justify-end w-full' : 'w-full'}`}
             >
               <div
-                className={`max-w-[90%] rounded-lg p-3 break-words ${
+                className={`${
                   msg.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-900'
-                }`}
+                    ? 'max-w-[75%] bg-blue-500 text-white text-right self-end'
+                    : 'w-full bg-gray-200 text-gray-900 text-left self-start'
+                } p-3 rounded-lg break-words overflow-hidden`}
               >
                 {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800">
+                  <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 overflow-auto">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
@@ -211,27 +268,50 @@ export function ChatBox() {
                                 {citation.appTitle}
                               </a>
                             </h5>
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              className="text-sm text-gray-600 mb-2"
-                            >
-                              {citation.description}
-                            </ReactMarkdown>
-                            <ul className="list-disc list-inside text-gray-600">
-                              {(citation.matches || []).map((match, matchIndex) => (
-                                <li key={matchIndex} className="mb-1">
-                                  <span className="text-gray-800 font-medium">
-                                    {`Score: ${(match.similarity * 100).toFixed(1)}%`}
-                                  </span>
-                                  <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    className="text-sm text-gray-700"
-                                  >
-                                    {match.content}
-                                  </ReactMarkdown>
-                                </li>
-                              ))}
-                            </ul>
+                            <div className="text-sm text-gray-600 mb-2">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {expandedCitations[`${msg.content}-${index}`]
+                                  ? citation.description
+                                  : citation.description?.substring(0, 150) + '...'}
+                              </ReactMarkdown>
+                              {citation.description?.length > 150 && (
+                                <button
+                                  onClick={() => toggleDescription(`${msg.content}-${index}`)}
+                                  className="text-blue-500 hover:text-blue-600 text-sm font-medium mt-1"
+                                >
+                                  {expandedCitations[`${msg.content}-${index}`] ? 'Show less' : 'Show more'}
+                                </button>
+                              )}
+                            </div>
+                            {citation.matches?.length > 0 && (
+                              <>
+                                <button
+                                  onClick={() => toggleMatches(`${msg.content}-${index}`)}
+                                  className="text-blue-500 hover:text-blue-600 text-sm font-medium mb-2"
+                                >
+                                  {expandedMatches[`${msg.content}-${index}`] ? 'Hide matches' : `Show matches (${citation.matches.length})`}
+                                </button>
+                                {expandedMatches[`${msg.content}-${index}`] && (
+                                  <ul className="list-disc list-inside text-gray-600">
+                                    {citation.matches.map((match, matchIndex) => (
+                                      <li key={matchIndex} className="mb-1">
+                                        <span className="text-gray-800 font-medium">
+                                          {`Score: ${(match.similarity * 100).toFixed(1)}%`}
+                                        </span>
+                                        <ReactMarkdown
+                                          remarkPlugins={[remarkGfm]}
+                                          className="text-sm text-gray-700"
+                                        >
+                                          {match.content?.length > 200
+                                            ? match.content.substring(0, 200) + '...'
+                                            : match.content}
+                                        </ReactMarkdown>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -246,24 +326,28 @@ export function ChatBox() {
           <div ref={messagesEndRef} />
         </div>
 
-        <form onSubmit={sendMessage} className="border-t p-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type a message..."
-              className="flex-1 p-2 border rounded"
-              disabled={isLoading}
-            />
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-            >
-              Send
-            </button>
-          </div>
+        {/* Input Area */}
+        <form
+          onSubmit={sendMessage}
+          className="w-full max-w-4xl bg-white border-t p-4 flex items-center space-x-2"
+        >
+          <TextareaAutosize
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type your message..."
+            minRows={2}
+            maxRows={6}
+            className="flex-1 p-2 border rounded-lg resize-none focus:outline-none focus:ring focus:ring-blue-300"
+            disabled={isLoading}
+            style={{ overflow: 'hidden', wordWrap: 'break-word' }} // Ensure proper resizing
+          />
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+          >
+            Send
+          </button>
         </form>
       </div>
     </div>

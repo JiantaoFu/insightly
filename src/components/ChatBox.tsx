@@ -4,11 +4,18 @@ import remarkGfm from 'remark-gfm'
 import { Link } from 'react-router-dom'
 import TextareaAutosize from 'react-textarea-autosize'
 
+// Add new interfaces for status
+interface SearchStatus {
+  type: 'rag' | 'tool' | 'thinking';
+  message: string;
+}
+
 interface Message {
   id: string; // Add this new field
   role: 'user' | 'assistant'
   content: string
   citations?: Citation[]
+  status?: SearchStatus[];
 }
 
 interface Citation {
@@ -94,6 +101,7 @@ export function ChatBox() {
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [error, setError] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<SearchStatus | null>(null);
 
   const handlePromptClick = (prompt: Prompt) => {
     // If clicking the already selected prompt, deselect it
@@ -142,6 +150,7 @@ export function ChatBox() {
     if (!input.trim() || isLoading) return
 
     setError(null) // Clear any previous errors
+    setCurrentStatus({ type: 'thinking', message: 'Processing your request...' })
 
     const userMessage: Message = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Add unique id
@@ -179,7 +188,14 @@ export function ChatBox() {
         const lines = chunk.split('\n').filter(Boolean)
 
         for (const line of lines) {
-          const parsed = JSON.parse(line) as ChatResponse
+          const parsed = JSON.parse(line) as (ChatResponse & {
+            status?: SearchStatus;
+          })
+
+          if (parsed.status) {
+            setCurrentStatus(parsed.status)
+          }
+
           if (parsed.citations) {
             citations = parsed.citations // Update citations when received
           }
@@ -191,12 +207,17 @@ export function ChatBox() {
               if (lastMessage?.role === 'assistant') {
                 lastMessage.content += parsed.chunk
                 lastMessage.citations = citations // Ensure citations are updated
+                lastMessage.status = lastMessage.status || []
+                if (currentStatus) {
+                  lastMessage.status.push(currentStatus)
+                }
               } else {
                 newMessages.push({
                   id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Add unique id
                   role: 'assistant',
                   content: parsed.chunk,
-                  citations
+                  citations,
+                  status: currentStatus ? [currentStatus] : []
                 })
               }
               return newMessages
@@ -211,9 +232,41 @@ export function ChatBox() {
       // Remove the last user message if there was an error
       setMessages(prev => prev.slice(0, -1))
     } finally {
+      setCurrentStatus(null)
       setIsLoading(false)
     }
   }
+
+  // Add status indicator component
+  const StatusIndicator = ({ status }: { status: SearchStatus }) => (
+    <div className="flex items-center space-x-2 text-sm text-gray-500 mb-2">
+      {status.type === 'rag' && (
+        <div className="animate-pulse flex items-center">
+          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <span>{status.message}</span>
+        </div>
+      )}
+      {status.type === 'tool' && (
+        <div className="animate-pulse flex items-center">
+          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>{status.message}</span>
+        </div>
+      )}
+      {status.type === 'thinking' && (
+        <div className="animate-pulse flex items-center">
+          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+          <span>{status.message}</span>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -277,150 +330,157 @@ export function ChatBox() {
 
         {/* Chat Area */}
         <div className="flex-1 w-full max-w-4xl overflow-y-auto p-4 space-y-4">
+          {currentStatus && (
+            <StatusIndicator status={currentStatus} />
+          )}
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === 'user' ? 'justify-end w-full' : 'w-full'}`}  // Re-add justify-end
-            >
-              <div
-                className={`${
-                  msg.role === 'user'
-                    ? 'max-w-[75%] bg-blue-500 text-white text-left self-end'  // Keep text-left but change back to self-end
-                    : 'w-full bg-gray-200 text-gray-900 text-left self-start'
-                } p-3 rounded-lg break-words overflow-hidden`}
-              >
-                {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 overflow-auto">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        ul: ({ children }) => (
-                          <ul className="list-disc list-inside mb-3 space-y-1 text-gray-800">
-                            {children}
-                          </ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-800">
-                            {children}
-                          </ol>
-                        ),
-                        li: ({ children }) => (
-                          <li className="ml-4 text-gray-800">{children}</li>
-                        ),
-                        p: ({ children }) => (
-                          <p className="mb-3 leading-relaxed text-gray-800">{children}</p>
-                        ),
-                        strong: ({ children }) => (
-                          <strong className="font-semibold text-gray-900">{children}</strong>
-                        ),
-                        em: ({ children }) => (
-                          <em className="italic text-gray-700">{children}</em>
-                        ),
-                        blockquote: ({ children }) => (
-                          <blockquote className="border-l-4 border-gray-300 pl-4 my-3 italic text-gray-700">
-                            {children}
-                          </blockquote>
-                        ),
-                        code({ node, inline, className, children, ...props }) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          return !inline ? (
-                            <div className="relative">
-                              <pre className="rounded-md bg-gray-800 p-4 overflow-x-auto">
-                                <code
-                                  className={`${match ? `language-${match[1]}` : ''} text-sm text-gray-100`}
-                                  {...props}
-                                >
-                                  {String(children).replace(/\n$/, '')}
-                                </code>
-                              </pre>
-                            </div>
-                          ) : (
-                            <code className="px-1.5 py-0.5 rounded-md bg-gray-200 text-gray-800 text-sm">
+            <div key={msg.id}>
+              {/* Show status history */}
+              {msg.status?.map((status, i) => (
+                <StatusIndicator key={i} status={status} />
+              ))}
+              {/* Existing message rendering */}
+              <div className={`flex ${msg.role === 'user' ? 'justify-end w-full' : 'w-full'}`}>
+                <div
+                  className={`${
+                    msg.role === 'user'
+                      ? 'max-w-[75%] bg-blue-500 text-white text-left self-end'  // Keep text-left but change back to self-end
+                      : 'w-full bg-gray-200 text-gray-900 text-left self-start'
+                  } p-3 rounded-lg break-words overflow-hidden`}
+                >
+                  {msg.role === 'assistant' ? (
+                    <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 overflow-auto">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          ul: ({ children }) => (
+                            <ul className="list-disc list-inside mb-3 space-y-1 text-gray-800">
                               {children}
-                            </code>
-                          );
-                        },
-                        a: ({ children, href }) => (
-                          <a
-                            href={href}
-                            className="text-blue-600 hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {children}
-                          </a>
-                        ),
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
-                    {msg.citations && (
-                      <div className="mt-4 bg-gray-100 p-4 rounded">
-                        <h4 className="text-sm font-semibold text-gray-700">Citations:</h4>
-                        {msg.citations.map((citation, index) => (
-                          <div key={index} className="mb-4">
-                            <h5 className="text-base font-semibold text-gray-800">
-                              <a
-                                href={citation.shareLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline"
-                              >
-                                {citation.appTitle}
-                              </a>
-                            </h5>
-                            <div className="text-sm text-gray-600 mb-2">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {expandedCitations[`${msg.content}-${index}`]
-                                  ? citation.description
-                                  : citation.description?.substring(0, 150) + '...'}
-                              </ReactMarkdown>
-                              {citation.description?.length > 150 && (
-                                <button
-                                  onClick={() => toggleDescription(`${msg.content}-${index}`)}
-                                  className="text-blue-500 hover:text-blue-600 text-sm font-medium mt-1"
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-800">
+                              {children}
+                            </ol>
+                          ),
+                          li: ({ children }) => (
+                            <li className="ml-4 text-gray-800">{children}</li>
+                          ),
+                          p: ({ children }) => (
+                            <p className="mb-3 leading-relaxed text-gray-800">{children}</p>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-semibold text-gray-900">{children}</strong>
+                          ),
+                          em: ({ children }) => (
+                            <em className="italic text-gray-700">{children}</em>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-gray-300 pl-4 my-3 italic text-gray-700">
+                              {children}
+                            </blockquote>
+                          ),
+                          code({ node, inline, className, children, ...props }) {
+                            const match = /language-(\w+)/.exec(className || '');
+                            return !inline ? (
+                              <div className="relative">
+                                <pre className="rounded-md bg-gray-800 p-4 overflow-x-auto">
+                                  <code
+                                    className={`${match ? `language-${match[1]}` : ''} text-sm text-gray-100`}
+                                    {...props}
+                                  >
+                                    {String(children).replace(/\n$/, '')}
+                                  </code>
+                                </pre>
+                              </div>
+                            ) : (
+                              <code className="px-1.5 py-0.5 rounded-md bg-gray-200 text-gray-800 text-sm">
+                                {children}
+                              </code>
+                            );
+                          },
+                          a: ({ children, href }) => (
+                            <a
+                              href={href}
+                              className="text-blue-600 hover:underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {children}
+                            </a>
+                          ),
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                      {msg.citations && (
+                        <div className="mt-4 bg-gray-100 p-4 rounded">
+                          <h4 className="text-sm font-semibold text-gray-700">Citations:</h4>
+                          {msg.citations.map((citation, index) => (
+                            <div key={index} className="mb-4">
+                              <h5 className="text-base font-semibold text-gray-800">
+                                <a
+                                  href={citation.shareLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline"
                                 >
-                                  {expandedCitations[`${msg.content}-${index}`] ? 'Show less' : 'Show more'}
-                                </button>
+                                  {citation.appTitle}
+                                </a>
+                              </h5>
+                              <div className="text-sm text-gray-600 mb-2">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {expandedCitations[`${msg.content}-${index}`]
+                                    ? citation.description
+                                    : citation.description?.substring(0, 150) + '...'}
+                                </ReactMarkdown>
+                                {citation.description?.length > 150 && (
+                                  <button
+                                    onClick={() => toggleDescription(`${msg.content}-${index}`)}
+                                    className="text-blue-500 hover:text-blue-600 text-sm font-medium mt-1"
+                                  >
+                                    {expandedCitations[`${msg.content}-${index}`] ? 'Show less' : 'Show more'}
+                                  </button>
+                                )}
+                              </div>
+                              {citation.matches?.length > 0 && (
+                                <>
+                                  <button
+                                    onClick={() => toggleMatches(`${msg.content}-${index}`)}
+                                    className="text-blue-500 hover:text-blue-600 text-sm font-medium mb-2"
+                                  >
+                                    {expandedMatches[`${msg.content}-${index}`] ? 'Hide matches' : `Show matches (${citation.matches.length})`}
+                                  </button>
+                                  {expandedMatches[`${msg.content}-${index}`] && (
+                                    <ul className="list-disc list-inside text-gray-600">
+                                      {citation.matches.map((match, matchIndex) => (
+                                        <li key={matchIndex} className="mb-1">
+                                          <span className="text-gray-800 font-medium">
+                                            {`Score: ${(match.similarity * 100).toFixed(1)}%`}
+                                          </span>
+                                          <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            className="text-sm text-gray-700"
+                                          >
+                                            {match.content?.length > 200
+                                              ? match.content.substring(0, 200) + '...'
+                                              : match.content}
+                                          </ReactMarkdown>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </>
                               )}
                             </div>
-                            {citation.matches?.length > 0 && (
-                              <>
-                                <button
-                                  onClick={() => toggleMatches(`${msg.content}-${index}`)}
-                                  className="text-blue-500 hover:text-blue-600 text-sm font-medium mb-2"
-                                >
-                                  {expandedMatches[`${msg.content}-${index}`] ? 'Hide matches' : `Show matches (${citation.matches.length})`}
-                                </button>
-                                {expandedMatches[`${msg.content}-${index}`] && (
-                                  <ul className="list-disc list-inside text-gray-600">
-                                    {citation.matches.map((match, matchIndex) => (
-                                      <li key={matchIndex} className="mb-1">
-                                        <span className="text-gray-800 font-medium">
-                                          {`Score: ${(match.similarity * 100).toFixed(1)}%`}
-                                        </span>
-                                        <ReactMarkdown
-                                          remarkPlugins={[remarkGfm]}
-                                          className="text-sm text-gray-700"
-                                        >
-                                          {match.content?.length > 200
-                                            ? match.content.substring(0, 200) + '...'
-                                            : match.content}
-                                        </ReactMarkdown>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
-                )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

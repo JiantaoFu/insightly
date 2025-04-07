@@ -12,7 +12,6 @@ import {
   extractAppStoreId
 } from './appStoreScraper.js';
 import { processGooglePlayUrl } from './googlePlayScraper.js';
-import Markdown from 'react-markdown';
 import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
@@ -22,6 +21,8 @@ import { supabase } from './supabaseClient.js';
 import { generateSitemap, initializeSitemap } from './sitemap.js';
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { embeddingService } from './services/EmbeddingService.js'
+import { availableFunctions, functionDeclarations } from './functions.js';
+import { calculateCosineSimilarity } from './utils.js';
 
 dotenv.config();
 
@@ -1381,6 +1382,65 @@ const model = genAI.getGenerativeModel({
   }
 })
 
+// Helper function to handle function calls
+async function handleFunctionCalls(functionCalls, chat, res) {
+  for (const functionCall of functionCalls) {
+    const functionName = functionCall.name;
+
+    // Send status update for each tool call
+    res.write(JSON.stringify({
+      status: { type: 'tool', message: `Executing ${functionName}...` }
+    }) + '\n');
+
+    const functionArgs = functionCall.args;
+
+    console.log(`Function call detected: ${functionName} with args:`, functionArgs);
+
+    // Execute the function
+    const functionToCall = availableFunctions[functionName];
+    if (functionToCall) {
+      try {
+        const functionResult = await functionToCall(functionArgs);
+
+        console.log(`Function result:`, functionResult);
+
+        // Send function response back to the model
+        const functionResponse = {
+          functionResponse: {
+            name: functionName,
+            response: {
+              content: JSON.stringify(functionResult),
+            },
+          },
+        };
+
+        // Send function response back to the model
+        const nextResult = await chat.sendMessage([functionResponse]);
+        const nextResponse = await nextResult.response;
+
+        const nextText = nextResponse.text();
+
+        console.log('Generated response text:', nextText.slice(0, 100), '...');
+
+        // Stream response in chunks without citations
+        const chunkSize = 100;
+        for (let i = 0; i < nextText.length; i += chunkSize) {
+          const chunk = nextText.slice(i, i + chunkSize);
+          if (chunk.trim()) { // Ensure the chunk is not empty
+            res.write(JSON.stringify({ chunk }) + '\n');
+          }
+        }
+      } catch (error) {
+        console.error(`Error executing function ${functionName}:`, error);
+        res.write(JSON.stringify({ error: `Error executing function ${functionName}: ${error.message}` }) + '\n');
+      }
+    } else {
+      console.error(`Function not found: ${functionName}`);
+      res.write(JSON.stringify({ error: `Function not found: ${functionName}` }) + '\n');
+    }
+  }
+}
+
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
   try {
@@ -1396,12 +1456,23 @@ app.post('/api/chat', async (req, res) => {
 
     console.log('Received message:', message);
 
-    // Generate embedding for query
+    // Set initial thinking status
+    res.write(JSON.stringify({
+      status: { type: 'thinking', message: 'Processing your request...' }
+    }) + '\n');
+
+    // Generate embedding for query and notify
+    res.write(JSON.stringify({
+      status: { type: 'rag', message: 'Searching knowledge base for relevant information...' }
+    }) + '\n');
     const queryEmbedding = await embeddingService.generateEmbedding(message);
     console.log('Generated query embedding:', queryEmbedding.slice(0, 5), '...');
 
     // Search for relevant content
     const matches = await embeddingService.searchSimilar(queryEmbedding);
+    res.write(JSON.stringify({
+      status: { type: 'rag', message: `Found ${matches.length} relevant matches...` }
+    }) + '\n');
     console.log('Found matches:', matches.length);
 
     // Fetch app details for citations
@@ -1542,42 +1613,55 @@ app.post('/api/chat', async (req, res) => {
           threshold: "BLOCK_MEDIUM_AND_ABOVE",
         },
       ],
+      tools: [
+        {
+          functionDeclarations: functionDeclarations,
+        },
+      ],
     });
 
     // Send message and get response
     const result = await chat.sendMessage(formattedPrompt);
     const response = await result.response;
 
-    const text = response.text();
+    // Before function calls, update status
+    const functionCalls = response.functionCalls();
+    if (functionCalls && functionCalls.length > 0) {
+      res.write(JSON.stringify({
+        status: { type: 'tool', message: 'Calling external tools to gather information...' }
+      }) + '\n');
+      await handleFunctionCalls(functionCalls, chat, res);
+    } else {
+      // Processing response
+      res.write(JSON.stringify({
+        status: { type: 'thinking', message: 'Generating response...' }
+      }) + '\n');
+      const text = response.text();
 
-    console.log('Generated response text:', text.slice(0, 100), '...');
+      console.log('Generated response text:', text.slice(0, 100), '...');
 
-    // Stream response in chunks without citations
-    const chunkSize = 100;
-    for (let i = 0; i < text.length; i += chunkSize) {
-      const chunk = text.slice(i, i + chunkSize);
-      if (chunk.trim()) { // Ensure the chunk is not empty
-        res.write(JSON.stringify({ chunk }) + '\n');
+      // Stream response in chunks without citations
+      const chunkSize = 100;
+      for (let i = 0; i < text.length; i += chunkSize) {
+        const chunk = text.slice(i, i + chunkSize);
+        if (chunk.trim()) { // Ensure the chunk is not empty
+          res.write(JSON.stringify({ chunk }) + '\n');
+        }
       }
     }
 
     res.end();
   } catch (error) {
     console.error('Chat error:', error);
+    res.write(JSON.stringify({
+      status: { type: 'thinking', message: 'An error occurred. Please try again.' }
+    }) + '\n');
     if (!res.headersSent) {
       res.status(500).json({ error: 'Error processing chat message', details: error.message });
     }
     res.end();
   }
 });
-
-// Add utility function for cosine similarity if not already present
-function calculateCosineSimilarity(vecA, vecB) {
-  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
-  const normA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
-  const normB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
-  return dotProduct / (normA * normB);
-}
 
 // Endpoint to fetch predefined prompts
 app.get('/api/prompts', (req, res) => {

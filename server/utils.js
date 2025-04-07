@@ -7,7 +7,7 @@ import crypto from 'crypto';
  */
 export function calculateAverageRating(reviews) {
   if (reviews.length === 0) return 0;
-  
+
   const totalScore = reviews.reduce((sum, review) => sum + review.score, 0);
   return Number((totalScore / reviews.length).toFixed(1));
 }
@@ -37,4 +37,13 @@ export function generateUrlHash(url) {
     .createHash('md5')
     .update(url.toLowerCase().trim())
     .digest('hex');
+}
+
+
+// Add utility function for cosine similarity if not already present
+export function calculateCosineSimilarity(vecA, vecB) {
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const normA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const normB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+  return dotProduct / (normA * normB);
 }

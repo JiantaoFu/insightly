@@ -1384,7 +1384,8 @@ const model = genAI.getGenerativeModel({
 
 // Helper function to handle function calls
 async function handleFunctionCalls(functionCalls, chat, res) {
-  for (const functionCall of functionCalls) {
+  // Use Promise.all to handle multiple function calls concurrently
+  const responsePromises = functionCalls.map(async (functionCall) => {
     const functionName = functionCall.name;
 
     // Send status update for each tool call
@@ -1405,7 +1406,7 @@ async function handleFunctionCalls(functionCalls, chat, res) {
         console.log(`Function result:`, functionResult);
 
         // Send function response back to the model
-        const functionResponse = {
+        return {
           functionResponse: {
             name: functionName,
             response: {
@@ -1413,30 +1414,49 @@ async function handleFunctionCalls(functionCalls, chat, res) {
             },
           },
         };
-
-        // Send function response back to the model
-        const nextResult = await chat.sendMessage([functionResponse]);
-        const nextResponse = await nextResult.response;
-
-        const nextText = nextResponse.text();
-
-        console.log('Generated response text:', nextText.slice(0, 100), '...');
-
-        // Stream response in chunks without citations
-        const chunkSize = 100;
-        for (let i = 0; i < nextText.length; i += chunkSize) {
-          const chunk = nextText.slice(i, i + chunkSize);
-          if (chunk.trim()) { // Ensure the chunk is not empty
-            res.write(JSON.stringify({ chunk }) + '\n');
-          }
-        }
       } catch (error) {
         console.error(`Error executing function ${functionName}:`, error);
-        res.write(JSON.stringify({ error: `Error executing function ${functionName}: ${error.message}` }) + '\n');
+        // Send an error response back to the model
+        return {
+          functionResponse: {
+            name: functionName,
+            response: {
+              content: JSON.stringify({ error: `Error executing function ${functionName}: ${error.message}` }),
+            },
+          },
+        };
       }
     } else {
       console.error(`Function not found: ${functionName}`);
-      res.write(JSON.stringify({ error: `Function not found: ${functionName}` }) + '\n');
+      // Send an error response back to the model
+      return {
+        functionResponse: {
+          name: functionName,
+          response: {
+            content: JSON.stringify({ error: `Function not found: ${functionName}` }),
+          },
+        },
+      };
+    }
+  });
+
+  // Wait for all function calls to complete
+  const functionResponses = await Promise.all(responsePromises);
+
+  // Send all function responses back to the model in one go
+  const nextResult = await chat.sendMessage(functionResponses);
+  const nextResponse = await nextResult.response;
+
+  const nextText = nextResponse.text();
+
+  console.log('Generated response text:', nextText.slice(0, 100), '...');
+
+  // Stream response in chunks without citations
+  const chunkSize = 100;
+  for (let i = 0; i < nextText.length; i += chunkSize) {
+    const chunk = nextText.slice(i, i + chunkSize);
+    if (chunk.trim()) { // Ensure the chunk is not empty
+      res.write(JSON.stringify({ chunk }) + '\n');
     }
   }
 }
@@ -1461,14 +1481,18 @@ app.post('/api/chat', async (req, res) => {
       status: { type: 'thinking', message: 'Processing your request...' }
     }) + '\n');
 
-    // Generate embedding for query and notify
-    res.write(JSON.stringify({
-      status: { type: 'rag', message: 'Searching knowledge base for relevant information...' }
-    }) + '\n');
-    const queryEmbedding = await embeddingService.generateEmbedding(message);
-    console.log('Generated query embedding:', queryEmbedding.slice(0, 5), '...');
+    // Combine history with current message for richer context
+    const combinedContext = history.map(msg => msg.content).join('\n') + '\n' + message;
 
-    // Search for relevant content
+    // Generate embedding for combined context
+    res.write(JSON.stringify({
+      status: { type: 'rag', message: 'Searching knowledge base using conversation context...' }
+    }) + '\n');
+
+    const queryEmbedding = await embeddingService.generateEmbedding(combinedContext);
+    console.log('Generated embedding for combined context');
+
+    // Search for relevant content using combined context embedding
     const matches = await embeddingService.searchSimilar(queryEmbedding);
     res.write(JSON.stringify({
       status: { type: 'rag', message: `Found ${matches.length} relevant matches...` }
@@ -1586,7 +1610,7 @@ app.post('/api/chat', async (req, res) => {
       history: fullHistory,
       systemInstruction: {
         parts: [
-          { text: "You are a helpful AI assistant that analyzes app reviews and provides insights." },
+          { text: "You are a helpful AI assistant that analyzes app reviews and provides insights. When using tools, think step-by-step and explain your reasoning before calling a tool. If a tool requires an ID, and you only have the name, use the appropriate search tool first to find the ID." },
         ],
       },
       generationConfig: {

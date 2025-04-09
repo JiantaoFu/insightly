@@ -19,7 +19,7 @@ import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
 import { supabase } from './supabaseClient.js';
 import { generateSitemap, initializeSitemap } from './sitemap.js';
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { embeddingService } from './services/EmbeddingService.js'
 import { availableFunctions, functionDeclarations } from './functions.js';
 import { calculateCosineSimilarity } from './utils.js';
@@ -1621,20 +1621,22 @@ app.post('/api/chat', async (req, res) => {
       },
       safetySettings: [
         {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE, // Example: Default or adjust as needed
         },
         {
-          category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_NONE, // Example: Default or adjust as needed
         },
         {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          // Adjust this threshold to be less strict if needed for your use case
+          // Options: BLOCK_NONE, BLOCK_LOW_AND_ABOVE, BLOCK_MEDIUM_AND_ABOVE, BLOCK_ONLY_HIGH
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
         {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE, // Example: Default or adjust as needed
         },
       ],
       tools: [
@@ -1647,6 +1649,8 @@ app.post('/api/chat', async (req, res) => {
     // Send message and get response
     const result = await chat.sendMessage(formattedPrompt);
     const response = await result.response;
+
+    console.log('Received response:', response);
 
     // Before function calls, update status
     const functionCalls = response.functionCalls();
@@ -1662,7 +1666,8 @@ app.post('/api/chat', async (req, res) => {
       }) + '\n');
       const text = response.text();
 
-      console.log('Generated response text:', text.slice(0, 100), '...');
+      // console.log('Generated response text:', text.slice(0, 100), '...');
+      console.log('Generated response text:', text);
 
       // Stream response in chunks without citations
       const chunkSize = 100;

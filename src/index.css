@@ -49,3 +49,28 @@ pre code {
 .prose tbody tr:nth-child(even) {
   background-color: #F9FAFB;
 }
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .citation {
+    font-size: 0.7rem;
+    padding: 0px 2px;
+  }
+
+  .prose {
+    font-size: 0.9rem;
+  }
+
+  .prose pre {
+    margin: 0.5rem 0;
+  }
+
+  .prose code {
+    font-size: 0.8rem;
+  }
+}
+
+/* Prevent body scroll when drawer is open */
+.drawer-open {
+  overflow: hidden;
+}

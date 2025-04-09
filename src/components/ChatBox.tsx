@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Link } from 'react-router-dom'
 import TextareaAutosize from 'react-textarea-autosize'
+import { Menu, X } from 'lucide-react'
 
 // Add new interfaces for status
 interface SearchStatus {
@@ -45,6 +46,11 @@ interface ChatHistory {
   prompt?: string;
   messages: Message[];
   timestamp: number;
+}
+
+interface DrawerState {
+  prompts: boolean;
+  history: boolean;
 }
 
 export function ChatBox() {
@@ -102,6 +108,18 @@ export function ChatBox() {
   const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [error, setError] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<SearchStatus | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState<DrawerState>({
+    prompts: false,
+    history: false
+  });
+
+  const toggleDrawer = (drawer: keyof DrawerState) => {
+    setDrawerOpen(prev => ({
+      prompts: false,
+      history: false,
+      [drawer]: !prev[drawer]
+    }));
+  };
 
   const handlePromptClick = (prompt: Prompt) => {
     // If clicking the already selected prompt, deselect it
@@ -269,11 +287,26 @@ export function ChatBox() {
   )
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Left-side panel for prompts */}
-      <div className="w-64 bg-white border-r shadow-md">
-        <div className="p-4 border-b">
+    <div className="flex h-screen bg-gray-100 relative">
+      {/* Mobile drawer overlays */}
+      {drawerOpen.prompts && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={() => toggleDrawer('prompts')} />
+      )}
+      {drawerOpen.history && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={() => toggleDrawer('history')} />
+      )}
+
+      {/* Prompts panel */}
+      <div className={`
+        fixed md:static w-64 bg-white border-r shadow-md z-50 h-full transition-transform duration-300
+        ${drawerOpen.prompts ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0
+      `}>
+        <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-lg font-semibold text-gray-800">Available Prompts</h2>
+          <button className="md:hidden" onClick={() => toggleDrawer('prompts')}>
+            <X className="w-6 h-6" />
+          </button>
         </div>
         <ul className="p-4 space-y-2">
           {prompts.map(prompt => (
@@ -298,15 +331,27 @@ export function ChatBox() {
       </div>
 
       {/* Main chat area */}
-      <div className="flex flex-col flex-1 items-center">
-        {/* Header */}
-        <div className="w-full bg-white shadow">
-          <div className="w-full max-w-4xl mx-auto flex items-center justify-between px-4 py-2">
-            <Link to="/" className="text-blue-500 hover:underline">
-              Back
-            </Link>
-            <h1 className="text-lg font-semibold text-gray-800">Chat Assistant</h1>
-            <div />
+      <div className="flex flex-col flex-1 h-full">
+        {/* Header with mobile controls */}
+        <div className="bg-white shadow">
+          <div className="w-full max-w-4xl mx-auto flex items-center justify-between relative px-4 py-2">
+            <div className="flex items-center space-x-4">
+              <button className="md:hidden" onClick={() => toggleDrawer('prompts')}>
+                <Menu className="w-6 h-6" />
+              </button>
+              <Link to="/" className="text-blue-500 hover:underline">
+                Back
+              </Link>
+            </div>
+
+            {/* Centered title */}
+            <h1 className="text-lg font-semibold text-gray-800 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              Chat Assistant
+            </h1>
+
+            <button className="md:hidden" onClick={() => toggleDrawer('history')}>
+              <Menu className="w-6 h-6 rotate-180" />
+            </button>
           </div>
         </div>
 
@@ -328,26 +373,22 @@ export function ChatBox() {
           </div>
         )}
 
-        {/* Chat Area */}
-        <div className="flex-1 w-full max-w-4xl overflow-y-auto p-4 space-y-4">
-          {currentStatus && (
-            <StatusIndicator status={currentStatus} />
-          )}
+        {/* Chat messages */}
+        <div className="flex-1 w-full max-w-4xl mx-auto overflow-y-auto p-4 space-y-4">
           {messages.map((msg) => (
-            <div key={msg.id}>
-              {/* Show status history */}
+            <div key={msg.id} className="break-words">
+              {/* Status indicators */}
               {msg.status?.map((status, i) => (
                 <StatusIndicator key={i} status={status} />
               ))}
-              {/* Existing message rendering */}
-              <div className={`flex ${msg.role === 'user' ? 'justify-end w-full' : 'w-full'}`}>
-                <div
-                  className={`${
-                    msg.role === 'user'
-                      ? 'max-w-[75%] bg-blue-500 text-white text-left self-end'  // Keep text-left but change back to self-end
-                      : 'w-full bg-gray-200 text-gray-900 text-left self-start'
-                  } p-3 rounded-lg break-words overflow-hidden`}
-                >
+              {/* Message bubble */}
+              <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                <div className={`
+                  ${msg.role === 'user'
+                    ? 'bg-blue-500 text-white ml-8 sm:ml-16'
+                    : 'bg-gray-200 text-gray-900 mr-8 sm:mr-16'}
+                  p-3 rounded-lg max-w-[85%] sm:max-w-[75%]
+                `}>
                   {msg.role === 'assistant' ? (
                     <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 overflow-auto">
                       <ReactMarkdown
@@ -414,7 +455,7 @@ export function ChatBox() {
                         {msg.content}
                       </ReactMarkdown>
                       {msg.citations && (
-                        <div className="mt-4 bg-gray-100 p-4 rounded">
+                        <div className="mt-2 bg-gray-100 p-2 sm:p-4 rounded text-sm">
                           <h4 className="text-sm font-semibold text-gray-700">Citations:</h4>
                           {msg.citations.map((citation, index) => (
                             <div key={index} className="mb-4">
@@ -484,42 +525,46 @@ export function ChatBox() {
               </div>
             </div>
           ))}
+          {currentStatus && (
+            <StatusIndicator status={currentStatus} />
+          )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
-        <form
-          onSubmit={sendMessage}
-          className="w-full max-w-4xl bg-white border-t p-4 flex items-center space-x-2"
-        >
-          <TextareaAutosize
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            minRows={2}
-            maxRows={6}
-            className="flex-1 p-2 border rounded-lg resize-none focus:outline-none focus:ring focus:ring-blue-300 overflow-y-auto"
-            disabled={isLoading}
-            style={{
-              overflowX: 'hidden', // Hide horizontal scrollbar
-              overflowY: 'auto',   // Show vertical scrollbar when needed
-              wordWrap: 'break-word'
-            }}
-          />
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-          >
-            Send
-          </button>
+        {/* Input area - mobile optimized */}
+        <form onSubmit={sendMessage} className="w-full bg-white border-t p-2 sm:p-4">
+          <div className="w-full max-w-4xl mx-auto flex items-end space-x-2">
+            <TextareaAutosize
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your message..."
+              minRows={1}
+              maxRows={4}
+              className="flex-1 p-2 border rounded-lg resize-none focus:outline-none focus:ring focus:ring-blue-300"
+              disabled={isLoading}
+            />
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 whitespace-nowrap"
+            >
+              Send
+            </button>
+          </div>
         </form>
       </div>
 
-      {/* Right panel for chat history */}
-      <div className="w-64 bg-white border-l shadow-md overflow-y-auto">
-        <div className="p-4 border-b">
+      {/* Chat history panel */}
+      <div className={`
+        fixed md:static w-64 bg-white border-l shadow-md z-50 h-full transition-transform duration-300 right-0
+        ${drawerOpen.history ? 'translate-x-0' : 'translate-x-full'}
+        md:translate-x-0
+      `}>
+        <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-lg font-semibold text-gray-800">Chat History</h2>
+          <button className="md:hidden" onClick={() => toggleDrawer('history')}>
+            <X className="w-6 h-6" />
+          </button>
         </div>
         <div className="p-4 space-y-4">
           {chatHistories.map((chat) => (

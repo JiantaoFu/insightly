@@ -463,7 +463,7 @@ export function ChatBox() {
                       >
                         {msg.content}
                       </ReactMarkdown>
-                      {msg.citations && (
+                      {msg.citations && msg.citations.length > 0 && (
                         <div className="mt-2">
                           <button
                             onClick={() => setCitationsCollapsed(!citationsCollapsed)}

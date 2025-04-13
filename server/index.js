@@ -1456,76 +1456,44 @@ async function handleFunctionCalls(functionCalls, chat, res) {
   }
 }
 
-// Chat endpoint
-app.post('/api/chat', async (req, res) => {
+// Add near other helper functions
+async function performRagSearch(query, res) {
   try {
-    const { message, promptId, history = [] } = req.body;
+    const queryEmbedding = await embeddingService.generateEmbedding(query);
+    console.log('Generated embedding for query');
 
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
-
-    // Set headers for streaming
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Transfer-Encoding', 'chunked');
-
-    console.log('Received message:', message);
-
-    // Set initial thinking status
-    res.write(JSON.stringify({
-      status: { type: 'thinking', message: 'Processing your request...' }
-    }) + '\n');
-
-    // Combine history with current message for richer context
-    const combinedContext = history.map(msg => msg.content).join('\n') + '\n' + message;
-
-    // Generate embedding for combined context
-    res.write(JSON.stringify({
-      status: { type: 'rag', message: 'Searching knowledge base using conversation context...' }
-    }) + '\n');
-
-    const queryEmbedding = await embeddingService.generateEmbedding(combinedContext);
-    console.log('Generated embedding for combined context');
-
-    // Search for relevant content using combined context embedding
     const matches = await embeddingService.searchSimilar(queryEmbedding);
     res.write(JSON.stringify({
       status: { type: 'rag', message: `Found ${matches.length} relevant matches...` }
     }) + '\n');
     console.log('Found matches:', matches.length);
 
-    // Fetch app details for citations
-    const reportIds = matches.map(match => match.report_id);
-    console.log('Report IDs for matches:', reportIds);
+    if (matches.length === 0) {
+      return { contextMessages: [], citations: [] };
+    }
 
+    const reportIds = matches.map(match => match.report_id);
     const { data: apps, error: appsError } = await supabase
       .from('analysis_reports')
       .select('id, app_title, description, hash_url')
       .in('id', reportIds);
 
     if (appsError) {
-      console.error('Error fetching app details for citations:', appsError);
-      return res.status(500).json({ error: 'Failed to fetch app details for citations' });
+      throw new Error('Failed to fetch app details for citations');
     }
 
-    // Calculate similarity between query and each app's description
     const appsWithSimilarity = await Promise.all(apps.map(async app => {
       if (!app.description) return { ...app, descriptionSimilarity: 0 };
-
       const descriptionEmbedding = await embeddingService.generateEmbedding(app.description);
-
-      // Calculate cosine similarity between query and description
       const similarity = calculateCosineSimilarity(queryEmbedding, descriptionEmbedding);
       return { ...app, descriptionSimilarity: similarity };
     }));
 
-    // Increase threshold from 0.6 to 0.7 to match other similarity thresholds
-    const SIMILARITY_THRESHOLD = parseFloat(process.env.SIMILARITY_THRESHOLD) || 0.7; // Default to 0.7 if not set
+    const SIMILARITY_THRESHOLD = parseFloat(process.env.SIMILARITY_THRESHOLD) || 0.7;
     const relevantApps = appsWithSimilarity
       .filter(app => app.descriptionSimilarity > SIMILARITY_THRESHOLD)
       .sort((a, b) => b.descriptionSimilarity - a.descriptionSimilarity);
 
-    // Group matches by app and apply description similarity score
     const appDetailsMap = relevantApps.reduce((map, app) => {
       map[app.id] = {
         appTitle: app.app_title,
@@ -1537,11 +1505,9 @@ app.post('/api/chat', async (req, res) => {
       return map;
     }, {});
 
-    // Group matches and factor in description similarity
     matches.forEach(match => {
       const app = appDetailsMap[match.report_id];
       if (app) {
-        // Combine content similarity with description similarity
         const combinedSimilarity = (match.similarity + app.descriptionSimilarity) / 2;
         app.matches.push({
           content: match.content,
@@ -1550,39 +1516,63 @@ app.post('/api/chat', async (req, res) => {
       }
     });
 
-    // Extract structured citations
     const citations = Object.values(appDetailsMap)
       .sort((a, b) => {
-        // Sort by highest match similarity and description similarity
         const aMaxSim = Math.max(...(a.matches?.map(m => m.similarity) || [0]));
         const bMaxSim = Math.max(...(b.matches?.map(m => m.similarity) || [0]));
         return bMaxSim - aMaxSim;
       })
-      .map(app => ({
-        ...app,
-        matches: app.matches || [],
-      }));
+      .map(app => ({ ...app, matches: app.matches || [] }));
 
-    // console.log('Prepared citations:', citations);
-
-    // Send citations at the beginning of the response
-    res.write(JSON.stringify({ citations }) + '\n');
-
-    // Format context from matches
     const contextMessages = matches.map(match => ({
       role: 'user',
       parts: [{ text: `[Source ${appDetailsMap[match.report_id]?.appTitle || 'Unknown App'}]: ${match.content}` }],
     }));
 
-    // console.log('Formatted context messages:', contextMessages);
+    return { contextMessages, citations };
+  } catch (error) {
+    console.error('RAG search failed:', error);
+    return { contextMessages: [], citations: [] };
+  }
+}
+
+// Update chat endpoint
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, promptId, history = [] } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    console.log('Received message:', message);
+
+    let contextMessages = [];
+    let citations = [];
+
+    const ENABLE_RAG = process.env.ENABLE_RAG === 'true';
+
+    if (ENABLE_RAG) {
+      res.write(JSON.stringify({
+        status: { type: 'rag', message: 'Searching knowledge base...' }
+      }) + '\n');
+
+      const combinedContext = history.map(msg => msg.content).join('\n') + '\n' + message;
+      const { contextMessages: ragContext, citations: ragCitations } =
+        await performRagSearch(combinedContext, res);
+
+      contextMessages = ragContext;
+      citations = ragCitations;
+
+      if (citations.length > 0) {
+        res.write(JSON.stringify({ citations }) + '\n');
+      }
+    }
 
     // Format history for Gemini API
     const formattedHistory = history.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : msg.role,
       parts: [{ text: String(msg.content || '') }],
     }));
-
-    // console.log('Formatted history:', formattedHistory);
 
     // Add RAG context to history
     const fullHistory = [...contextMessages, ...formattedHistory];

@@ -3,9 +3,11 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
+console.log('process.env.NODE_ENV:', process.env.NODE_ENV)
+
 const getSupabaseConfig = () => {
   const env = process.env.NODE_ENV || 'development'
-  
+
   const configs = {
     development: {
       url: process.env.SUPABASE_LOCAL_URL,
@@ -21,6 +23,6 @@ const getSupabaseConfig = () => {
 }
 
 export const supabase = createClient(
-  getSupabaseConfig().url, 
+  getSupabaseConfig().url,
   getSupabaseConfig().key
 )

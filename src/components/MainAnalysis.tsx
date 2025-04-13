@@ -419,7 +419,7 @@ const MainAnalysis: React.FC = () => {
           {appData?.reviews?.reviews && appData?.reviews?.reviews.length > 0 && (
             <ReviewPreview
               reviews={appData?.reviews?.reviews.map(review => ({
-                id: review.id || crypto.randomUUID(),
+                id: review.id,
                 text: review.text,
                 score: review.score,
                 userName: review.userName,

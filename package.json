@@ -38,6 +38,7 @@
     "express-rate-limit": "^7.5.0",
     "github-slugger": "^2.0.0",
     "google-play-scraper": "^10.0.1",
+    "jszip": "^3.10.1",
     "lru-cache": "^11.0.2",
     "lucide-react": "^0.344.0",
     "openai": "^4.28.4",

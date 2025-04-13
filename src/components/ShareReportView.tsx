@@ -131,7 +131,7 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
       {appData?.reviews && appData?.reviews?.length > 0 && (
         <ReviewPreview
           reviews={appData?.reviews.map(review => ({
-            id: review.id || crypto.randomUUID(),
+            id: review.id,
             text: review.text,
             score: review.score,
             userName: review.userName,

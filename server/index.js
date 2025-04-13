@@ -23,6 +23,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { embeddingService } from './services/EmbeddingService.js'
 import { availableFunctions, functionDeclarations } from './functions.js';
 import { calculateCosineSimilarity } from './utils.js';
+import JSZip from 'jszip';
 
 dotenv.config();
 
@@ -304,6 +305,7 @@ const isRecordEntryExpired = (recordEntry) => {
 // Async function to save to Supabase
 async function saveToSupabase(cacheEntry, url, hashUrl) {
   try {
+    // Save metadata to database
     const { data, error } = await supabase
       .from('analysis_reports')
       .insert({
@@ -314,19 +316,43 @@ async function saveToSupabase(cacheEntry, url, hashUrl) {
         app_url: url,
         hash_url: hashUrl,
         app_score: cacheEntry.appDetails.score,
-        reviews: cacheEntry.appDetails.reviews.length,
         icon: cacheEntry.appDetails.icon,
         platform: cacheEntry.appDetails.platform,
         total_reviews: cacheEntry.reviewsSummary.totalReviews,
         average_rating: cacheEntry.reviewsSummary.averageRating,
         score_distribution: cacheEntry.reviewsSummary.scoreDistribution,
-        timestamp: cacheEntry.timestamp,
-        full_report: cacheEntry
+        timestamp: cacheEntry.timestamp
       })
       .select();
 
     if (error) {
-      console.error('Error saving to Supabase:', error);
+      console.error('Error saving to database:', error);
+      return;
+    }
+
+    // Compress and save full report to storage
+    try {
+      const zip = new JSZip();
+      zip.file('report.txt', JSON.stringify(cacheEntry));
+      const compressedData = await zip.generateAsync({ type: "uint8array" });
+
+      const folderStructure = `${hashUrl.slice(0, 2)}/${hashUrl.slice(2, 4)}/`;
+      const fileName = `${folderStructure}${hashUrl}.zip`;
+
+      const { error: storageError } = await supabase.storage
+        .from('reports')
+        .upload(fileName, compressedData, {
+          contentType: 'application/zip',
+          upsert: true // Overwrite if exists
+        });
+
+      if (storageError) {
+        console.error('Error saving to storage:', storageError);
+      } else {
+        console.log(`✅ Saved report to storage: ${fileName}`);
+      }
+    } catch (storageError) {
+      console.error('Error compressing/uploading report:', storageError);
     }
   } catch (dbError) {
     console.error('Database save error:', dbError);
@@ -489,7 +515,7 @@ app.post('/api/analyze',
     try {
       const { data, error } = await supabase
         .from('analysis_reports')
-        .select('*')
+        .select('hash_url, timestamp')
         .eq('hash_url', hashUrl)
         .single();
 
@@ -497,8 +523,9 @@ app.post('/api/analyze',
         console.log('Report found in database:', url);
 
         // Reconstruct cache entry from database
+        const fullReport = await getReportFromStorage(hashUrl);
         const dbCacheEntry = {
-          ...data.full_report,
+          ...fullReport,
           getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${hashUrl}`
         };
 
@@ -506,7 +533,7 @@ app.post('/api/analyze',
         analysisCache.set(hashUrl, dbCacheEntry);
 
         // Stream the report
-        const chunks = data.full_report.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
+        const chunks = fullReport.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
         chunks.forEach((chunk, index) => {
           res.write(JSON.stringify({ report: chunk }) + '\n');
           if (index === chunks.length - 1) {
@@ -878,20 +905,34 @@ app.get('/api/db-analyses', async (req, res) => {
 
     if (error) throw error;
 
-    const results = data.map(entry => ({
-      shareLink: `${process.env.CLIENT_ORIGIN}/shared-app-report/${entry.hash_url}`,
-      appDetails: entry.full_report.appDetails,
-      reviewsSummary: entry.full_report.reviewsSummary,
-      analysisDate: new Date(entry.timestamp).toLocaleString(),
-      metadata: {
-        hashUrl: entry.hash_url,
-        appUrl: entry.app_url,
-        platform: entry.platform
+    const results = await Promise.all(data.map(async entry => {
+      try {
+        const fullReport = await getReportFromStorage(entry.hash_url);
+        return {
+          shareLink: `${process.env.CLIENT_ORIGIN}/shared-app-report/${entry.hash_url}`,
+          appDetails: fullReport.appDetails,
+          reviewsSummary: fullReport.reviewsSummary,
+          analysisDate: new Date(entry.timestamp).toLocaleString(),
+          metadata: {
+            hashUrl: entry.hash_url,
+            appUrl: entry.app_url,
+            platform: entry.platform
+          }
+        };
+      } catch (error) {
+        if (error.message === 'Report file not found in storage') {
+          // Skip this entry and return null
+          return null;
+        }
+        console.error(`Error fetching report for ${entry.hash_url}:`, error);
+        return null;
       }
     }));
 
+    const validResults = results.filter(result => result !== null);
+
     res.json({
-      results,
+      results: validResults,
       pagination: {
         total: count,
         page: parseInt(page),
@@ -1005,52 +1046,59 @@ app.get('/api/db-comparisons', async (req, res) => {
 });
 
 // Add after existing routes
-app.get('/api/share-app-report', (req, res) => {
-  const { url } = req.query;
+app.get('/api/share-app-report', async (req, res) => {
+    const { url } = req.query;
 
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
-  }
+    if (!url) {
+        return res.status(400).json({ error: 'URL is required' });
+    }
 
-  const hashUrl = generateUrlHash(url);
-  const cachedReport = analysisCache.get(hashUrl);
+    const hashUrl = generateUrlHash(url);
+    const cachedReport = analysisCache.get(hashUrl);
 
-  if (cachedReport && !isRecordEntryExpired(cachedReport)) {
-    return res.json({
-      shareLink: cachedReport.getShareLink(),
-      expiresAt: Date.now() + analysisCache.maxAge
-    });
-  }
-
-  // Check database if not in cache
-  supabase
-    .from('analysis_reports')
-    .select('*')
-    .eq('hash_url', hashUrl)
-    .single()
-    .then(({ data, error }) => {
-      if (error || !data || isRecordEntryExpired({ timestamp: data.timestamp })) {
-        return res.status(404).json({
-          error: 'Report not found or expired. Please re-run the analysis.',
-          shouldReanalyze: true
+    if (cachedReport && !isRecordEntryExpired(cachedReport)) {
+        return res.json({
+            shareLink: cachedReport.getShareLink(),
+            expiresAt: Date.now() + analysisCache.maxAge
         });
-      }
+    }
 
-      // Reconstruct cache entry and add to memory cache
-      const cacheEntry = {
-        ...data.full_report,
-        getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${hashUrl}`
-      };
-      analysisCache.set(hashUrl, cacheEntry);
+    try {
+        // Check database for metadata
+        const { data, error } = await supabase
+            .from('analysis_reports')
+            .select('hash_url, timestamp')
+            .eq('hash_url', hashUrl)
+            .single();
 
-      res.json({
-        shareLink: cacheEntry.getShareLink(),
-        expiresAt: Date.now() + analysisCache.maxAge
-      });
-    });
+        if (error || !data || isRecordEntryExpired({ timestamp: data.timestamp })) {
+            return res.status(404).json({
+                error: 'Report not found or expired. Please re-run the analysis.',
+                shouldReanalyze: true
+            });
+        }
+
+        // Get full report from storage
+        const fullReport = await getReportFromStorage(hashUrl);
+        const cacheEntry = {
+            ...fullReport,
+            getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${hashUrl}`
+        };
+
+        // Add to memory cache
+        analysisCache.set(hashUrl, cacheEntry);
+
+        return res.json({
+            shareLink: cacheEntry.getShareLink(),
+            expiresAt: Date.now() + analysisCache.maxAge
+        });
+    } catch (error) {
+        console.error('Error processing share request:', error);
+        return res.status(500).json({ error: 'Failed to process share request' });
+    }
 });
 
-app.get('/api/shared-app-report', (req, res) => {
+app.get('/api/shared-app-report', async (req, res) => {
   const { shareId } = req.query;
 
   if (!shareId) {
@@ -1066,39 +1114,35 @@ app.get('/api/shared-app-report', (req, res) => {
     });
   }
 
-  // Check database if not in cache
-  supabase
-    .from('analysis_reports')
-    .select('*')
-    .eq('hash_url', shareId)
-    .single()
-    .then(({ data, error }) => {
-      if (error || !data) {
-        return res.status(404).json({
-          error: 'Report not found. Please re-run the analysis.',
-          shouldReanalyze: true
-        });
-      }
+  try {
+    // Get the full report from storage
+    const fullReport = await getReportFromStorage(shareId);
 
-      if (isRecordEntryExpired({ timestamp: data.timestamp })) {
+    // Get minimal metadata from database if needed
+    const { data: metadata } = await supabase
+        .from('analysis_reports')
+        .select('timestamp')
+        .eq('hash_url', shareId)
+        .single();
+
+    if (metadata && isRecordEntryExpired({ timestamp: metadata.timestamp })) {
         return res.status(410).json({
-          error: 'Report expired. Please re-run the analysis.',
-          shouldReanalyze: true
+            error: 'Report expired. Please re-run the analysis.',
+            shouldReanalyze: true
         });
-      }
+    }
 
-      // Reconstruct cache entry and add to memory cache
-      const cacheEntry = {
-        ...data.full_report,
-        getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${shareId}`
-      };
-      analysisCache.set(shareId, cacheEntry);
-
-      res.json({
-        appDetails: cacheEntry.appDetails,
-        report: cacheEntry.finalReport
-      });
+    res.json({
+        appDetails: fullReport.appDetails,
+        report: fullReport.finalReport
     });
+  } catch (error) {
+    console.error('Error fetching shared report:', error);
+    res.status(404).json({
+        error: 'Report not found or inaccessible',
+        shouldReanalyze: true
+    });
+  }
 });
 
 app.get('/api/share-competitor-report', (req, res) => {
@@ -1173,7 +1217,7 @@ app.get('/api/check-existing-report', async (req, res) => {
     // If not in cache, check the database
     const { data, error } = await supabase
       .from('analysis_reports')
-      .select('*')
+      .select('hash_url, timestamp')
       .eq('hash_url', urlHash)
       .single();
 
@@ -1196,24 +1240,30 @@ app.get('/api/check-existing-report', async (req, res) => {
         });
       }
 
-      // If not expired, return the record and add to cache
-      const cacheEntry = {
-        ...data.full_report,
-        getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${urlHash}`
-      };
+      try {
+        // Get full report from storage
+        const fullReport = await getReportFromStorage(urlHash);
+        const cacheEntry = {
+          ...fullReport,
+          getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${urlHash}`
+        };
 
-      // Add to cache for future requests
-      analysisCache.set(urlHash, cacheEntry);
+        // Add to cache for future requests
+        analysisCache.set(urlHash, cacheEntry);
 
-      return res.json({
-        exists: true,
-        source: 'database',
-        report: {
-          appDetails: data.full_report.appDetails,
-          reviewsSummary: data.full_report.reviewsSummary,
-          timestamp: data.timestamp
-        }
-      });
+        return res.json({
+          exists: true,
+          source: 'database',
+          report: {
+            appDetails: fullReport.appDetails,
+            reviewsSummary: fullReport.reviewsSummary,
+            timestamp: data.timestamp
+          }
+        });
+      } catch (storageError) {
+        console.error('Error fetching report from storage:', storageError);
+        return res.json({ exists: false, reason: 'storage_error' });
+      }
     }
 
     // If we get here, no record was found
@@ -1292,61 +1342,6 @@ app.get('/sitemap.xml', async (req, res) => {
     res.status(500).send('Error generating sitemap');
   }
 });
-
-// Function to load existing analyses from database
-async function loadCacheFromDatabase() {
-  try {
-    // Load latest analysis reports up to cache size limit
-    const { data: analysisData, error: analysisError } = await supabase
-      .from('analysis_reports')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(ANALYSIS_CACHE_MAX_SIZE);
-
-    if (analysisError) {
-      console.error('Error loading analysis cache from database:', analysisError);
-    } else {
-      // Populate the analysis cache with loaded entries
-      analysisData.forEach(entry => {
-        const hashUrl = entry.hash_url;
-        const cacheEntry = {
-          ...entry.full_report,
-          getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${hashUrl}`
-        };
-        analysisCache.set(hashUrl, cacheEntry);
-      });
-
-      console.log(`Loaded ${analysisData.length} analyses from database`);
-    }
-
-    // Load latest comparison reports up to cache size limit
-    const { data: comparisonData, error: comparisonError } = await supabase
-      .from('comparison_reports')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(COMPARISON_CACHE_MAX_SIZE);
-
-    if (comparisonError) {
-      console.error('Error loading comparison cache from database:', comparisonError);
-    } else {
-      comparisonData.forEach(entry => {
-        const hashUrl = entry.hash_url;
-        const cacheEntry = {
-          competitors: JSON.parse(entry.competitors),
-          finalReport: entry.final_report,
-          timestamp: entry.timestamp,
-          urls: entry.urls,
-          getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${hashUrl}`
-        };
-        comparisonCache.set(hashUrl, cacheEntry);
-      });
-
-      console.log(`Loaded ${comparisonData.length} comparison reports from database`);
-    }
-  } catch (catchError) {
-    console.error('Unexpected error loading cache:', catchError);
-  }
-}
 
 // Modify the server startup to load cache
 const startServer = async () => {
@@ -1698,3 +1693,166 @@ app.get('/api/prompts', (req, res) => {
   console.log('Sending prompts:', prompts) // Debug log
   res.json({ prompts })
 })
+
+// Function to get report from storage with retries
+async function getReportFromStorage(hashUrl, retries = 3) {
+    const folderStructure = `${hashUrl.slice(0, 2)}/${hashUrl.slice(2, 4)}/`;
+    const fileName = `${folderStructure}${hashUrl}.zip`;
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            console.log(`📥 Fetching report for ${hashUrl} (attempt ${attempt}/${retries})`, {
+                path: fileName,
+                bucket: 'reports'
+            });
+
+            const { data, error } = await supabase.storage
+                .from('reports')
+                .download(fileName);
+
+            if (error) {
+                console.error(`❌ Storage error for ${hashUrl}:`, error);
+
+                // Check if we should retry
+                if (attempt < retries && (error.statusCode === 503 || error.statusCode === 429)) {
+                    const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+                    console.log(`⏳ Retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                if (error.statusCode === 400 || error.status === 400) {
+                    console.warn(`⚠️ File not found in storage: ${fileName}`);
+                    throw new Error('FILE_NOT_FOUND');
+                }
+
+                throw error;
+            }
+
+            if (!data) {
+                throw new Error('NO_DATA_RETURNED');
+            }
+
+            // Convert blob to ArrayBuffer
+            let arrayBuffer;
+            if (data instanceof Blob) {
+                arrayBuffer = await data.arrayBuffer();
+            } else if (data instanceof ArrayBuffer) {
+                arrayBuffer = data;
+            } else if (data.buffer instanceof ArrayBuffer) {
+                arrayBuffer = data.buffer;
+            } else {
+                console.error(`❌ Unexpected data type for ${hashUrl}:`, typeof data);
+                throw new Error('INVALID_DATA_TYPE');
+            }
+
+            // Load zip from ArrayBuffer
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const reportFile = zip.file('report.txt');
+
+            if (!reportFile) {
+                throw new Error('REPORT_NOT_IN_ZIP');
+            }
+
+            // Get content as text
+            const content = await reportFile.async('string');
+
+            try {
+                const parsed = JSON.parse(content);
+                console.log(`✅ Successfully loaded report for ${hashUrl}`);
+                return parsed;
+            } catch (parseError) {
+                console.error(`❌ Invalid JSON in report for ${hashUrl}:`, parseError);
+                throw new Error('INVALID_JSON');
+            }
+        } catch (error) {
+            const finalAttempt = attempt === retries;
+            const isFatal = error.message === 'FILE_NOT_FOUND';
+
+            console.warn(`⚠️ ${finalAttempt ? 'Final attempt' : `Attempt ${attempt}`} failed for ${hashUrl}:`, {
+                error: error.message,
+                fatal: isFatal
+            });
+
+            if (finalAttempt || isFatal) {
+                throw error;
+            }
+        }
+    }
+}
+
+// Update loadCacheFromDatabase to handle missing files gracefully
+async function loadCacheFromDatabase() {
+    try {
+        const { data: analysisData, error: analysisError } = await supabase
+            .from('analysis_reports')
+            .select('hash_url, timestamp')
+            .order('timestamp', { ascending: false })
+            .limit(ANALYSIS_CACHE_MAX_SIZE);
+
+        if (analysisError) {
+            console.error('Error loading analysis cache from database:', analysisError);
+        } else {
+            let loadedCount = 0;
+            let storageErrorCount = 0;
+
+            // Populate the analysis cache with loaded entries
+            for (const entry of analysisData) {
+                try {
+                    const fullReport = await getReportFromStorage(entry.hash_url);
+                    const cacheEntry = {
+                        ...fullReport,
+                        getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-app-report/${entry.hash_url}`
+                    };
+                    analysisCache.set(entry.hash_url, cacheEntry);
+                    loadedCount++;
+                } catch (error) {
+                    storageErrorCount++;
+                    console.warn(`⚠️ Storage error for ${entry.hash_url}:`, {
+                        error: error.message,
+                        shouldCleanup: process.env.AUTO_CLEANUP_MISSING_REPORTS === 'true'
+                    });
+
+                    // Only cleanup if explicitly enabled
+                    if (process.env.AUTO_CLEANUP_MISSING_REPORTS === 'true') {
+                        console.log(`🧹 Cleaning up database record for ${entry.hash_url}`);
+                        await removeEntryFromSupabase(entry.hash_url);
+                    }
+                }
+            }
+
+            console.log(`📊 Cache loading summary:`, {
+                total: analysisData.length,
+                loaded: loadedCount,
+                storageErrors: storageErrorCount
+            });
+        }
+
+        // Load latest comparison reports up to cache size limit
+        const { data: comparisonData, error: comparisonError } = await supabase
+            .from('comparison_reports')
+            .select('*')
+            .order('timestamp', { ascending: false })
+            .limit(COMPARISON_CACHE_MAX_SIZE);
+
+        if (comparisonError) {
+            console.error('Error loading comparison cache from database:', comparisonError);
+        } else {
+            comparisonData.forEach(entry => {
+                const hashUrl = entry.hash_url;
+                const cacheEntry = {
+                    competitors: JSON.parse(entry.competitors),
+                    finalReport: entry.final_report,
+                    timestamp: entry.timestamp,
+                    urls: entry.urls,
+                    getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${hashUrl}`
+                };
+                comparisonCache.set(hashUrl, cacheEntry);
+            });
+
+            console.log(`Loaded ${comparisonData.length} comparison reports from database`);
+        }
+    } catch (catchError) {
+        console.error('Unexpected error loading cache:', catchError);
+    }
+}

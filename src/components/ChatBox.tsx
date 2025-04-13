@@ -63,6 +63,7 @@ export function ChatBox() {
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
 
   // Add new state for tracking expanded citations
+  const [citationsCollapsed, setCitationsCollapsed] = useState(true);
   const [expandedCitations, setExpandedCitations] = useState<{[key: string]: boolean}>({});
   const [expandedMatches, setExpandedMatches] = useState<{[key: string]: boolean}>({});
 
@@ -254,6 +255,14 @@ export function ChatBox() {
       setIsLoading(false)
     }
   }
+
+  // Add handler for key press
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(e);
+    }
+  };
 
   // Add status indicator component
   const StatusIndicator = ({ status }: { status: SearchStatus }) => (
@@ -455,66 +464,77 @@ export function ChatBox() {
                         {msg.content}
                       </ReactMarkdown>
                       {msg.citations && (
-                        <div className="mt-2 bg-gray-100 p-2 sm:p-4 rounded text-sm">
-                          <h4 className="text-sm font-semibold text-gray-700">Citations:</h4>
-                          {msg.citations.map((citation, index) => (
-                            <div key={index} className="mb-4">
-                              <h5 className="text-base font-semibold text-gray-800">
-                                <a
-                                  href={citation.shareLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  {citation.appTitle}
-                                </a>
-                              </h5>
-                              <div className="text-sm text-gray-600 mb-2">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                  {expandedCitations[`${msg.content}-${index}`]
-                                    ? citation.description
-                                    : citation.description?.substring(0, 150) + '...'}
-                                </ReactMarkdown>
-                                {citation.description?.length > 150 && (
-                                  <button
-                                    onClick={() => toggleDescription(`${msg.content}-${index}`)}
-                                    className="text-blue-500 hover:text-blue-600 text-sm font-medium mt-1"
-                                  >
-                                    {expandedCitations[`${msg.content}-${index}`] ? 'Show less' : 'Show more'}
-                                  </button>
-                                )}
-                              </div>
-                              {citation.matches?.length > 0 && (
-                                <>
-                                  <button
-                                    onClick={() => toggleMatches(`${msg.content}-${index}`)}
-                                    className="text-blue-500 hover:text-blue-600 text-sm font-medium mb-2"
-                                  >
-                                    {expandedMatches[`${msg.content}-${index}`] ? 'Hide matches' : `Show matches (${citation.matches.length})`}
-                                  </button>
-                                  {expandedMatches[`${msg.content}-${index}`] && (
-                                    <ul className="list-disc list-inside text-gray-600">
-                                      {citation.matches.map((match, matchIndex) => (
-                                        <li key={matchIndex} className="mb-1">
-                                          <span className="text-gray-800 font-medium">
-                                            {`Score: ${(match.similarity * 100).toFixed(1)}%`}
-                                          </span>
-                                          <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            className="text-sm text-gray-700"
-                                          >
-                                            {match.content?.length > 200
-                                              ? match.content.substring(0, 200) + '...'
-                                              : match.content}
-                                          </ReactMarkdown>
-                                        </li>
-                                      ))}
-                                    </ul>
+                        <div className="mt-2">
+                          <button
+                            onClick={() => setCitationsCollapsed(!citationsCollapsed)}
+                            className="text-sm text-blue-500 hover:text-blue-600 font-medium"
+                          >
+                            {citationsCollapsed ? `Show Citations (${msg.citations.length})` : 'Hide Citations'}
+                          </button>
+
+                          {!citationsCollapsed && (
+                            <div className="mt-2 bg-gray-100 p-2 sm:p-4 rounded text-sm">
+                              <h4 className="text-sm font-semibold text-gray-700">Citations:</h4>
+                              {msg.citations.map((citation, index) => (
+                                <div key={index} className="mb-4">
+                                  <h5 className="text-base font-semibold text-gray-800">
+                                    <a
+                                      href={citation.shareLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      {citation.appTitle}
+                                    </a>
+                                  </h5>
+                                  <div className="text-sm text-gray-600 mb-2">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {expandedCitations[`${msg.content}-${index}`]
+                                        ? citation.description
+                                        : citation.description?.substring(0, 150) + '...'}
+                                    </ReactMarkdown>
+                                    {citation.description?.length > 150 && (
+                                      <button
+                                        onClick={() => toggleDescription(`${msg.content}-${index}`)}
+                                        className="text-blue-500 hover:text-blue-600 text-sm font-medium mt-1"
+                                      >
+                                        {expandedCitations[`${msg.content}-${index}`] ? 'Show less' : 'Show more'}
+                                      </button>
+                                    )}
+                                  </div>
+                                  {citation.matches?.length > 0 && (
+                                    <>
+                                      <button
+                                        onClick={() => toggleMatches(`${msg.content}-${index}`)}
+                                        className="text-blue-500 hover:text-blue-600 text-sm font-medium mb-2"
+                                      >
+                                        {expandedMatches[`${msg.content}-${index}`] ? 'Hide matches' : `Show matches (${citation.matches.length})`}
+                                      </button>
+                                      {expandedMatches[`${msg.content}-${index}`] && (
+                                        <ul className="list-disc list-inside text-gray-600">
+                                          {citation.matches.map((match, matchIndex) => (
+                                            <li key={matchIndex} className="mb-1">
+                                              <span className="text-gray-800 font-medium">
+                                                {`Score: ${(match.similarity * 100).toFixed(1)}%`}
+                                              </span>
+                                              <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                className="text-sm text-gray-700"
+                                              >
+                                                {match.content?.length > 200
+                                                  ? match.content.substring(0, 200) + '...'
+                                                  : match.content}
+                                              </ReactMarkdown>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </>
                                   )}
-                                </>
-                              )}
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
                     </div>
@@ -537,7 +557,8 @@ export function ChatBox() {
             <TextareaAutosize
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your message..."
+              onKeyDown={handleKeyPress}
+              placeholder="Type your message... (Press Enter to send, Shift + Enter for new line)"
               minRows={1}
               maxRows={4}
               className="flex-1 p-2 border rounded-lg resize-none focus:outline-none focus:ring focus:ring-blue-300"

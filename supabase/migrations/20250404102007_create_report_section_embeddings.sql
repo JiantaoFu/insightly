@@ -1,13 +1,13 @@
-create table report_section_embeddings (
+create table IF NOT EXISTS report_section_embeddings (
   id bigint primary key generated always as identity,
-  report_id UUID references analysis_reports(id) on delete cascade,
+  report_id BIGINT references analysis_reports(id) on delete cascade,
   content text,
   embedding vector(384),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
 -- Add checksum column to analysis_reports if not exists
-alter table analysis_reports 
+alter table analysis_reports
 add column if not exists embedding_checksum text;
 
 -- Create embedding search function
@@ -18,7 +18,7 @@ create or replace function match_report_sections(
 )
 returns table (
   id bigint,
-  report_id UUID,
+  report_id BIGINT,
   content text,
   similarity float
 )

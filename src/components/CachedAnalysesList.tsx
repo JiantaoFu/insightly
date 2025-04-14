@@ -8,7 +8,6 @@ interface CachedAnalysis {
     title: string;
     description: string;
     developer: string;
-    version: string;
     url: string;
     icon: string;
     platform?: 'ios' | 'android';

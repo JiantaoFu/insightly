@@ -5,8 +5,7 @@ CREATE TABLE IF NOT EXISTS comparison_reports (
   hash_url TEXT NOT NULL UNIQUE,
   competitors TEXT NOT NULL,
   final_report TEXT NOT NULL,
-  timestamp BIGINT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  timestamp BIGINT NOT NULL
 );
 
 -- Indexes for performance and querying

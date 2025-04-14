@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS analysis_reports (
   app_title TEXT NOT NULL,
   description TEXT,
   developer TEXT,
-  version TEXT,
   app_url TEXT NOT NULL,
   hash_url TEXT NOT NULL UNIQUE,
   app_score NUMERIC,
@@ -15,13 +14,9 @@ CREATE TABLE IF NOT EXISTS analysis_reports (
   -- Review summary fields
   total_reviews INTEGER,
   average_rating NUMERIC,
-  score_distribution JSONB,
 
   -- Timestamps
-  timestamp BIGINT NOT NULL,
-
-  -- Database management
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  timestamp BIGINT NOT NULL
 );
 
 -- Indexes for performance and querying

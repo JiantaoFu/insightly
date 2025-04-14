@@ -312,7 +312,6 @@ async function saveToSupabase(cacheEntry, url, hashUrl) {
         app_title: cacheEntry.appDetails.title,
         description: cacheEntry.appDetails.description,
         developer: cacheEntry.appDetails.developer,
-        version: cacheEntry.appDetails.version,
         app_url: url,
         hash_url: hashUrl,
         app_score: cacheEntry.appDetails.score,
@@ -320,7 +319,6 @@ async function saveToSupabase(cacheEntry, url, hashUrl) {
         platform: cacheEntry.appDetails.platform,
         total_reviews: cacheEntry.reviewsSummary.totalReviews,
         average_rating: cacheEntry.reviewsSummary.averageRating,
-        score_distribution: cacheEntry.reviewsSummary.scoreDistribution,
         timestamp: cacheEntry.timestamp
       })
       .select();
@@ -444,7 +442,6 @@ const createCacheEntry = (url, hashUrl, finalReport, appData) => {
       title: appData.details.title,
       description: appData.details.description,
       developer: appData.details.developer,
-      version: appData.details.version,
       url: url,
       score: appData.details.score,
       reviews: appData.reviews.reviews,
@@ -580,7 +577,6 @@ app.post('/api/analyze',
 - Title: ${appData.details.title}
 - Description: ${appData.details.description}
 - Developer: ${appData.details.developer}
-- Version: ${appData.details.version}
 
 Reviews Summary:
 - Total Reviews: ${appData.reviews.total}

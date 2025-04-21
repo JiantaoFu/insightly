@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import AppCard from './AppCard';
 
@@ -29,11 +29,21 @@ const DBAnalysesList: React.FC<DBAnalysesListProps> = ({
   });
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
-  const fetchAnalyses = async (page: number) => {
+  // Add debounce function
+  const debounce = (func: Function, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return (...args: any[]) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), wait);
+    };
+  };
+
+  const fetchAnalyses = async (page: number, search?: string) => {
     try {
       setLoading(true);
+      const searchQuery = search ? `&search=${encodeURIComponent(search)}` : '';
       const response = await fetch(
-        `${SERVER_URL}/api/db-analyses?page=${page}&limit=${pageSize}&sortBy=timestamp&sortOrder=desc`
+        `${SERVER_URL}/api/db-analyses?page=${page}&limit=${pageSize}&sortBy=timestamp&sortOrder=desc${searchQuery}`
       );
 
       if (!response.ok) {
@@ -55,12 +65,24 @@ const DBAnalysesList: React.FC<DBAnalysesListProps> = ({
     }
   };
 
+  // Debounced search function
+  const debouncedFetch = useCallback(
+    debounce((search: string) => {
+      fetchAnalyses(1, search);
+    }, 300),
+    []
+  );
+
   useEffect(() => {
-    fetchAnalyses(1);
-  }, [pageSize]);
+    if (searchTerm) {
+      debouncedFetch(searchTerm);
+    } else {
+      fetchAnalyses(1);
+    }
+  }, [searchTerm, pageSize]);
 
   const handlePageChange = (newPage: number) => {
-    fetchAnalyses(newPage);
+    fetchAnalyses(newPage, searchTerm);  // Pass the current searchTerm
   };
 
   if (loading) {
@@ -79,16 +101,7 @@ const DBAnalysesList: React.FC<DBAnalysesListProps> = ({
     );
   }
 
-  const filteredAnalyses = analyses.filter(analysis => {
-    if (!searchTerm) return true;
-
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      analysis.appDetails.title.toLowerCase().includes(searchLower) ||
-      analysis.appDetails.developer.toLowerCase().includes(searchLower) ||
-      analysis.appDetails.description.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredAnalyses = analyses;
 
   return (
     <div>

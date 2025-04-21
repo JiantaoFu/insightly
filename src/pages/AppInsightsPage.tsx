@@ -39,7 +39,7 @@ const AppInsightsPage = () => {
         <div className="relative flex-grow">
           <input
             type="text"
-            placeholder="Search analyzed apps by name, developer, or category"
+            placeholder="Search analyzed apps by name, developer"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

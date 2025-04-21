@@ -24,6 +24,7 @@ import { embeddingService } from './services/EmbeddingService.js'
 import { availableFunctions, functionDeclarations } from './functions.js';
 import { calculateCosineSimilarity } from './utils.js';
 import JSZip from 'jszip';
+import { rankSearchResults } from './utils/search.js';
 
 dotenv.config();
 
@@ -879,9 +880,24 @@ app.get('/api/cached-analyses', (req, res) => {
 });
 
 // New endpoint for database queries with pagination
+// Helper function for traditional search
+async function performTraditionalSearch(search, sortBy, sortOrder, offset, limit) {
+  const { data, count, error } = await supabase.from('analysis_reports')
+    .select('*', { count: 'exact' })
+    .or(`app_title.ilike.%${search}%,developer.ilike.%${search}%`)
+    .order(sortBy, { ascending: sortOrder === 'asc' })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  // Apply BM25 ranking only for traditional search
+  const rankedData = rankSearchResults(data, search);
+  return { data: rankedData, count, error };
+}
+
 app.get('/api/db-analyses', async (req, res) => {
   try {
-    const { page = 1, limit = DEFAULT_DB_QUERY_LIMIT, sortBy = 'timestamp', sortOrder = 'desc' } = req.query;
+    const { page = 1, limit = DEFAULT_DB_QUERY_LIMIT, sortBy = 'timestamp', sortOrder = 'desc', search = '' } = req.query;
     const safeLimit = Math.min(parseInt(limit), MAX_DB_QUERY_LIMIT);
     const offset = (page - 1) * safeLimit;
 
@@ -892,16 +908,69 @@ app.get('/api/db-analyses', async (req, res) => {
     const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'timestamp';
     const finalSortOrder = validSortOrders.includes(sortOrder) ? sortOrder : 'desc';
 
-    // Fetch from database with pagination and sorting
-    const { data, error, count } = await supabase
-      .from('analysis_reports')
-      .select('*', { count: 'exact' })
-      .order(finalSortBy, { ascending: finalSortOrder === 'asc' })
-      .range(offset, offset + safeLimit - 1);
+    let processedData;
+    let count;
 
-    if (error) throw error;
+    if (search) {
+      if (process.env.ENABLE_RAG === 'true') {
+        // Use RAG search first
+        const { citations } = await performRagSearch(search, { write: () => {} });
 
-    const results = await Promise.all(data.map(async entry => {
+        if (citations && citations.length > 0) {
+          // Get hashUrls from citations
+          const hashUrls = citations.map(citation => citation.shareLink.split('/').pop());
+
+          // Get total count first
+          const { count: totalCount } = await supabase
+            .from('analysis_reports')
+            .select('id', { count: 'exact' })
+            .in('hash_url', hashUrls);
+
+          // Then fetch paginated data
+          const { data, error } = await supabase
+            .from('analysis_reports')
+            .select('*')
+            .in('hash_url', hashUrls)
+            .range(offset, offset + safeLimit - 1);
+
+          if (error) throw error;
+
+          // Use semantic scores directly - no need for BM25
+          processedData = data.map(item => {
+            const citation = citations.find(c => c.shareLink.includes(item.hash_url));
+            return {
+              ...item,
+              searchScore: citation ? citation.descriptionSimilarity : 0
+            };
+          }).sort((a, b) => b.searchScore - a.searchScore);
+
+          count = totalCount;
+        } else {
+          // Fallback to traditional search if no RAG results
+          const { data, count: totalCount } = await performTraditionalSearch(search, finalSortBy, finalSortOrder, offset, safeLimit);
+          processedData = data;
+          count = totalCount;
+        }
+      } else {
+        // Use traditional search only
+        const { data, count: totalCount } = await performTraditionalSearch(search, finalSortBy, finalSortOrder, offset, safeLimit);
+        processedData = data;
+        count = totalCount;
+      }
+    } else {
+      // No search term, use normal sorting with pagination
+      const { data, error, count: totalCount } = await supabase
+        .from('analysis_reports')
+        .select('*', { count: 'exact' })
+        .order(finalSortBy, { ascending: finalSortOrder === 'asc' })
+        .range(offset, offset + safeLimit - 1);
+
+      if (error) throw error;
+      processedData = data;
+      count = totalCount;
+    }
+
+    const results = await Promise.all(processedData.map(async entry => {
       try {
         const fullReport = await getReportFromStorage(entry.hash_url);
         return {
@@ -913,13 +982,11 @@ app.get('/api/db-analyses', async (req, res) => {
             hashUrl: entry.hash_url,
             appUrl: entry.app_url,
             platform: entry.platform
-          }
+          },
+          ...(search && { searchScore: entry.searchScore })
         };
       } catch (error) {
-        if (error.message === 'Report file not found in storage') {
-          // Skip this entry and return null
-          return null;
-        }
+        if (error.message === 'Report file not found in storage') return null;
         console.error(`Error fetching report for ${entry.hash_url}:`, error);
         return null;
       }
@@ -939,7 +1006,8 @@ app.get('/api/db-analyses', async (req, res) => {
       sorting: {
         sortBy: finalSortBy,
         sortOrder: finalSortOrder
-      }
+      },
+      search: search || null
     });
   } catch (error) {
     console.error('Error retrieving analyses from database:', error);

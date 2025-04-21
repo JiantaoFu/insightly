@@ -57,8 +57,6 @@ export function ChatBox() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [prompts, setPrompts] = useState<Prompt[]>([])
-  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
 
@@ -90,21 +88,6 @@ export function ChatBox() {
     scrollToBottom()
   }, [messages])
 
-  useEffect(() => {
-    // Fetch available prompts from the server
-    const fetchPrompts = async () => {
-      try {
-        const response = await fetch(`${SERVER_URL}/api/prompts`)
-        const data = await response.json()
-        setPrompts(data.prompts || [])
-      } catch (error) {
-        console.error('Failed to fetch prompts:', error)
-      }
-    }
-
-    fetchPrompts()
-  }, [])
-
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [error, setError] = useState<string | null>(null);
@@ -116,40 +99,14 @@ export function ChatBox() {
 
   const toggleDrawer = (drawer: keyof DrawerState) => {
     setDrawerOpen(prev => ({
-      prompts: false,
       history: false,
       [drawer]: !prev[drawer]
     }));
   };
 
-  const handlePromptClick = (prompt: Prompt) => {
-    // If clicking the already selected prompt, deselect it
-    if (selectedPromptId === prompt.id) {
-      setSelectedPromptId(null);
-      // Save current chat if it has messages
-      if (messages.length > 0) {
-        saveChatHistory();
-      }
-      // Start new chat
-      setCurrentChatId(Date.now().toString());
-      setMessages([]);
-    } else {
-      // Save current chat if it has messages
-      if (messages.length > 0) {
-        saveChatHistory();
-      }
-      // Select new prompt and start fresh chat
-      setSelectedPromptId(prompt.id);
-      setCurrentChatId(Date.now().toString());
-      setMessages([]);
-    }
-  };
-
   const saveChatHistory = () => {
-    const currentPrompt = prompts.find(p => p.id === selectedPromptId);
     const chatHistory: ChatHistory = {
       id: currentChatId,
-      prompt: currentPrompt?.label,
       messages,
       timestamp: Date.now()
     };
@@ -159,9 +116,6 @@ export function ChatBox() {
   const loadChatHistory = (chatHistory: ChatHistory) => {
     setMessages(chatHistory.messages);
     setCurrentChatId(chatHistory.id);
-    // Find and set the corresponding prompt if it exists
-    const prompt = prompts.find(p => p.label === chatHistory.prompt);
-    setSelectedPromptId(prompt?.id || null);
   };
 
   const sendMessage = async (e: React.FormEvent) => {
@@ -187,7 +141,6 @@ export function ChatBox() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: input,
-          promptId: selectedPromptId, // Add promptId to request
           history: messages
         })
       })
@@ -305,40 +258,6 @@ export function ChatBox() {
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={() => toggleDrawer('history')} />
       )}
 
-      {/* Prompts panel */}
-      <div className={`
-        fixed md:static w-64 bg-white border-r shadow-md z-50 h-full transition-transform duration-300
-        ${drawerOpen.prompts ? 'translate-x-0' : '-translate-x-full'}
-        md:translate-x-0
-      `}>
-        <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-800">Available Prompts</h2>
-          <button className="md:hidden" onClick={() => toggleDrawer('prompts')}>
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-        <ul className="p-4 space-y-2">
-          {prompts.map(prompt => (
-            <li
-              key={prompt.id}
-              className={`p-3 rounded-lg shadow cursor-pointer transition-all duration-200 ${
-                selectedPromptId === prompt.id
-                  ? 'bg-blue-50 border-2 border-blue-500 shadow-md scale-[1.02]'
-                  : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-              }`}
-              onClick={() => handlePromptClick(prompt)}
-            >
-              <h3 className={`text-sm font-semibold mb-2 ${
-                selectedPromptId === prompt.id ? 'text-blue-700' : 'text-gray-800'
-              }`}>
-                {prompt.label}
-              </h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{prompt.description}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-
       {/* Main chat area */}
       <div className="flex flex-col flex-1 h-full">
         {/* Header with mobile controls */}
@@ -417,7 +336,7 @@ export function ChatBox() {
                             <li className="ml-4 text-gray-800">{children}</li>
                           ),
                           p: ({ children }) => (
-                            <p className="mb-3 leading-relaxed text-gray-800">{children}</p>
+                            <span className="mb-3 leading-relaxed text-gray-800">{children}</span>
                           ),
                           strong: ({ children }) => (
                             <strong className="font-semibold text-gray-900">{children}</strong>

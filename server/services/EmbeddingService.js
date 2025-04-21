@@ -1,8 +1,16 @@
 import { pipeline } from '@xenova/transformers'
 import { supabase } from '../supabaseClient.js'
+import { LRUCache } from 'lru-cache';
 
 export class EmbeddingService {
-  pipe = null
+  constructor() {
+    // Initialize RAG search cache
+    this.searchCache = new LRUCache({
+      max: 100, // Maximum number of cached search results
+      ttl: 1000 * 60 * 60, // 1 hour TTL
+    });
+    this.pipe = null;
+  }
 
   async initialize() {
     if (!this.pipe) {
@@ -27,34 +35,47 @@ export class EmbeddingService {
     return Array.from(output.data);
   }
 
-  async searchSimilar(embedding, threshold = 0.7, limit = 5) {
+  async searchSimilar(embedding, threshold = 0.7, initialLimit = 30) {
+    const cacheKey = `${embedding.slice(0, 10).join(',')}_${threshold}`;
+    const cached = this.searchCache.get(cacheKey);
+
+    if (cached) {
+      console.log('Using cached RAG search results');
+      return cached;
+    }
+
     const { data: matches, error } = await supabase.rpc('match_report_sections', {
       query_embedding: embedding,
       similarity_threshold: threshold,
-      match_count: limit
-    })
-
-    if (error) throw error
-    return matches
-  }
-
-  // Add method to handle conversation context weighting
-  async searchSimilarWithContext(embedding, threshold = 0.7, limit = 5) {
-    const { data: matches, error } = await supabase.rpc('match_report_sections', {
-      query_embedding: embedding,
-      similarity_threshold: threshold,
-      match_count: limit
+      match_count: initialLimit
     });
 
     if (error) throw error;
 
+    // Filter and sort matches
+    const relevantMatches = matches
+      .filter(match => match.similarity >= threshold)
+      .sort((a, b) => b.similarity - a.similarity);
+
+    // Cache the results
+    this.searchCache.set(cacheKey, relevantMatches);
+
+    return relevantMatches;
+  }
+
+  async searchSimilarWithContext(embedding, threshold = 0.7, initialLimit = 30) {
+    const matches = await this.searchSimilar(embedding, threshold, initialLimit);
+
     // Weight results based on recency and relevance
     return matches.map(match => ({
       ...match,
-      // Combine base similarity with recency boost
       similarity: match.similarity * (1 + Math.log1p(1 / (1 + match.age || 0)) * 0.1)
     })).sort((a, b) => b.similarity - a.similarity);
   }
+
+  clearCache() {
+    this.searchCache.clear();
+  }
 }
 
-export const embeddingService = new EmbeddingService()
+export const embeddingService = new EmbeddingService();

@@ -47,6 +47,10 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 const MAX_DB_QUERY_LIMIT = 50; // Maximum number of records per page
 const DEFAULT_DB_QUERY_LIMIT = 10; // Default number of records per page
 
+// Add near the top with other constants
+const RAG_INITIAL_LIMIT = 30;
+const RAG_SIMILARITY_THRESHOLD = parseFloat(process.env.SIMILARITY_THRESHOLD) || 0.75;
+
 // Middleware
 app.use(cors({
   origin: function(origin, callback) {
@@ -1526,7 +1530,12 @@ async function performRagSearch(query, res) {
     const queryEmbedding = await embeddingService.generateEmbedding(query);
     console.log('Generated embedding for query');
 
-    const matches = await embeddingService.searchSimilar(queryEmbedding);
+    const matches = await embeddingService.searchSimilar(
+      queryEmbedding,
+      RAG_SIMILARITY_THRESHOLD,
+      RAG_INITIAL_LIMIT
+    );
+
     res.write(JSON.stringify({
       status: { type: 'rag', message: `Found ${matches.length} relevant matches...` }
     }) + '\n');
@@ -1553,9 +1562,8 @@ async function performRagSearch(query, res) {
       return { ...app, descriptionSimilarity: similarity };
     }));
 
-    const SIMILARITY_THRESHOLD = parseFloat(process.env.SIMILARITY_THRESHOLD) || 0.7;
     const relevantApps = appsWithSimilarity
-      .filter(app => app.descriptionSimilarity > SIMILARITY_THRESHOLD)
+      .filter(app => app.descriptionSimilarity > RAG_SIMILARITY_THRESHOLD)
       .sort((a, b) => b.descriptionSimilarity - a.descriptionSimilarity);
 
     const appDetailsMap = relevantApps.reduce((map, app) => {

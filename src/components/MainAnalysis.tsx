@@ -9,6 +9,19 @@ import ProductHuntBadge from './ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './MathChallenge';
 import { ProviderModelSelector, useProviderModel } from './ProviderModelSelector';
 import { DEFAULT_APP_ANALYZE_PROMPT, ENABLE_MATH_CHALLENGE, SERVER_URL } from './Constants';
+import { Combobox } from '@headlessui/react';
+import { debounce } from 'lodash';
+import { Search } from 'lucide-react';
+
+// Add new types
+interface SearchResult {
+  title: string;
+  appUrl: string;
+  icon: string;
+  developer: string;
+  platform: 'app-store' | 'google-play';
+  score: number;
+}
 
 const MainAnalysis: React.FC = () => {
   const [url, setUrl] = useState('');
@@ -24,6 +37,10 @@ const MainAnalysis: React.FC = () => {
   const [isRefresh, setIsRefresh] = useState(false);
 
   const { provider, model } = useProviderModel();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Handle textarea changes without refreshing
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -45,6 +62,32 @@ const MainAnalysis: React.FC = () => {
       textAreaRef.current.focus();
     }
   }, [customPrompt]);
+
+  const searchApps = useCallback(
+    debounce(async (query: string) => {
+      if (!query || query.includes('http')) return;
+
+      setIsSearching(true);
+      try {
+        const response = await fetch(`${SERVER_URL}/api/search-apps?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        setSearchResults(data.results || []);
+      } catch (error) {
+        console.error('Search error:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300),
+    []
+  );
+
+  useEffect(() => {
+    if (searchQuery) {
+      searchApps(searchQuery);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
 
   const prepareChallengeAndSubmit = async (e: React.FormEvent, force: boolean = false) => {
     e.preventDefault();
@@ -350,15 +393,67 @@ const MainAnalysis: React.FC = () => {
               {false && <ProviderModelSelector />}
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
-              <input
-                ref={inputRef}
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="Enter App Store or Google Play URL"
-                className="w-full sm:flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                required
-              />
+              <div className="relative w-full">
+                <Combobox value={url} onChange={setUrl}>
+                  <div className="relative w-full">
+                    <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left focus:outline-none">
+                      <Combobox.Input
+                        ref={inputRef}
+                        className="w-full border-none py-3 pl-10 pr-4 text-sm leading-5 text-gray-900 focus:ring-2 focus:ring-blue-500 rounded-lg"
+                        placeholder="Search apps or enter URL..."
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setSearchQuery(value);
+                          if (value.includes('http')) {
+                            setUrl(value);
+                          }
+                        }}
+                      />
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <Search className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                      </div>
+                    </div>
+                    <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-50">
+                      {isSearching ? (
+                        <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+                          Searching...
+                        </div>
+                      ) : (
+                        searchResults.map((result) => (
+                          <Combobox.Option
+                            key={result.appUrl}
+                            value={result.appUrl}
+                            className={({ active }) =>
+                              `relative cursor-default select-none py-2 pl-3 pr-9 ${
+                                active ? 'bg-blue-600 text-white' : 'text-gray-900'
+                              }`
+                            }
+                          >
+                            {({ active, selected }) => (
+                              <div className="flex items-center space-x-3">
+                                <img
+                                  src={result.icon}
+                                  className="w-8 h-8 rounded"
+                                />
+                                <div>
+                                  <div className="truncate font-medium">
+                                    {result.title}
+                                  </div>
+                                  <div className={`text-sm ${
+                                    active ? 'text-blue-200' : 'text-gray-500'
+                                  }`}>
+                                    {result.developer} • {result.platform}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </Combobox.Option>
+                        ))
+                      )}
+                    </Combobox.Options>
+                  </div>
+                </Combobox>
+              </div>
               {loading ? (
                 <button
                   type="button"

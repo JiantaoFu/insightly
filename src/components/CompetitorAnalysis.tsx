@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { 
-  Plus, 
-  Globe, 
-  Scale, 
+import {
+  Plus,
+  Globe,
+  Scale,
   Loader2,
   BarChart2,
   AlertOctagon,
   X,
   Download,
-  RefreshCw
+  RefreshCw,
+  Search
 } from 'lucide-react';
 import Navigation from './Navigation';
 import ProductHuntBadge from './ProductHuntBadge';
@@ -20,7 +21,9 @@ import { useProviderModel } from './ProviderModelSelector';
 import { ShareCompetitorReportButton } from './ShareButton';
 import StyledComparisonCard from './StyledComparisonCard';
 import TextareaAutosize from 'react-textarea-autosize';
-import { DEFAULT_APP_COMPARE_PROMPT } from './Constants';
+import { DEFAULT_APP_COMPARE_PROMPT, SERVER_URL } from './Constants';
+import { Combobox } from '@headlessui/react';
+import { debounce } from 'lodash';
 
 // Enable math challenge based on environment variable
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -47,13 +50,22 @@ interface CompetitorApp {
   };
 }
 
+interface SearchResult {
+  title: string;
+  appUrl: string;
+  icon: string;
+  developer: string;
+  platform: 'app-store' | 'google-play';
+  score: number;
+}
+
 const extractPlatformFromUrl = (url: string): 'ios' | 'android' | null => {
   const appStorePattern = /https:\/\/apps\.apple\.com\//;
   const googlePlayPattern = /https:\/\/play\.google\.com\/store\/apps\/details/;
 
   if (appStorePattern.test(url)) return 'ios';
   if (googlePlayPattern.test(url)) return 'android';
-  
+
   return null;
 };
 
@@ -145,7 +157,7 @@ const validateCompetitorUrl = (url: string): boolean => {
     ];
 
     // Ensure URL is from a valid app store
-    const isValidDomain = validDomains.some(domain => 
+    const isValidDomain = validDomains.some(domain =>
       parsedUrl.hostname.includes(domain)
     );
 
@@ -173,6 +185,9 @@ export const CompetitorAnalysis: React.FC = () => {
   const [customComparisonPrompt, setCustomComparisonPrompt] = useState<string>(DEFAULT_APP_COMPARE_PROMPT);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
   const [isRefresh, setIsRefresh] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCustomComparisonPrompt(e.target.value);
@@ -214,10 +229,10 @@ export const CompetitorAnalysis: React.FC = () => {
   };
 
   const handleRemoveCompetitor = (urlToRemove: string) => {
-    setCompetitors(prev => 
+    setCompetitors(prev =>
       prev.filter(competitor => competitor.url !== urlToRemove)
     );
-    setCompetitorUrls(prev => 
+    setCompetitorUrls(prev =>
       prev.filter(url => url !== urlToRemove)
     );
   };
@@ -232,8 +247,8 @@ export const CompetitorAnalysis: React.FC = () => {
   };
 
   const handleFinalSubmit = async (
-    currentProvider: keyof typeof PROVIDERS_CONFIG, 
-    currentModel: string, 
+    currentProvider: keyof typeof PROVIDERS_CONFIG,
+    currentModel: string,
     mathChallenge?: MathChallenge,
     force: boolean = false
   ) => {
@@ -263,7 +278,7 @@ export const CompetitorAnalysis: React.FC = () => {
       );
 
       // Validate competitor data before sending
-      const validCompetitors = competitorDetailsWithData.filter(comp => 
+      const validCompetitors = competitorDetailsWithData.filter(comp =>
         comp.name && comp.url && comp.platform && comp.description
       );
 
@@ -313,7 +328,7 @@ export const CompetitorAnalysis: React.FC = () => {
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) {
           setIsComparing(false);
           break;
@@ -321,11 +336,11 @@ export const CompetitorAnalysis: React.FC = () => {
 
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n').filter(line => line.trim() !== '');
-        
+
         lines.forEach(line => {
           try {
             const parsedLine = JSON.parse(line);
-            
+
             if (parsedLine.report) {
               fullReport += parsedLine.report;
               setComparisonResult(fullReport);
@@ -339,14 +354,14 @@ export const CompetitorAnalysis: React.FC = () => {
       console.log('Final Report:', fullReport);
     } catch (error) {
       console.error('Competitor comparison error:', error);
-      
+
       // Detailed error handling
       if (error instanceof Error) {
         setError(`Comparison failed: ${error.message}`);
       } else {
         setError('An unexpected error occurred during competitor comparison');
       }
-      
+
       setIsComparing(false);
     }
   };
@@ -354,7 +369,7 @@ export const CompetitorAnalysis: React.FC = () => {
   const downloadCompetitorReport = () => {
     // Create a Blob with the comparison result
     const blob = new Blob([comparisonResult], { type: 'text/markdown' });
-    
+
     // Create a link element and trigger download
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -368,12 +383,38 @@ export const CompetitorAnalysis: React.FC = () => {
     prepareChallengeAndSubmit(true);
   };
 
+  const searchApps = useCallback(
+    debounce(async (query: string) => {
+      if (!query || query.includes('http')) return;
+
+      setIsSearching(true);
+      try {
+        const response = await fetch(`${SERVER_URL}/api/search-apps?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        setSearchResults(data.results || []);
+      } catch (error) {
+        console.error('Search error:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300),
+    []
+  );
+
+  useEffect(() => {
+    if (searchQuery) {
+      searchApps(searchQuery);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
+
   return (
-    <div 
+    <div
       className="relative bg-cover bg-center bg-no-repeat min-h-screen py-12 md:py-16 px-4"
       style={{
         backgroundImage: `
-          linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)), 
+          linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)),
           url('https://images.unsplash.com/photo-1522252234503-e356532cafd5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1925&q=80')
         `,
         backgroundSize: 'cover',
@@ -387,9 +428,9 @@ export const CompetitorAnalysis: React.FC = () => {
           <div className="text-center">
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-4">
               <Scale className="w-12 h-12 text-indigo-600" />
-              <h1 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-gray-900 
-                bg-clip-text text-transparent bg-gradient-to-r 
-                from-indigo-600 to-purple-600 leading-tight 
+              <h1 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-gray-900
+                bg-clip-text text-transparent bg-gradient-to-r
+                from-indigo-600 to-purple-600 leading-tight
                 tracking-tight text-center sm:text-left">
                 Competitors
               </h1>
@@ -403,7 +444,7 @@ export const CompetitorAnalysis: React.FC = () => {
                 <AlertOctagon className="w-5 h-5 text-red-500 mr-3" />
                 <p className="text-red-700 text-sm">{error}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setError(null)}
                 className="text-red-500 hover:text-red-700"
               >
@@ -412,179 +453,238 @@ export const CompetitorAnalysis: React.FC = () => {
             </div>
           )}
 
-          {/* URL Input */}
-          <div className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-xl shadow-md border border-gray-100">
-            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-              <div className="flex-grow">
-                <div className="relative">
-                  <input 
-                    type="url" 
-                    value={currentUrl}
-                    onChange={(e) => {
-                      setCurrentUrl(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="Enter competitor app URL" 
-                    className="w-full sm:flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  />
+          {/* URL Input - Add new relative wrapper */}
+          <div className="relative" style={{ zIndex: 100 }}>
+            <div className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-xl shadow-md border border-gray-100">
+              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                <div className="flex-grow">
+                  <Combobox value={currentUrl} onChange={setCurrentUrl}>
+                    <div className="relative">
+                      <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left focus:outline-none">
+                        <Combobox.Input
+                          className="w-full border-none py-3 pl-10 pr-4 text-sm leading-5 text-gray-900 focus:ring-2 focus:ring-blue-500 rounded-lg"
+                          placeholder="Search apps or enter URL..."
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setSearchQuery(value);
+                            if (value.includes('http')) {
+                              setCurrentUrl(value);
+                            }
+                            setError(null);
+                          }}
+                        />
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                          <Search className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                        </div>
+                      </div>
+                      {searchResults.length > 0 && (
+                        <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none">
+                          {isSearching ? (
+                            <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+                              Searching...
+                            </div>
+                          ) : (
+                            searchResults.map((result) => (
+                              <Combobox.Option
+                                key={result.appUrl}
+                                value={result.appUrl}
+                                className={({ active }) =>
+                                  `relative cursor-default select-none py-2 pl-3 pr-9 ${
+                                    active ? 'bg-blue-600 text-white' : 'text-gray-900'
+                                  }`
+                                }
+                              >
+                                {({ active, selected }) => (
+                                  <div className="flex items-center space-x-3">
+                                    <img
+                                      src={result.icon}
+                                      alt={result.title}
+                                      className="w-8 h-8 rounded"
+                                    />
+                                    <div>
+                                      <div className="truncate font-medium">
+                                        {result.title}
+                                      </div>
+                                      <div className={`text-sm ${
+                                        active ? 'text-blue-200' : 'text-gray-500'
+                                      }`}>
+                                        {result.developer} • {result.platform}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </Combobox.Option>
+                            ))
+                          )}
+                        </Combobox.Options>
+                      )}
+                    </div>
+                  </Combobox>
                 </div>
+                <button
+                  onClick={handleAddCompetitor}
+                  disabled={isAdding}
+                  className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2"
+                >
+                  {isAdding ? (
+                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5 transition-transform" />
+                  )}
+                  <span>Add</span>
+                </button>
               </div>
-              <button 
-                onClick={handleAddCompetitor}
-                disabled={isAdding}
-                className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4 sm:w-5 sm:h-5 transition-transform" />
-                <span>Add</span>
-              </button>
             </div>
           </div>
 
-          {/* Competitor Cards */}
-          {competitors.length > 0 && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                {competitors.map((competitor, index) => (
-                   <StyledComparisonCard key={index} competitor={competitor} />
-                ))}
+          {/* Rest of the components with lower z-index */}
+          <div className="relative" style={{ zIndex: 1 }}>
+            {/* Empty State - only show when no competitors and no search */}
+            {competitors.length === 0 && !searchResults.length && (
+              <div className="text-center py-12 bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-gray-100">
+                <Scale className="w-16 h-16 sm:w-24 sm:h-24 mx-auto text-indigo-300 mb-6" />
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
+                  No Competitors Added Yet
+                </h2>
+                <p className="text-sm sm:text-base text-gray-600 max-w-md mx-auto px-4">
+                  Start by adding URLs of competitor apps to generate insights and compare their features.
+                </p>
               </div>
+            )}
 
-              {/* Comparison Button */}
-              {competitors.length >= 2 && (
-                <div className="flex justify-center mt-6">
-                  <div className="flex flex-col items-center space-y-4">
-                    {false && <ProviderModelSelector />}
-                    <button 
-                      onClick={() => prepareChallengeAndSubmit(false)}
-                      disabled={isComparing}
-                      className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white 
-                        px-8 py-3 rounded-lg shadow-lg hover:shadow-xl 
-                        transition-all duration-300 ease-in-out 
-                        flex items-center space-x-3 
-                        disabled:opacity-50 disabled:cursor-not-allowed 
-                        transform hover:-translate-y-1"
-                    >
-                      {isComparing ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                          <span>Comparing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <BarChart2 className="w-5 h-5" />
-                          <span>Compare Competitors</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+            {/* Competitor Cards */}
+            {competitors.length > 0 && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+                  {competitors.map((competitor, index) => (
+                     <StyledComparisonCard key={index} competitor={competitor} />
+                  ))}
                 </div>
-              )}
 
-              {/* Advanced Options */}
-              <div className="mb-12">
-                <button
-                  onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                  className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2"
-                >
-                  {showAdvancedOptions ? 'Hide' : 'Show'} Advanced Options
-                </button>
-                {showAdvancedOptions && (
-                  <div className="mt-4">
-                    <label className="block text-gray-700 font-bold mb-2" htmlFor="customComparisonPrompt">
-                      Customized Comparison Prompt
-                    </label>
-                    <div className="relative w-full">
-                      <TextareaAutosize
-                        value={customComparisonPrompt}
-                        onChange={handleTextareaChange}
-                        placeholder={DEFAULT_APP_COMPARE_PROMPT}
-                        className="w-full px-4 py-3 rounded-lg border border-gray-300 
-                          focus:ring-2 focus:ring-blue-500 focus:border-transparent 
-                          outline-none placeholder-gray-400 resize-none"
-                        minRows={20}
-                        maxRows={40}
-                        spellCheck={false}
-                        style={{ lineHeight: '1.5' }}
-                      />
+                {/* Comparison Button */}
+                {competitors.length >= 2 && (
+                  <div className="flex justify-center mt-6">
+                    <div className="flex flex-col items-center space-y-4">
+                      {false && <ProviderModelSelector />}
+                      <button
+                        onClick={() => prepareChallengeAndSubmit(false)}
+                        disabled={isComparing}
+                        className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white
+                          px-8 py-3 rounded-lg shadow-lg hover:shadow-xl
+                          transition-all duration-300 ease-in-out
+                          flex items-center space-x-3
+                          disabled:opacity-50 disabled:cursor-not-allowed
+                          transform hover:-translate-y-1"
+                      >
+                        {isComparing ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                            <span>Comparing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <BarChart2 className="w-5 h-5" />
+                            <span>Compare Competitors</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* Comparison Result */}
-              {comparisonResult && (
-              <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-                {!isComparing && (
-                <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-                  <button 
-                    onClick={downloadCompetitorReport}
-                    className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
+                {/* Advanced Options */}
+                <div className="mb-12">
+                  <button
+                    onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                    className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2"
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Report
+                    {showAdvancedOptions ? 'Hide' : 'Show'} Advanced Options
                   </button>
-                  <div className="w-full sm:w-auto">
-                    <ShareCompetitorReportButton 
-                      competitors={competitors.map(competitor => ({ url: competitor.url }))}
-                      title="Insightly Competitor Analysis"
-                      description={`Comparative analysis of ${competitors.map(c => c.name).join(', ')}`}
-                    />
+                  {showAdvancedOptions && (
+                    <div className="mt-4">
+                      <label className="block text-gray-700 font-bold mb-2" htmlFor="customComparisonPrompt">
+                        Customized Comparison Prompt
+                      </label>
+                      <div className="relative w-full">
+                        <TextareaAutosize
+                          value={customComparisonPrompt}
+                          onChange={handleTextareaChange}
+                          placeholder={DEFAULT_APP_COMPARE_PROMPT}
+                          className="w-full px-4 py-3 rounded-lg border border-gray-300
+                            focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                            outline-none placeholder-gray-400 resize-none"
+                          minRows={20}
+                          maxRows={40}
+                          spellCheck={false}
+                          style={{ lineHeight: '1.5' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Comparison Result */}
+                {comparisonResult && (
+                <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+                  {!isComparing && (
+                  <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
+                    <button
+                      onClick={downloadCompetitorReport}
+                      className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Report
+                    </button>
+                    <div className="w-full sm:w-auto">
+                      <ShareCompetitorReportButton
+                        competitors={competitors.map(competitor => ({ url: competitor.url }))}
+                        title="Insightly Competitor Analysis"
+                        description={`Comparative analysis of ${competitors.map(c => c.name).join(', ')}`}
+                      />
+                    </div>
+                    <button
+                      onClick={handleRefresh}
+                      className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh
+                    </button>
                   </div>
-                  <button 
-                    onClick={handleRefresh}
-                    className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Refresh
-                  </button>
-                </div>
-                )}
-                <div className="prose prose-sm max-w-none mb-8 w-full overflow-x-auto">
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      table: ({node, ...props}) => (
-                        <div className="w-full overflow-x-auto">
-                          <table 
-                            className="w-full border-collapse bg-white text-sm" 
-                            {...props} 
+                  )}
+                  <div className="prose prose-sm max-w-none mb-8 w-full overflow-x-auto">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({node, ...props}) => (
+                          <div className="w-full overflow-x-auto">
+                            <table
+                              className="w-full border-collapse bg-white text-sm"
+                              {...props}
+                            />
+                          </div>
+                        ),
+                        th: ({node, ...props}) => (
+                          <th
+                            className="px-4 py-2 bg-gray-100 border border-gray-200 text-left font-semibold"
+                            {...props}
                           />
-                        </div>
-                      ),
-                      th: ({node, ...props}) => (
-                        <th 
-                          className="px-4 py-2 bg-gray-100 border border-gray-200 text-left font-semibold" 
-                          {...props} 
-                        />
-                      ),
-                      td: ({node, ...props}) => (
-                        <td 
-                          className="px-4 py-2 border border-gray-200" 
-                          {...props} 
-                        />
-                      )
-                    }}
-                  >
-                    {comparisonResult}
-                  </ReactMarkdown>
+                        ),
+                        td: ({node, ...props}) => (
+                          <td
+                            className="px-4 py-2 border border-gray-200"
+                            {...props}
+                          />
+                        )
+                      }}
+                    >
+                      {comparisonResult}
+                    </ReactMarkdown>
+                  </div>
                 </div>
-              </div>
+              )}
+              </>
             )}
-            </>
-          )}
-
-          {/* Empty State */}
-          {competitors.length === 0 && (
-            <div className="text-center py-12 bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-gray-100">
-              <Scale className="w-16 h-16 sm:w-24 sm:h-24 mx-auto text-indigo-300 mb-6" />
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
-                No Competitors Added Yet
-              </h2>
-              <p className="text-sm sm:text-base text-gray-600 max-w-md mx-auto px-4">
-                Start by adding URLs of competitor apps to generate insights and compare their features.
-              </p>
-            </div>
-          )}
+          </div>
         </div>
       </div>
       <div className="flex justify-center mt-12">
@@ -592,7 +692,7 @@ export const CompetitorAnalysis: React.FC = () => {
       </div>
 
       {ENABLE_MATH_CHALLENGE && showChallenge && (
-          <MathChallengeComponent 
+          <MathChallengeComponent
             isOpen={showChallenge}
             onClose={() => setShowChallenge(false)}
             onChallengeComplete={(mathChallenge) => {

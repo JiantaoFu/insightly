@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "@headlessui/react": "^2.2.2",
     "@huggingface/inference": "^3.6.2",
     "@jeromyfu/app-store-scraper": "^0.18.0",
     "@jeromyfu/google-play-scraper": "^10.0.2",
@@ -40,6 +41,7 @@
     "github-slugger": "^2.0.0",
     "google-play-scraper": "^10.0.1",
     "jszip": "^3.10.1",
+    "lodash": "^4.17.21",
     "lru-cache": "^11.0.2",
     "lucide-react": "^0.344.0",
     "openai": "^4.28.4",

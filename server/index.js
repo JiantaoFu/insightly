@@ -1918,3 +1918,68 @@ async function loadCacheFromDatabase() {
         console.error('Unexpected error loading cache:', catchError);
     }
 }
+
+// Add after existing routes
+app.get('/api/search-apps', async (req, res) => {
+  try {
+    const { query, platform } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    let results = [];
+
+    if (platform === 'google-play' || !platform) {
+      try {
+        const playResults = await availableFunctions.google_play_search({
+          term: query,
+          num: 5,
+          lang: 'en',
+          country: 'us'
+        });
+
+        if (!playResults.error) {
+          results.push(...playResults.map(app => ({
+            title: app.title,
+            appUrl: app.url,
+            icon: app.icon,
+            developer: app.developer,
+            platform: 'google-play',
+            score: app.score
+          })));
+        }
+      } catch (error) {
+        console.error('Google Play search error:', error);
+      }
+    }
+
+    if (platform === 'app-store' || !platform) {
+      try {
+        const appStoreResults = await availableFunctions.app_store_search({
+          term: query,
+          num: 5,
+          country: 'us'
+        });
+
+        if (!appStoreResults.error) {
+          results.push(...appStoreResults.map(app => ({
+            title: app.title,
+            appUrl: app.url,
+            icon: app.icon,
+            developer: app.developer,
+            platform: 'app-store',
+            score: app.score
+          })));
+        }
+      } catch (error) {
+        console.error('App Store search error:', error);
+      }
+    }
+
+    res.json({ results });
+  } catch (error) {
+    console.error('App search error:', error);
+    res.status(500).json({ error: 'Failed to search apps' });
+  }
+});

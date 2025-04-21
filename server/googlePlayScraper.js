@@ -2,7 +2,7 @@ import gplay from 'google-play-scraper';
 import { calculateAverageRating, calculateScoreDistribution } from './utils.js';
 
 export function extractGooglePlayId(url) {
-  const match = url.match(/https?:\/\/play\.google\.com\/store\/apps\/details\?.*?id=([^&]+)/);
+  const match = url.match(/https?:\/\/play\.google\.com\/(?:store|work)\/apps\/details\?.*?id=([^&]+)/);
   if (!match) {
     throw new Error('Invalid Google Play URL');
   }

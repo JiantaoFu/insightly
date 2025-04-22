@@ -14,7 +14,7 @@ import {
   Search
 } from 'lucide-react';
 import Navigation from './Navigation';
-import ProductHuntBadge from './ProductHuntBadge';
+// import ProductHuntBadge from './ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './MathChallenge';
 import { ProviderModelSelector } from './ProviderModelSelector';
 import { useProviderModel } from './ProviderModelSelector';
@@ -687,9 +687,10 @@ export const CompetitorAnalysis: React.FC = () => {
           </div>
         </div>
       </div>
-      <div className="flex justify-center mt-12">
+      {/* Comment out Product Hunt Badge */}
+      {/* <div className="flex justify-center mt-12">
         <ProductHuntBadge />
-      </div>
+      </div> */}
 
       {ENABLE_MATH_CHALLENGE && showChallenge && (
           <MathChallengeComponent

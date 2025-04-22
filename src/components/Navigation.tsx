@@ -11,8 +11,10 @@ import {
   Scale,
   Chrome,
   Globe,
-  MessageCircle as MessageCircleIcon
+  MessageCircle as MessageCircleIcon,
+  MessageSquare
 } from 'lucide-react';
+import FeedbackForm from './FeedbackForm';
 
 // Navigation component props
 interface NavigationProps {
@@ -32,6 +34,7 @@ const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [browserType, setBrowserType] = useState<'chrome' | 'firefox' | 'other'>('other');
+  const [showFeedback, setShowFeedback] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -145,41 +148,66 @@ const Navigation: React.FC<NavigationProps> = ({
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-4">
-          {/* Logo */}
-          <div className="flex items-center">
-            <Zap className="w-8 h-8 text-blue-600 mr-2" />
-            <span className="text-xl font-bold text-gray-900">Insightly</span>
-          </div>
+    <>
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            {/* Logo */}
+            <div className="flex items-center">
+              <Zap className="w-8 h-8 text-blue-600 mr-2" />
+              <span className="text-xl font-bold text-gray-900">Insightly</span>
+            </div>
 
-          {/* Mobile Menu Toggle */}
-          <div className="md:hidden">
-            <button
-              onClick={toggleMenu}
-              className="text-gray-600 hover:text-blue-600 focus:outline-none"
-            >
-              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
+            {/* Mobile Menu Toggle */}
+            <div className="md:hidden">
+              <button
+                onClick={toggleMenu}
+                className="text-gray-600 hover:text-blue-600 focus:outline-none"
+              >
+                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-6">
-            {renderDesktopLinks()}
-          </div>
-        </div>
-
-        {/* Mobile Menu Dropdown */}
-        {isMenuOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              {renderMobileLinks()}
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-6">
+              {renderDesktopLinks()}
+              <button
+                onClick={() => setShowFeedback(true)}
+                className="group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out"
+              >
+                <MessageSquare className="w-5 h-5 mr-2 text-gray-400 group-hover:text-blue-500 transition-colors duration-300 flex-shrink-0" />
+                <span className="font-medium group-hover:text-blue-600">Feedback</span>
+              </button>
             </div>
           </div>
-        )}
-      </div>
-    </nav>
+
+          {/* Mobile Menu Dropdown */}
+          {isMenuOpen && (
+            <div className="md:hidden">
+              <div className="px-3 py-2 space-y-2">
+                {renderMobileLinks()}
+                <button
+                  onClick={() => setShowFeedback(true)}
+                  className="group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out w-full"
+                >
+                  <MessageSquare className="w-5 h-5 mr-2 text-gray-400 group-hover:text-blue-500 transition-colors duration-300 flex-shrink-0" />
+                  <span className="font-medium group-hover:text-blue-600">Feedback</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </nav>
+
+      {/* Feedback Modal - Moved outside nav */}
+      {showFeedback && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="relative max-h-[90vh] overflow-y-auto">
+            <FeedbackForm onClose={() => setShowFeedback(false)} />
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

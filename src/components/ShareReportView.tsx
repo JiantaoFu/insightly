@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Loader2, AlertTriangle, Download, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import Navigation from './Navigation';
-import ProductHuntBadge from './ProductHuntBadge';
+// import ProductHuntBadge from './ProductHuntBadge';
 import remarkGfm from 'remark-gfm';
 import { ShareComponent } from './ShareButton';
 import ReviewPreview from './ReviewPreview';
@@ -148,7 +148,7 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
           <p>No report available</p>
         )}
       </div>
-      <ProductHuntBadge />
+      {/* <ProductHuntBadge /> */}
     </div>
   );
 };

@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 import DBAnalysesList from '../components/DBAnalysesList';
 import CachedComparisonsList from '../components/CachedComparisonsList';
 import Navigation from '../components/Navigation';
-import ProductHuntBadge from '../components/ProductHuntBadge';
+// import ProductHuntBadge from '../components/ProductHuntBadge';
 
 const AppInsightsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,7 +71,7 @@ const AppInsightsPage = () => {
           user reviews, and developer reputation.
         </p>
       </div>
-      <ProductHuntBadge />
+      {/* <ProductHuntBadge /> */}
     </div>
   );
 };

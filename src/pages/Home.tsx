@@ -14,7 +14,6 @@ import {
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import CachedAnalysesList from '../components/CachedAnalysesList';
-import ProductHuntBadge from '../components/ProductHuntBadge';
 
 // Feature Card Component
 const FeatureCard: React.FC<{
@@ -327,11 +326,6 @@ const Home: React.FC = () => {
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Product Hunt Badge */}
-      <div className="flex justify-center my-16">
-        <ProductHuntBadge />
       </div>
     </div>
   );

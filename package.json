@@ -21,6 +21,7 @@
     "test:script": "mocha scripts/batch-scraper.test.js"
   },
   "dependencies": {
+    "@formspree/react": "^3.0.0",
     "@google/generative-ai": "^0.21.0",
     "@headlessui/react": "^2.2.2",
     "@huggingface/inference": "^3.6.2",

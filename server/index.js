@@ -25,6 +25,7 @@ import { availableFunctions, functionDeclarations } from './functions.js';
 import { calculateCosineSimilarity } from './utils.js';
 import JSZip from 'jszip';
 import { rankSearchResults } from './utils/search.js';
+import { SearchTrie } from './utils/SearchTrie.js';
 
 dotenv.config();
 
@@ -50,6 +51,17 @@ const DEFAULT_DB_QUERY_LIMIT = 10; // Default number of records per page
 // Add near the top with other constants
 const RAG_INITIAL_LIMIT = 30;
 const RAG_SIMILARITY_THRESHOLD = parseFloat(process.env.SIMILARITY_THRESHOLD) || 0.75;
+
+// Add after other const declarations
+const searchCache = {
+  'google-play': new SearchTrie(30), // 30 minutes TTL
+  'app-store': new SearchTrie(30)
+};
+
+// Schedule cache cleanup every hour
+setInterval(() => {
+  Object.values(searchCache).forEach(trie => trie.cleanup());
+}, 60 * 60 * 1000);
 
 // Middleware
 app.use(cors({
@@ -1932,12 +1944,22 @@ app.get('/api/search-apps', async (req, res) => {
 
     if (platform === 'google-play' || !platform) {
       try {
-        const playResults = await availableFunctions.google_play_search({
-          term: query,
-          num: 5,
-          lang: 'en',
-          country: 'us'
-        });
+        // Check cache first
+        let playResults = searchCache['google-play'].search(query);
+
+        if (!playResults) {
+          playResults = await availableFunctions.google_play_search({
+            term: query,
+            num: 5,
+            lang: 'en',
+            country: 'us'
+          });
+
+          if (!playResults.error) {
+            // Cache the results
+            searchCache['google-play'].insert(query, playResults);
+          }
+        }
 
         if (!playResults.error) {
           results.push(...playResults.map(app => ({
@@ -1956,11 +1978,21 @@ app.get('/api/search-apps', async (req, res) => {
 
     if (platform === 'app-store' || !platform) {
       try {
-        const appStoreResults = await availableFunctions.app_store_search({
-          term: query,
-          num: 5,
-          country: 'us'
-        });
+        // Check cache first
+        let appStoreResults = searchCache['app-store'].search(query);
+
+        if (!appStoreResults) {
+          appStoreResults = await availableFunctions.app_store_search({
+            term: query,
+            num: 5,
+            country: 'us'
+          });
+
+          if (!appStoreResults.error) {
+            // Cache the results
+            searchCache['app-store'].insert(query, appStoreResults);
+          }
+        }
 
         if (!appStoreResults.error) {
           results.push(...appStoreResults.map(app => ({

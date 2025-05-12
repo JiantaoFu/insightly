@@ -88,8 +88,6 @@ export function ChatBox() {
     scrollToBottom()
   }, [messages])
 
-  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
-  const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [error, setError] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<SearchStatus | null>(null);
   const [drawerOpen, setDrawerOpen] = useState<DrawerState>({
@@ -102,20 +100,6 @@ export function ChatBox() {
       history: false,
       [drawer]: !prev[drawer]
     }));
-  };
-
-  const saveChatHistory = () => {
-    const chatHistory: ChatHistory = {
-      id: currentChatId,
-      messages,
-      timestamp: Date.now()
-    };
-    setChatHistories(prev => [chatHistory, ...prev]);
-  };
-
-  const loadChatHistory = (chatHistory: ChatHistory) => {
-    setMessages(chatHistory.messages);
-    setCurrentChatId(chatHistory.id);
   };
 
   const sendMessage = async (e: React.FormEvent) => {
@@ -495,6 +479,7 @@ export function ChatBox() {
       </div>
 
       {/* Chat history panel */}
+      {/*
       <div className={`
         fixed md:static w-64 bg-white border-l shadow-md z-50 h-full transition-transform duration-300 right-0
         ${drawerOpen.history ? 'translate-x-0' : 'translate-x-full'}
@@ -530,6 +515,7 @@ export function ChatBox() {
           ))}
         </div>
       </div>
+      */}
     </div>
   )
 }

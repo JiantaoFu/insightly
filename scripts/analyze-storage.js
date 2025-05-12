@@ -8,38 +8,68 @@ let totalSize = 0;
 let totalFiles = 0;
 const fileSizes = new Map();
 
-async function listFilesRecursive(prefix = '') {
-  try {
-    const { data, error } = await supabase.storage
-      .from('reports')
-      .list(prefix);
+async function processItem(item, prefix) {
+    const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
 
-    if (error) {
-      console.error('Error listing files:', error);
-      return;
-    }
+    if (item.metadata?.size) {
+        const size = parseInt(item.metadata.size, 10);
+        if (!isNaN(size)) {
+            fileSizes.set(fullPath, size);
+            totalSize += size;
+            totalFiles++;
 
-    for (const item of data) {
-      if (item.metadata?.size) {
-        const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
-        fileSizes.set(fullPath, item.metadata.size);
-        totalSize += item.metadata.size;
-        totalFiles++;
-
-        // Log progress every 100 files
-        if (totalFiles % 100 === 0) {
-          console.log(`Processed ${totalFiles} files, Total size: ${prettyBytes(totalSize)}`);
+            // Log progress every 50 files
+            if (totalFiles % 50 === 0) {
+                console.log(`Processed ${totalFiles} files, Total size: ${prettyBytes(totalSize)}`);
+            }
+        } else {
+            console.warn(`⚠️ Invalid size metadata for file: ${fullPath}`);
         }
+    }
+}
+
+async function listFilesRecursive(prefix = '', offset = 0) {
+  try {
+      console.log(`Scanning directory: ${prefix || 'root'}`);
+      let hasMore = true;
+
+      while (hasMore) {
+          const { data, error } = await supabase.storage
+              .from('reports')
+              .list(prefix, {
+                  limit: PAGE_SIZE,
+                  offset: offset,
+                  sortBy: { column: 'name', order: 'asc' }
+              });
+
+          if (error) {
+              console.error('Error listing files:', error);
+              return; // Exit if there's an error
+          }
+
+          if (!data || data.length === 0) {
+              hasMore = false; // No more data to process
+              break;
+          }
+
+          console.log(`Processing ${data.length} items from offset ${offset} in ${prefix || 'root'}`);
+
+          // Process all items in the current page
+          for (const item of data) {
+              await processItem(item, prefix);
+
+              // If the item is a directory, call the function recursively
+              if (!item.metadata?.size) {
+                  await listFilesRecursive(`${prefix}${item.name}/`); // Ensure to append the correct path
+              }
+          }
+
+          // Update the offset for the next batch
+          offset += data.length;
       }
 
-      // If it's a folder, recurse
-      if (!item.metadata?.size) {
-        const newPrefix = prefix ? `${prefix}/${item.name}` : item.name;
-        await listFilesRecursive(newPrefix);
-      }
-    }
   } catch (error) {
-    console.error('Failed to list files:', error);
+      console.error(`Failed to list files in ${prefix}:`, error);
   }
 }
 

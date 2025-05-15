@@ -2,6 +2,7 @@ import { supabase } from '../server/supabaseClient.js'
 import prettyBytes from 'pretty-bytes'
 import { createObjectCsvWriter } from 'csv-writer'
 import path from 'path'
+import fs from 'fs/promises'
 
 const PAGE_SIZE = 100;
 let totalSize = 0;
@@ -127,7 +128,99 @@ async function generateReport() {
     });
 }
 
-generateReport().catch(err => {
-  console.error('Failed to analyze storage:', err);
+// Utility: extract hash_url from storage file path (expects .../xx/yy/hash_url.zip)
+function extractHashUrl(filePath) {
+  const match = filePath.match(/([a-f0-9]{32})\.zip$/i);
+  return match ? match[1] : null;
+}
+
+// Check if hash_url exists in DB
+async function dbRecordExists(hashUrl) {
+  const { data, error } = await supabase
+    .from('analysis_reports')
+    .select('hash_url')
+    .eq('hash_url', hashUrl)
+    .maybeSingle();
+  return !!(data && data.hash_url);
+}
+
+// Delete file from storage
+async function deleteStorageFile(filePath, dryRun = false) {
+  if (dryRun) {
+    console.log(`[DRY RUN] Would delete orphaned file: ${filePath}`);
+    return true;
+  }
+  const { error } = await supabase.storage.from('reports').remove([filePath]);
+  if (error) {
+    console.error(`❌ Failed to delete ${filePath}:`, error.message);
+    return false;
+  }
+  console.log(`🗑️ Deleted orphaned file: ${filePath}`);
+  return true;
+}
+
+async function cleanupOrphanedFiles(dryRun = false) {
+  console.log('Starting orphaned file cleanup...');
+  let deletedCount = 0;
+  for (const [filePath, size] of fileSizes.entries()) {
+    const hashUrl = extractHashUrl(filePath);
+    if (!hashUrl) continue;
+    const exists = await dbRecordExists(hashUrl);
+    if (!exists) {
+      await deleteStorageFile(filePath, dryRun);
+      deletedCount++;
+    }
+  }
+  if (dryRun) {
+    console.log(`\n[DRY RUN] Cleanup complete. ${deletedCount} orphaned files would be deleted.`);
+  } else {
+    console.log(`\n✅ Cleanup complete. Deleted ${deletedCount} orphaned files.`);
+  }
+}
+
+async function deleteFilesFromList(listFile, dryRun = false) {
+  console.log(`Reading file list from: ${listFile}`);
+  let deletedCount = 0;
+  let failedCount = 0;
+  const content = await fs.readFile(listFile, 'utf-8');
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    // Match lines like: [DRY RUN] Would delete orphaned file: fe/1a//fe1aba0a84019c27fd0dafd9b5490852.zip
+    const match = line.match(/(?:delete orphaned file:|Deleted orphaned file:|Would delete orphaned file:|delete file:|file:)[ ]*([\w\/-]+\.zip)/i);
+    if (match && match[1]) {
+      const filePath = match[1].replace(/^\/+/, ''); // Remove leading slashes if any
+      const ok = await deleteStorageFile(filePath, dryRun);
+      if (ok) deletedCount++; else failedCount++;
+    }
+  }
+  if (dryRun) {
+    console.log(`\n[DRY RUN] ${deletedCount} files would be deleted from list.`);
+  } else {
+    console.log(`\n✅ Deleted ${deletedCount} files from list. ${failedCount > 0 ? failedCount + ' failed.' : ''}`);
+  }
+}
+
+// Main entry
+async function main() {
+  const cleanupMode = process.argv.includes('--cleanup');
+  const dryRun = process.argv.includes('--dry-run');
+  const deleteFromListIdx = process.argv.findIndex(arg => arg === '--delete-from-list');
+  const deleteFromListFile = deleteFromListIdx !== -1 ? process.argv[deleteFromListIdx + 1] : null;
+
+  if (deleteFromListFile) {
+    await deleteFilesFromList(deleteFromListFile, dryRun);
+    return;
+  }
+
+  await listFilesRecursive();
+  if (cleanupMode) {
+    await cleanupOrphanedFiles(dryRun);
+  } else {
+    await generateReport();
+  }
+}
+
+main().catch(err => {
+  console.error('Failed to analyze/cleanup storage:', err);
   process.exit(1);
 });

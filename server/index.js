@@ -2117,12 +2117,17 @@ app.get('/auth/google', (req, res, next) => {
 
 app.get('/auth/google/callback', async (req, res, next) => {
   passport.authenticate('google', { failureRedirect: '/' }, async (err, user) => {
+    console.log('[Google OAuth Callback] err:', err);
+    console.log('[Google OAuth Callback] user:', user);
+
     if (err || !user) {
+      console.error('[Google OAuth Callback] Authentication failed', { err, user });
       return res.redirect('/?error=auth_failed');
     }
 
     req.logIn(user, async (err) => {
       if (err) {
+        console.error('[Google OAuth Callback] Login failed', err);
         return res.redirect('/?error=login_failed');
       }
 
@@ -2165,7 +2170,7 @@ app.get('/auth/google/callback', async (req, res, next) => {
         // Redirect to frontend with token
         res.redirect(`${CLIENT_ORIGIN}/?token=${token}`);
       } catch (error) {
-        console.error('Auth callback error:', error);
+        console.error('[Google OAuth Callback] Auth callback error:', error);
         res.redirect('/?error=server_error');
       }
     });

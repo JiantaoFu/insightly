@@ -70,7 +70,6 @@ const extractPlatformFromUrl = (url: string): 'ios' | 'android' | null => {
 };
 
 const fetchCompetitorAppDetails = async (url: string): Promise<CompetitorApp> => {
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
   let processUrlEndpoint = '';
 
   // Detect URL type
@@ -299,7 +298,7 @@ export const CompetitorAnalysis: React.FC = () => {
 
       console.log('Sending Competitors:', JSON.stringify(validCompetitors, null, 2));
 
-      const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/compare-competitors`, {
+      const response = await fetch(`${SERVER_URL}/api/compare-competitors`, {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({

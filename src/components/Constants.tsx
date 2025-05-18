@@ -121,3 +121,13 @@ export const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE 
 
 // Get server URL from environment
 export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+
+
+// Protected routes configuration
+export const PROTECTED_ROUTES = {
+  ANALYZE: '/app',
+  COMPETITORS: '/competitor-insights',
+  CHAT: '/chat',
+};
+
+export const PROTECTED_ROUTES_ENABLED = import.meta.env.VITE_ENABLE_PROTECTED_ROUTES === 'true';

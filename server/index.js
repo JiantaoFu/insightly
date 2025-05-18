@@ -26,8 +26,15 @@ import { calculateCosineSimilarity } from './utils.js';
 import JSZip from 'jszip';
 import { rankSearchResults } from './utils/search.js';
 import { SearchTrie } from './utils/SearchTrie.js';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import session from 'express-session';
+import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
+
+const backendUrl = process.env.NODE_ENV === 'production' ? process.env.API_BASE_URL : 'http://localhost:3000';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -90,8 +97,8 @@ app.use(cors({
 
     callback(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST'],
-  credentials: false
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
 }));
 app.use(express.json({
   limit: '50mb'
@@ -1423,7 +1430,7 @@ app.get('/sitemap.xml', async (req, res) => {
   }
 });
 
-// Modify the server startup to load cache
+// Modify server startup to load cache
 const startServer = async () => {
   try {
     // Load existing analyses from database
@@ -1915,11 +1922,11 @@ async function loadCacheFromDatabase() {
             comparisonData.forEach(entry => {
                 const hashUrl = entry.hash_url;
                 const cacheEntry = {
-                    competitors: JSON.parse(entry.competitors),
-                    finalReport: entry.final_report,
-                    timestamp: entry.timestamp,
-                    urls: entry.urls,
-                    getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${hashUrl}`
+                  competitors: JSON.parse(entry.competitors),
+                  finalReport: entry.final_report,
+                  timestamp: entry.timestamp,
+                  urls: entry.urls,
+                  getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${hashUrl}`
                 };
                 comparisonCache.set(hashUrl, cacheEntry);
             });
@@ -2014,4 +2021,174 @@ app.get('/api/search-apps', async (req, res) => {
     console.error('App search error:', error);
     res.status(500).json({ error: 'Failed to search apps' });
   }
+});
+
+// Configure session middleware BEFORE other middleware
+const sessionMiddleware = session({
+  secret: process.env.SESSION_SECRET || 'your_secret_key',
+  resave: true,
+  saveUninitialized: true, // Changed to true for debugging
+  cookie: {
+    secure: true,
+    httpOnly: true,
+    sameSite: 'none',
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    domain: new URL(backendUrl).hostname // Use backend hostname
+  },
+  store: new session.MemoryStore() // Explicitly use memory store for testing
+});
+
+// Apply session middleware
+app.use(sessionMiddleware);
+
+// Initialize Passport and restore authentication state, if any
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Add cookie parser middleware
+app.use(cookieParser());
+
+// Passport Google OAuth strategy
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: `${backendUrl}/auth/google/callback`
+  },
+  (accessToken, refreshToken, profile, done) => {
+    return done(null, profile);
+  }
+));
+
+passport.serializeUser((user, done) => {
+  // Minimal user object
+  const userData = {
+    id: user.id || user.sub,
+    displayName: user.displayName,
+    email: (user.emails && user.emails.length > 0) ? user.emails[0].value : null,
+    photo: (user.photos && user.photos.length > 0) ? user.photos[0].value : null,
+    provider: user.provider
+  };
+  done(null, userData);
+});
+
+passport.deserializeUser((userData, done) => {
+  if (userData) {
+    done(null, userData);
+  } else {
+    done(new Error('User not found in session'));
+  }
+});
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) {
+    return res.status(403).json({ error: 'No token provided' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+// Google OAuth routes
+app.get('/auth/google', (req, res, next) => {
+  // Create a state parameter to prevent CSRF
+  const state = Math.random().toString(36).substring(7);
+  res.cookie('oauth_state', state, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    domain: new URL(backendUrl).hostname,
+    path: '/',
+    maxAge: 15 * 60 * 1000 // 15 minutes
+  });
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state: state,
+    prompt: 'select_account'
+  })(req, res, next);
+});
+
+app.get('/auth/google/callback', async (req, res, next) => {
+  passport.authenticate('google', { failureRedirect: '/' }, async (err, user) => {
+    if (err || !user) {
+      return res.redirect('/?error=auth_failed');
+    }
+
+    req.logIn(user, async (err) => {
+      if (err) {
+        return res.redirect('/?error=login_failed');
+      }
+
+      try {
+        const { supabase } = await import('./supabaseClient.js');
+        const photoUrl = (user.photos && user.photos.length > 0) ? user.photos[0].value : null;
+
+        // Create JWT token payload
+        const tokenPayload = {
+          id: user.id,
+          sub: user.id,
+          displayName: user.displayName,
+          email: user.emails?.[0]?.value,
+          photo: photoUrl,
+          provider: user.provider
+        };
+
+        console.log('Creating JWT token with payload:', tokenPayload);
+
+        // Issue JWT
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
+
+        // Also update user in database
+        const { error: upsertError } = await supabase
+          .from('users')
+          .upsert({
+            google_id: user.id,
+            email: user.emails?.[0]?.value,
+            display_name: user.displayName,
+            photo_url: photoUrl,
+            provider: user.provider,
+            last_login: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, { onConflict: ['google_id'] });
+
+        if (upsertError) {
+          console.error('Supabase user upsert error:', upsertError);
+        }
+
+        // Redirect to frontend with token
+        res.redirect(`${CLIENT_ORIGIN}/?token=${token}`);
+      } catch (error) {
+        console.error('Auth callback error:', error);
+        res.redirect('/?error=server_error');
+      }
+    });
+  })(req, res, next);
+});
+
+app.get('/auth/logout', (req, res) => {
+  req.logout(() => {
+    // Clear session
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ error: 'Failed to logout' });
+      }
+      // Clear auth cookies
+      res.clearCookie('connect.sid', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        domain: new URL(backendUrl).hostname,
+        path: '/'
+      });
+      res.json({ success: true });
+    });
+  });
 });

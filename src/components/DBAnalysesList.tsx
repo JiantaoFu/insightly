@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import AppCard from './AppCard';
+import { SERVER_URL } from './Constants';
 
 interface DBAnalysesListProps {
   pageSize?: number;
@@ -27,7 +28,6 @@ const DBAnalysesList: React.FC<DBAnalysesListProps> = ({
     totalPages: 1,
     hasMore: false
   });
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
   // Add debounce function
   const debounce = (func: Function, wait: number) => {

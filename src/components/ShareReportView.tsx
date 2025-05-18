@@ -7,6 +7,7 @@ import Navigation from './Navigation';
 import remarkGfm from 'remark-gfm';
 import { ShareComponent } from './ShareButton';
 import ReviewPreview from './ReviewPreview';
+import { SERVER_URL } from './Constants';
 
 interface SharedReportViewProps {
   reportType: 'app' | 'competitor';
@@ -18,8 +19,6 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
   const [appData, setAppData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
   const fetchSharedReport = async () => {
     try {

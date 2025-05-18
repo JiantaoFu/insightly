@@ -13,6 +13,8 @@ import readline from 'readline';
 // | 400-499      | 167   |
 // | 500+         | 2781  |
 
+// NODE_ENV=production RATING_THRESHOLD=3 node scripts/cleanup-low-reviews.js  --by-rating
+
 const REVIEW_RANGE = [400, 499];
 let totalFound = 0;
 let totalRemoved = 0;
@@ -23,6 +25,10 @@ let totalSpaceSaved = 0;
 const isDryRun = process.argv.includes('--dry-run') || process.argv.includes('-d');
 const isFromCsv = process.argv.includes('--from-csv') || process.argv.includes('--csv');
 const CSV_PATH = path.join(process.cwd(), 'low_review.csv');
+
+// Support cleaning by average_rating as well
+const RATING_THRESHOLD = process.env.RATING_THRESHOLD ? parseFloat(process.env.RATING_THRESHOLD) : null;
+const isRatingMode = process.argv.includes('--by-rating');
 
 async function getFileSize(hashUrl) {
     try {
@@ -92,12 +98,15 @@ async function fetchAllLowReviewRecords() {
 
     while (!done) {
         console.log(`[Pagination] Fetching records from ${from} to ${to}...`);
-        const { data, error } = await supabase
+        let query = supabase
             .from('analysis_reports')
-            .select('hash_url, app_title, total_reviews')
-            .gte('total_reviews', REVIEW_RANGE[0])
-            .lte('total_reviews', REVIEW_RANGE[1])
-            .range(from, to);
+            .select('id, hash_url, app_title, total_reviews, average_rating');
+        if (isRatingMode && RATING_THRESHOLD !== null) {
+            query = query.lt('average_rating', RATING_THRESHOLD);
+        } else {
+            query = query.gte('total_reviews', REVIEW_RANGE[0]).lte('total_reviews', REVIEW_RANGE[1]);
+        }
+        const { data, error } = await query.range(from, to);
         if (error) {
             return { data: allRecords, error };
         }
@@ -120,7 +129,10 @@ async function fetchAllLowReviewRecords() {
 
 async function cleanupLowReviewRecords() {
     const mode = isDryRun ? '🔍 DRY RUN -' : '🧹';
-    console.log(`${mode} Starting cleanup of records with total_reviews in range [${REVIEW_RANGE[0]}, ${REVIEW_RANGE[1]}]...`);
+    const filterDesc = isRatingMode && RATING_THRESHOLD !== null
+        ? `average_rating < ${RATING_THRESHOLD}`
+        : `total_reviews in range [${REVIEW_RANGE[0]}, ${REVIEW_RANGE[1]}]`;
+    console.log(`${mode} Starting cleanup of records with ${filterDesc}...`);
 
     try {
         // Fetch all records to be removed (paginated)
@@ -135,12 +147,24 @@ async function cleanupLowReviewRecords() {
         console.log(`Found ${totalFound} records ${isDryRun ? 'that would be removed' : 'to remove'}`);
 
         for (const record of recordsToRemove) {
-            console.log(`\nProcessing: ${record.app_title} (${record.total_reviews} reviews)`);
+            console.log(`\nProcessing: ${record.app_title} (${record.total_reviews} reviews, rating: ${record.average_rating})`);
 
             // Remove storage file first
             await removeStorageFile(record.hash_url, isDryRun);
 
             if (!isDryRun) {
+                // Remove from report_section_embeddings first, only if record.id exists
+                if (record.id) {
+                    const { error: embedError } = await supabase
+                        .from('report_section_embeddings')
+                        .delete()
+                        .eq('report_id', record.id);
+                    if (embedError) {
+                        console.error(`❌ Error removing embeddings for report_id ${record.id}:`, embedError);
+                    }
+                } else {
+                    console.warn(`⚠️ Skipping embeddings delete: no record.id for hash_url ${record.hash_url}`);
+                }
                 // Remove database record
                 const { error: deleteError } = await supabase
                     .from('analysis_reports')

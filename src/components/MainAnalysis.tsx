@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import ShareButton from './ShareButton';
 import Navigation from './Navigation';
 import ReviewPreview from './ReviewPreview';
-import ProductHuntBadge from './ProductHuntBadge';
+// import ProductHuntBadge from './ProductHuntBadge';
 import { MathChallengeComponent, MathChallenge } from './MathChallenge';
 import { ProviderModelSelector, useProviderModel } from './ProviderModelSelector';
 import { DEFAULT_APP_ANALYZE_PROMPT, ENABLE_MATH_CHALLENGE, SERVER_URL } from './Constants';

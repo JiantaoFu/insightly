@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, ChevronDown, BarChart2 } from 'lucide-react';
 import AppCard from './AppCard';
+import { SERVER_URL } from './Constants';
 
 interface CachedAnalysis {
   shareLink: string;
@@ -35,8 +36,6 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
   useEffect(() => {
     const fetchCachedAnalyses = async () => {

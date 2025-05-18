@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { BarChart2, RefreshCw, ChevronDown, Link as LinkIcon } from 'lucide-react';
 import StyledComparisonCard from './StyledComparisonCard';
 import axios from 'axios';
+import { SERVER_URL } from './Constants';
 
 const CachedComparisonsList = ({ pageSize, searchTerm }) => {
   const [comparisons, setComparisons] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [displayCount, setDisplayCount] = useState(pageSize); // State to track displayed items
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,7 +46,7 @@ const CachedComparisonsList = ({ pageSize, searchTerm }) => {
     </div>
   );
 
-  const filteredComparisons = comparisons.filter(comparison => 
+  const filteredComparisons = comparisons.filter(comparison =>
     comparison.competitors.some(competitor => competitor.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -56,7 +56,7 @@ const CachedComparisonsList = ({ pageSize, searchTerm }) => {
         <BarChart2 className="mr-3 text-blue-600" />
         Recently Compared Apps
       </h2>
-      
+
       {filteredComparisons.length === 0 ? (
         <div className="text-center text-gray-500">
           No cached comparisons found.
@@ -81,7 +81,7 @@ const CachedComparisonsList = ({ pageSize, searchTerm }) => {
 
       {displayCount < filteredComparisons.length && (
         <div className="flex justify-center mt-8">
-          <button 
+          <button
             onClick={handleLoadMore}
             className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
           >

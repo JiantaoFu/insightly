@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { Link } from 'react-router-dom'
 import TextareaAutosize from 'react-textarea-autosize'
 import { Menu, X } from 'lucide-react'
+import { SERVER_URL } from './Constants';
 
 // Add new interfaces for status
 interface SearchStatus {
@@ -58,7 +59,6 @@ export function ChatBox() {
   const [input, setInput] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000'
 
   // Add new state for tracking expanded citations
   const [citationsCollapsed, setCitationsCollapsed] = useState(true);

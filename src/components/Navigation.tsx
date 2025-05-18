@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Zap,
   Home as HomeIcon,
-  BarChart2,
   Rocket as RocketIcon,
   Menu,
   X,
@@ -12,30 +11,32 @@ import {
   Chrome,
   Globe,
   MessageCircle as MessageCircleIcon,
-  MessageSquare
+  MessageSquare,
+  ChevronDown
 } from 'lucide-react';
 import FeedbackForm from './FeedbackForm';
+import UserMenu from './UserMenu';
+import { PROTECTED_ROUTES } from './Constants';
 
-// Navigation component props
-interface NavigationProps {
-  ctaButton?: {
-    to: string;
-    label: string;
-    icon?: React.ElementType;
-  };
+interface NavLink {
+  to: string;
+  icon: React.ElementType;
+  label: string;
+  primary?: boolean;
 }
 
-const Navigation: React.FC<NavigationProps> = ({
-  ctaButton = {
-    to: '/app',
-    label: 'Start Analyzing',
-    icon: RocketIcon
-  }
-}) => {
+const Navigation: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [browserType, setBrowserType] = useState<'chrome' | 'firefox' | 'other'>('other');
   const [showFeedback, setShowFeedback] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Just navigate, let ProtectedRoute handle protection
+  const handleNavigation = (to: string) => {
+    navigate(to);
+  };
 
   useEffect(() => {
     // Detect browser type
@@ -54,152 +55,180 @@ const Navigation: React.FC<NavigationProps> = ({
     detectBrowser();
   }, []);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
+  const mainLinks: NavLink[] = [
+    {
+      to: '/',
+      icon: HomeIcon,
+      label: 'Home',
+    },
+    {
+      to: PROTECTED_ROUTES.ANALYZE,
+      icon: RocketIcon,
+      label: 'Start Analyzing',
+      primary: true,
+    },
+    {
+      to: '/app-insights',
+      icon: Microscope,
+      label: 'Insights',
+    },
+  ];
 
-  // Determine which links to show based on current route
-  const renderDefaultLinks = () => {
-    const links = [
-      {
-        to: '/',
-        icon: HomeIcon,
-        label: 'Home',
-        className: 'text-gray-700 hover:bg-blue-50 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium flex items-center space-x-2'
-      },
-      {
-        to: '/app',
-        icon: RocketIcon,
-        label: 'Start Analyzing',
-        className: 'bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center space-x-2 w-full'
-      },
-      {
-        to: '/app-insights',
-        icon: Microscope,
-        label: 'Insights',
-        className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out'
-      },
-      {
-        to: '/competitor-insights',
-        icon: Scale,
-        label: 'Competitors',
-        className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out'
-      },
-      {
-        to: '/chat',
-        icon: MessageCircleIcon,
-        label: 'Chat Assistant',
-        className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out'
-      }
-    ];
+  const toolsLinks: NavLink[] = [
+    {
+      to: PROTECTED_ROUTES.COMPETITORS,
+      icon: Scale,
+      label: 'Competitors',
+    },
+    {
+      to: PROTECTED_ROUTES.CHAT,
+      icon: MessageCircleIcon,
+      label: 'Chat Assistant',
+    },
+    ...(browserType === 'chrome' ? [{
+      to: 'https://chromewebstore.google.com/detail/insightlytop-chrome-exten/jbhfbkkaffgfgjpipkpmgnbojjoajjka?hl=en',
+      icon: Chrome,
+      label: 'Chrome Extension',
+    }] : browserType === 'firefox' ? [{
+      to: 'https://addons.mozilla.org/en-US/firefox/addon/insightly-app-review-insights/',
+      icon: Globe,
+      label: 'Firefox Addon',
+    }] : [])
+  ];
 
-    // Add browser-specific extension link
-    if (browserType === 'chrome') {
-      links.push({
-        to: 'https://chromewebstore.google.com/detail/insightlytop-chrome-exten/jbhfbkkaffgfgjpipkpmgnbojjoajjka?hl=en',
-        icon: Chrome,
-        label: 'Chrome Extension',
-        className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out whitespace-nowrap'
-      });
-    } else if (browserType === 'firefox') {
-      links.push({
-        to: 'https://addons.mozilla.org/en-US/firefox/addon/insightly-app-review-insights/',
-        icon: Globe,
-        label: 'Firefox Addon',
-        className: 'group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out whitespace-nowrap'
-      });
-    }
-
-    // Filter out the link matching the current route
-    const filteredLinks = links.filter(link => link.to !== location.pathname);
-
-    return filteredLinks.map((link, index) => (
-      <Link
-        key={index}
-        to={link.to}
-        className={link.className}
-        target={link.to.startsWith('http') ? '_blank' : undefined}
-        rel={link.to.startsWith('http') ? 'noopener noreferrer' : undefined}
-      >
-        {link.icon && <link.icon className="w-5 h-5 mr-2 text-gray-400 group-hover:text-blue-500 transition-colors duration-300 flex-shrink-0" />}
-        <span className="font-medium group-hover:text-blue-600 whitespace-nowrap">{link.label}</span>
-      </Link>
-    ));
-  };
-
-  const renderDesktopLinks = () => {
-    if (location.pathname === '/analyzed-apps') return null;
-
-    return (
-      <>
-        {renderDefaultLinks()}
-      </>
-    );
-  };
-
-  const renderMobileLinks = () => {
-    if (location.pathname === '/analyzed-apps') return null;
-
-    return (
-      <>
-        {renderDefaultLinks()}
-      </>
-    );
-  };
+  // Filter out current route from tools links
+  const filteredToolsLinks = toolsLinks.filter(link => link.to !== location.pathname);
 
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center">
               <Zap className="w-8 h-8 text-blue-600 mr-2" />
               <span className="text-xl font-bold text-gray-900">Insightly</span>
             </div>
 
-            {/* Mobile Menu Toggle */}
-            <div className="md:hidden">
-              <button
-                onClick={toggleMenu}
-                className="text-gray-600 hover:text-blue-600 focus:outline-none"
-              >
-                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-              </button>
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-4">
+              {/* Main Links */}
+              <div className="flex items-center space-x-2">
+                {mainLinks.map((link) => (
+                  <button
+                    key={link.to}
+                    onClick={() => handleNavigation(link.to)}
+                    className={`flex items-center px-3 py-2 rounded-lg transition-colors duration-300 ${
+                      link.primary
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+                    }`}
+                  >
+                    <link.icon className="w-5 h-5 mr-2" />
+                    <span className="font-medium">{link.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Tools Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsToolsOpen(!isToolsOpen)}
+                  className="flex items-center px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-300"
+                >
+                  <span className="font-medium mr-1">Tools</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+
+                {isToolsOpen && (
+                  <div className="absolute top-full right-0 mt-1 w-48 py-2 bg-white rounded-lg shadow-lg border border-gray-100">
+                    {filteredToolsLinks.map((link) => (
+                      <button
+                        key={link.to}
+                        onClick={() => {
+                          setIsToolsOpen(false);
+                          if (link.to.startsWith('http')) {
+                            window.open(link.to, '_blank');
+                          } else {
+                            handleNavigation(link.to);
+                          }
+                        }}
+                        className="flex items-center px-4 py-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full"
+                      >
+                        <link.icon className="w-5 h-5 mr-2" />
+                        <span className="font-medium">{link.label}</span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        setShowFeedback(true);
+                        setIsToolsOpen(false);
+                      }}
+                      className="flex items-center px-4 py-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full"
+                    >
+                      <MessageSquare className="w-5 h-5 mr-2" />
+                      <span className="font-medium">Feedback</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* User Menu */}
+              <UserMenu />
             </div>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-6">
-              {renderDesktopLinks()}
-              <button
-                onClick={() => setShowFeedback(true)}
-                className="group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out"
-              >
-                <MessageSquare className="w-5 h-5 mr-2 text-gray-400 group-hover:text-blue-500 transition-colors duration-300 flex-shrink-0" />
-                <span className="font-medium group-hover:text-blue-600">Feedback</span>
-              </button>
-            </div>
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+            >
+              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </div>
 
-          {/* Mobile Menu Dropdown */}
+          {/* Mobile Menu */}
           {isMenuOpen && (
-            <div className="md:hidden">
-              <div className="px-3 py-2 space-y-2">
-                {renderMobileLinks()}
+            <div className="md:hidden py-2 space-y-1">
+              {[...mainLinks, ...filteredToolsLinks].map((link) => (
                 <button
-                  onClick={() => setShowFeedback(true)}
-                  className="group flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 ease-in-out w-full"
+                  key={link.to}
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    if (link.to.startsWith('http')) {
+                      window.open(link.to, '_blank');
+                    } else {
+                      handleNavigation(link.to);
+                    }
+                  }}
+                  className={`flex items-center px-3 py-2 rounded-lg w-full ${
+                    link.primary
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+                  }`}
                 >
-                  <MessageSquare className="w-5 h-5 mr-2 text-gray-400 group-hover:text-blue-500 transition-colors duration-300 flex-shrink-0" />
-                  <span className="font-medium group-hover:text-blue-600">Feedback</span>
+                  <link.icon className="w-5 h-5 mr-2" />
+                  <span className="font-medium">{link.label}</span>
                 </button>
+              ))}
+              <button
+                onClick={() => {
+                  setShowFeedback(true);
+                  setIsMenuOpen(false);
+                }}
+                className="flex items-center px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full"
+              >
+                <MessageSquare className="w-5 h-5 mr-2" />
+                <span className="font-medium">Feedback</span>
+              </button>
+              <div className="px-3 py-2">
+                <UserMenu />
               </div>
             </div>
           )}
         </div>
       </nav>
 
-      {/* Feedback Modal - Moved outside nav */}
+      {/* Feedback Modal */}
       {showFeedback && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="relative max-h-[90vh] overflow-y-auto">

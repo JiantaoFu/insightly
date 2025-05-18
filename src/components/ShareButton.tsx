@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Share2, Copy, Check, Link as LinkIcon } from 'lucide-react';
 import axios from 'axios';
+import { SERVER_URL } from './Constants';
 
 interface ShareComponentProps {
   generateShareLink: () => Promise<string | null>;
@@ -9,11 +10,11 @@ interface ShareComponentProps {
   shareType: 'app' | 'competitor';
 }
 
-const ShareComponent: React.FC<ShareComponentProps> = ({ 
-  generateShareLink, 
-  title = 'Insightly Analysis', 
-  description = 'AI-powered insights', 
-  shareType 
+const ShareComponent: React.FC<ShareComponentProps> = ({
+  generateShareLink,
+  title = 'Insightly Analysis',
+  description = 'AI-powered insights',
+  shareType
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -32,9 +33,9 @@ const ShareComponent: React.FC<ShareComponentProps> = ({
     const baseText = `${title}: ${description}`;
     const linkLength = (shareLink || '').length + 1; // +1 for space
     const availableLength = maxLength - linkLength - baseText.length;
-    
-    return availableLength > 0 
-      ? `${baseText} ${shareLink || ''}` 
+
+    return availableLength > 0
+      ? `${baseText} ${shareLink || ''}`
       : `${baseText.slice(0, availableLength)}... ${shareLink || ''}`;
   };
 
@@ -106,7 +107,7 @@ const ShareComponent: React.FC<ShareComponentProps> = ({
 
   return (
     <div className="relative">
-      <button 
+      <button
         onClick={() => {
           setIsOpen(!isOpen);
           if (!shareLink) handleGenerateShareLink();
@@ -116,10 +117,10 @@ const ShareComponent: React.FC<ShareComponentProps> = ({
         <Share2 size={20} className="mr-2" />
         Share {shareType === 'app' ? 'Analysis' : 'Comparison'}
       </button>
-      
+
       {isOpen && (
-        <div 
-          className="absolute top-full left-1/2 mt-2 bg-white shadow-lg rounded-lg p-4 w-screen max-w-xs z-50 
+        <div
+          className="absolute top-full left-1/2 mt-2 bg-white shadow-lg rounded-lg p-4 w-screen max-w-xs z-50
                      transform -translate-x-1/2 sm:translate-x-0 sm:right-auto sm:left-0"
           onMouseLeave={() => setIsOpen(false)}
         >
@@ -131,7 +132,7 @@ const ShareComponent: React.FC<ShareComponentProps> = ({
                   <button
                     key={link.name}
                     onClick={() => link.action()}
-                    className={`flex flex-col items-center justify-center hover:bg-gray-100 p-2 rounded-lg transition-colors relative 
+                    className={`flex flex-col items-center justify-center hover:bg-gray-100 p-2 rounded-lg transition-colors relative
                       ${link.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                     title={copied ? 'Copied!' : 'Copy Link'}
                     disabled={link.disabled}
@@ -143,22 +144,22 @@ const ShareComponent: React.FC<ShareComponentProps> = ({
                   </button>
                 );
               }
-              
+
               // For social media links
               return (
-                <a 
+                <a
                   key={link.name}
-                  href={link.url} 
-                  target="_blank" 
+                  href={link.url}
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className={`flex flex-col items-center justify-center hover:bg-gray-100 p-2 rounded-lg transition-colors 
+                  className={`flex flex-col items-center justify-center hover:bg-gray-100 p-2 rounded-lg transition-colors
                     ${link.disabled ? 'opacity-50 pointer-events-none' : ''}`}
                   onClick={() => setIsOpen(false)}
                 >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    width="24" 
-                    height="24" 
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
                     viewBox="0 0 24 24"
                     fill={link.color}
                     className="w-6 h-6"
@@ -193,12 +194,11 @@ interface ShareButtonProps {
   description?: string;
 }
 
-const ShareButton: React.FC<ShareButtonProps> = ({ 
-  url, 
-  title = 'Insightly App Review Analysis', 
-  description = 'Discover deep insights from app reviews using AI-powered analysis' 
+const ShareButton: React.FC<ShareButtonProps> = ({
+  url,
+  title = 'Insightly App Review Analysis',
+  description = 'Discover deep insights from app reviews using AI-powered analysis'
 }) => {
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
   const generateAppShareLink = async () => {
     try {
@@ -214,7 +214,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({
   };
 
   return (
-    <ShareComponent 
+    <ShareComponent
       generateShareLink={generateAppShareLink}
       title={title}
       description={description}
@@ -230,12 +230,11 @@ interface ShareCompetitorReportButtonProps {
   description?: string;
 }
 
-export const ShareCompetitorReportButton: React.FC<ShareCompetitorReportButtonProps> = ({ 
-  competitors, 
-  title = 'Insightly Competitor Analysis', 
-  description = 'AI-powered comparative analysis of app competitors' 
+export const ShareCompetitorReportButton: React.FC<ShareCompetitorReportButtonProps> = ({
+  competitors,
+  title = 'Insightly Competitor Analysis',
+  description = 'AI-powered comparative analysis of app competitors'
 }) => {
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
 
   const generateCompetitorShareLink = async () => {
     try {

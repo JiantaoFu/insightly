@@ -410,7 +410,7 @@ export const CompetitorAnalysis: React.FC = () => {
 
   return (
     <div
-      className="relative bg-cover bg-center bg-no-repeat min-h-screen py-12 md:py-16 px-4"
+      className="relative bg-cover bg-center bg-no-repeat min-h-screen py-12 md:py-16 px-4 overflow-visible"
       style={{
         backgroundImage: `
           linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,0.95)),
@@ -422,7 +422,7 @@ export const CompetitorAnalysis: React.FC = () => {
     >
       <Navigation />
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 mt-8 sm:mt-12">
-        <div className="space-y-8">
+        <div className="space-y-8 relative">
           {/* Header */}
           <div className="text-center">
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-4">
@@ -452,8 +452,8 @@ export const CompetitorAnalysis: React.FC = () => {
             </div>
           )}
 
-          {/* URL Input - Add new relative wrapper */}
-          <div className="relative" style={{ zIndex: 100 }}>
+          {/* URL Input Section - Adjust z-index */}
+          <div className="relative" style={{ zIndex: 0 }}>
             <div className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-xl shadow-md border border-gray-100">
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                 <div className="flex-grow">
@@ -477,7 +477,7 @@ export const CompetitorAnalysis: React.FC = () => {
                         </div>
                       </div>
                       {searchResults.length > 0 && (
-                        <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none">
+                        <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-[60]">
                           {isSearching ? (
                             <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
                               Searching...
@@ -536,8 +536,8 @@ export const CompetitorAnalysis: React.FC = () => {
             </div>
           </div>
 
-          {/* Rest of the components with lower z-index */}
-          <div className="relative" style={{ zIndex: 1 }}>
+          {/* Rest of the components */}
+          <div className="relative" style={{ zIndex: 40 }}>
             {/* Empty State - only show when no competitors and no search */}
             {competitors.length === 0 && !searchResults.length && (
               <div className="text-center py-12 bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-gray-100">

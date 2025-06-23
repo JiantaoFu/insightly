@@ -14,6 +14,7 @@ import {
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import CachedAnalysesList from '../components/CachedAnalysesList';
+import StarterPackCheckout from '../components/StarterPackCheckout';
 
 // Feature Card Component
 const FeatureCard: React.FC<{
@@ -243,45 +244,33 @@ const Home: React.FC = () => {
         <CachedAnalysesList />
       </div>
 
-      {/* Pricing Section */}
+      {/* Starter Pack Section (replaces Pricing Plans) */}
       <div className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
             <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4">
-              Pricing Plans
+              🚀 Starter Pack — Just $1
             </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Flexible plans designed to scale with your app insights needs.
+            <p className="text-xl text-gray-700 max-w-2xl mx-auto mb-4">
+              Get insights from up to <b>5 datasets</b>.<br />
+              No subscription, no lock-in — just explore and see what you uncover.
             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {pricingPlans.map((plan, index) => (
-              <PricingCard
-                key={index}
-                title={plan.title}
-                price={plan.price}
-                icon={plan.icon}
-                features={plan.features}
-                isMostPopular={plan.isMostPopular}
-              />
-            ))}
-          </div>
-
-          <div className="mt-16 text-center">
-            <p className="text-gray-600 mb-4">
-              Need a custom solution? <a href="#" className="text-blue-600 hover:underline">Contact Sales</a>
-            </p>
-            <div className="flex justify-center space-x-4 text-gray-500">
-              <div className="flex items-center">
-                <Shield className="w-5 h-5 mr-2" />
-                <span>Secure Payments</span>
-              </div>
-              <div className="flex items-center">
-                <TrendingUp className="w-5 h-5 mr-2" />
-                <span>No Hidden Fees</span>
-              </div>
+            <ul className="text-lg text-gray-700 mb-6 space-y-2">
+              <li>✔ AI-generated market gaps</li>
+              <li>✔ Real user pain points</li>
+              <li>✔ Instantly actionable opportunities</li>
+            </ul>
+            <div className="mb-4">
+              <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
+                🎁 Beta pricing — help shape the product
+              </span>
             </div>
+            <div className="flex justify-center">
+              <StarterPackCheckout />
+            </div>
+            <p className="text-gray-500 text-sm mt-6">
+              Limited-time offer. You can easily top up more credits later if you love it!
+            </p>
           </div>
         </div>
       </div>

@@ -15,7 +15,7 @@ import readline from 'readline';
 
 // NODE_ENV=production RATING_THRESHOLD=3 node scripts/cleanup-low-reviews.js  --by-rating
 
-const REVIEW_RANGE = [400, 499];
+const REVIEW_RANGE = [100, 110];
 let totalFound = 0;
 let totalRemoved = 0;
 let totalStorageCleanupErrors = 0;

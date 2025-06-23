@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { useCredits } from '../contexts/CreditsContext';
 import { LogOut, ChevronDown } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
 
 const UserMenu: React.FC = () => {
+  const { credits, loadingCredits } = useCredits();
   console.log('VITE_ENABLE_PROTECTED_ROUTES:', import.meta.env.VITE_ENABLE_PROTECTED_ROUTES, typeof import.meta.env.VITE_ENABLE_PROTECTED_ROUTES);
 
   // The environment variable might be coming as a string "false" instead of boolean false
@@ -38,39 +39,45 @@ const UserMenu: React.FC = () => {
   }
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-300"
-      >
-        {user.photo && (
-          <div className="w-8 h-8 rounded-full overflow-hidden">
-            <img
-              src={user.photo}
-              alt=""
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }}
-            />
+    <>
+      <div className="relative" ref={menuRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-300"
+        >
+          {user.photo && (
+            <div className="w-8 h-8 rounded-full overflow-hidden">
+              <img
+                src={user.photo}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+          {/* Show credits next to avatar */}
+          <span className="ml-2 text-sm text-blue-700 font-semibold">
+            {loadingCredits ? '...' : credits !== null && credits !== undefined ? `${credits} credits` : ''}
+          </span>
+          <ChevronDown className="w-4 h-4 text-gray-500" />
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 z-50">
+            <button
+              onClick={logout}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign out</span>
+            </button>
           </div>
         )}
-        <ChevronDown className="w-4 h-4 text-gray-500" />
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 z-50">
-          <button
-            onClick={logout}
-            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sign out</span>
-          </button>
-        </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 };
 

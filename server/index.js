@@ -31,8 +31,18 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
+import Stripe from 'stripe';
 
 dotenv.config();
+
+// Minimal Stripe initialization
+const stripeSecretKey = process.env.NODE_ENV === 'production'
+  ? process.env.STRIPE_SECRET_KEY
+  : process.env.STRIPE_TEST_SECRET_KEY;
+
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' })
+  : null;
 
 const backendUrl = process.env.NODE_ENV === 'production' ? process.env.API_BASE_URL : 'http://localhost:3000';
 
@@ -107,6 +117,23 @@ app.use(express.urlencoded({
   limit: '50mb',
   extended: true
 }));
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) {
+    return res.status(403).json({ error: 'No token provided' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
 
 // Configure rate limiter
 const apiLimiter = rateLimit({
@@ -503,7 +530,9 @@ const createComparisonCacheEntry = (urls, cacheKey, competitors, finalReport) =>
 
 app.post('/api/analyze',
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(),
+  verifyToken, // Ensure user is authenticated for credit logic
   async (req, res) => {
+
   const { url, customPrompt, force = false } = req.body;
   const hashUrl = generateUrlHash(url);
 
@@ -530,6 +559,26 @@ app.post('/api/analyze',
     analysisCache.delete(hashUrl);
     await removeEntryFromSupabase(hashUrl);
   }
+
+  // Credit deficit logic (minimal diff)
+  const userEmail = req.user?.email;
+  if (!userEmail) {
+    console.log('[CREDIT] Unauthorized access attempt in /api/analyze: missing user email');
+    return res.status(401).json({ error: 'Unauthorized: missing user email' });
+  }
+  console.log('[CREDIT] Checking and decrementing credit for', userEmail, 'in /api/analyze');
+  const { data: decremented, error: decError } = await supabase.rpc('decrement_user_credit', { p_user_email: userEmail });
+  if (decError) {
+    console.error('[CREDIT] decrement_user_credit error:', decError, 'for', userEmail);
+    return res.status(500).json({ error: 'Failed to check credits' });
+  }
+  if (!decremented) {
+    console.warn('[CREDIT] Insufficient credits for', userEmail, 'in /api/analyze');
+    return res.status(402).json({ error: 'Insufficient credits. Please purchase a Starter Pack.' });
+  }
+
+  // Log when user is authorized and credit is decremented successfully
+  console.log('[CREDIT] Credit decremented for', userEmail, 'in /api/analyze');
 
   // If not in memory cache, check database
   if (!force) {
@@ -680,7 +729,9 @@ ${promptConfig.format}
 
 app.post('/api/compare-competitors',
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(),
+  verifyToken,
   async (req, res) => {
+
   try {
     const { competitors, provider, model, customComparisonPrompt, force = false } = req.body;
 
@@ -732,6 +783,26 @@ app.post('/api/compare-competitors',
       });
       return;
     }
+
+    // Credit deficit logic (minimal diff)
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      console.log('[CREDIT] Unauthorized access attempt in /api/analyze: missing user email');
+      return res.status(401).json({ error: 'Unauthorized: missing user email' });
+    }
+    console.log('[CREDIT] Checking and decrementing credit for', userEmail, 'in /api/compare-competitors');
+    const { data: decremented, error: decError } = await supabase.rpc('decrement_user_credit', { p_user_email: userEmail });
+    if (decError) {
+      console.error('[CREDIT] decrement_user_credit error:', decError, 'for', userEmail);
+      return res.status(500).json({ error: 'Failed to check credits' });
+    }
+    if (!decremented) {
+      console.warn('[CREDIT] Insufficient credits for', userEmail, 'in /api/compare-competitors');
+      return res.status(402).json({ error: 'Insufficient credits. Please purchase a Starter Pack.' });
+    }
+
+    // Log when user is authorized and credit is decremented successfully
+    console.log('[CREDIT] Credit decremented for', userEmail, 'in /api/analyze');
 
     // Prepare the comparison prompt with reviews
     const competitorDetails = validCompetitors.map(comp => {
@@ -2023,6 +2094,52 @@ app.get('/api/search-apps', async (req, res) => {
   }
 });
 
+// Verify Stripe payment session and update user quota
+app.get('/api/verify-session', async (req, res) => {
+  const { session_id } = req.query;
+  res.setHeader('Content-Type', 'application/json');
+  if (!stripe) return res.status(500).json({ success: false, error: 'Stripe not configured' });
+  if (!session_id) return res.status(400).json({ success: false, error: 'Missing session_id' });
+  try {
+    console.log('[VERIFY SESSION] session_id:', session_id);
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+    console.log('[VERIFY SESSION] Stripe session:', session);
+    if (session.payment_status === 'paid') {
+      const userEmail = session.customer_email;
+      const datasets = parseInt(session.metadata?.datasets || '0', 10);
+      const amount = session.amount_total;
+
+      if (userEmail && datasets > 0) {
+        // Use the atomic function to apply credits and record payment
+        const { data, error } = await supabase.rpc('apply_payment_and_credit', {
+          p_user_email: userEmail,
+          p_stripe_session_id: session.id,
+          p_amount: amount,
+          p_datasets: datasets,
+        });
+        if (error) {
+          console.error('apply_payment_and_credit error:', error);
+          return res.status(500).json({ success: false, error: 'Failed to apply payment and credit' });
+        }
+        if (data === false) {
+          // Already processed
+          return res.json({ success: true, message: 'Payment already processed.' });
+        }
+      }
+      return res.json({ success: true });
+    } else {
+      console.log('[VERIFY SESSION] Payment not completed. Status:', session.payment_status);
+      return res.status(400).json({ success: false, error: 'Payment not completed' });
+    }
+  } catch (err) {
+    console.error('[VERIFY SESSION] Error:', err);
+    if (err.type === 'StripeInvalidRequestError' && err.message && err.message.includes('No such checkout.session')) {
+      return res.status(404).json({ success: false, error: 'Invalid or expired session. Please try again.' });
+    }
+    return res.status(500).json({ success: false, error: 'Verification failed. Please try again later.' });
+  }
+});
+
 // Configure session middleware BEFORE other middleware
 const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET || 'your_secret_key',
@@ -2079,23 +2196,6 @@ passport.deserializeUser((userData, done) => {
   }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
-
-// Middleware to verify JWT token
-const verifyToken = (req, res, next) => {
-  const token = req.headers['authorization']?.split(' ')[1];
-  if (!token) {
-    return res.status(403).json({ error: 'No token provided' });
-  }
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-};
-
 // Google OAuth routes
 app.get('/auth/google', (req, res, next) => {
   // Create a state parameter to prevent CSRF
@@ -2123,7 +2223,7 @@ app.get('/auth/google/callback', async (req, res, next) => {
     if (err || !user) {
       console.error('[Google OAuth Callback] Authentication failed', { err, user });
       return res.redirect('/?error=auth_failed');
-    }
+       }
 
     req.logIn(user, async (err) => {
       if (err) {
@@ -2164,6 +2264,8 @@ app.get('/auth/google/callback', async (req, res, next) => {
           }, { onConflict: ['google_id'] });
 
         if (upsertError) {
+
+
           console.error('Supabase user upsert error:', upsertError);
         }
 
@@ -2196,4 +2298,60 @@ app.get('/auth/logout', (req, res) => {
       res.json({ success: true });
     });
   });
+});
+
+// Minimal Stripe checkout endpoint for Starter Pack (5 datasets, $1)
+app.post('/create-checkout-session', verifyToken, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: '🚀 Starter Pack',
+            description: 'Analyze up to 5 datasets. No subscription, no lock-in — just explore and see what you uncover.'
+          },
+          unit_amount: 100, // $1.00 in cents
+        },
+        quantity: 1,
+      }],
+      customer_email: req.user.email, // Use authenticated user's email
+      client_reference_id: req.user.id, // Use user ID for reference
+      mode: 'payment',
+      success_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/pricing`,
+      metadata: {
+        datasets: '5',
+        plan: 'starter'
+      }
+    });
+    res.json({ sessionId: session.id });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create checkout session', details: err.message });
+  }
+});
+
+// Get user credits by email (protected route)
+app.get('/api/user-credits', verifyToken, async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+    if (!userEmail) return res.status(400).json({ error: 'Missing user email' });
+    const { data, error } = await supabase
+      .from('users')
+      .select('dataset_credits')
+      .eq('email', userEmail)
+      .single();
+    if (error) {
+      console.error('Error fetching user credits:', error);
+      return res.status(500).json({ error: 'Failed to fetch credits' });
+    }
+    res.json({ credits: data?.dataset_credits ?? 0 });
+  } catch (err) {
+    console.error('Unexpected error in /api/user-credits:', err);
+    res.status(500).json({ error: 'Unexpected error' });
+  }
 });

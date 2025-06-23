@@ -6,12 +6,15 @@ import { AppReportView, CompetitorReportView } from './components/ShareReportVie
 import { ChatBox } from './components/ChatBox';  // Change import path
 import { AuthProvider } from './components/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { CreditsProvider } from './contexts/CreditsContext';
 
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
 const AppInsightsPage = lazy(() => import('./pages/AppInsightsPage'));
 const CompetitorAnalysis = lazy(() => import('./components/CompetitorAnalysis'));
 const MainAnalysis = lazy(() => import('./components/MainAnalysis'));
+const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
+const PaymentCancel = lazy(() => import('./pages/PaymentCancel'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -23,31 +26,35 @@ const LoadingFallback = () => (
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <Router>
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/app" element={
-              <ProtectedRoute>
-                <MainAnalysis />
-              </ProtectedRoute>
-            } />
-            <Route path="/shared-app-report/:shareId" element={<AppReportView/>} />
-            <Route path="/shared-competitor-report/:shareId" element={<CompetitorReportView/>} />
-            <Route path="/app-insights" element={<AppInsightsPage />} />
-            <Route path="/competitor-insights" element={
-              <ProtectedRoute>
-                <CompetitorAnalysis />
-              </ProtectedRoute>
-            } />
-            <Route path="/chat" element={
-              <ProtectedRoute>
-                <ChatBox />
-              </ProtectedRoute>
-            } />
-          </Routes>
-        </Suspense>
-      </Router>
+      <CreditsProvider>
+        <Router>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/app" element={
+                <ProtectedRoute>
+                  <MainAnalysis />
+                </ProtectedRoute>
+              } />
+              <Route path="/shared-app-report/:shareId" element={<AppReportView/>} />
+              <Route path="/shared-competitor-report/:shareId" element={<CompetitorReportView/>} />
+              <Route path="/app-insights" element={<AppInsightsPage />} />
+              <Route path="/competitor-insights" element={
+                <ProtectedRoute>
+                  <CompetitorAnalysis />
+                </ProtectedRoute>
+              } />
+              <Route path="/chat" element={
+                <ProtectedRoute>
+                  <ChatBox />
+                </ProtectedRoute>
+              } />
+              <Route path="/payment-success" element={<PaymentSuccess />} />
+              <Route path="/payment-cancel" element={<PaymentCancel />} />
+            </Routes>
+          </Suspense>
+        </Router>
+      </CreditsProvider>
     </AuthProvider>
   );
 };

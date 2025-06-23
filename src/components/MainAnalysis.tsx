@@ -12,6 +12,8 @@ import { DEFAULT_APP_ANALYZE_PROMPT, ENABLE_MATH_CHALLENGE, SERVER_URL } from '.
 import { Combobox } from '@headlessui/react';
 import { debounce } from 'lodash';
 import { Search } from 'lucide-react';
+import { useAuth } from './AuthContext';
+import { useCredits } from '../contexts/CreditsContext';
 
 // Add new types
 interface SearchResult {
@@ -37,6 +39,8 @@ const MainAnalysis: React.FC = () => {
   const [isRefresh, setIsRefresh] = useState(false);
 
   const { provider, model } = useProviderModel();
+  const { token } = useAuth();
+  const { refreshCredits } = useCredits();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -136,6 +140,9 @@ const MainAnalysis: React.FC = () => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
       // Add math challenge header only if enabled and challenge exists
       if (ENABLE_MATH_CHALLENGE && mathChallenge) {
@@ -211,6 +218,9 @@ const MainAnalysis: React.FC = () => {
 
         console.log('full report:', fullReport);
       }
+
+      // After successful analysis, refresh credits
+      if (refreshCredits) refreshCredits();
     } catch (error) {
       if (error.name === 'AbortError') {
         setError('Request was cancelled');

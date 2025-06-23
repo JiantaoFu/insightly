@@ -24,6 +24,8 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { DEFAULT_APP_COMPARE_PROMPT, SERVER_URL } from './Constants';
 import { Combobox } from '@headlessui/react';
 import { debounce } from 'lodash';
+import { useAuth } from './AuthContext';
+import { useCredits } from '../contexts/CreditsContext';
 
 // Enable math challenge based on environment variable
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -187,6 +189,8 @@ export const CompetitorAnalysis: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const { token } = useAuth();
+  const { refreshCredits } = useCredits();
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCustomComparisonPrompt(e.target.value);
@@ -290,6 +294,9 @@ export const CompetitorAnalysis: React.FC = () => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
       // Add math challenge header only if enabled and challenge exists
       if (ENABLE_MATH_CHALLENGE && mathChallenge) {
@@ -351,6 +358,7 @@ export const CompetitorAnalysis: React.FC = () => {
       }
 
       console.log('Final Report:', fullReport);
+      if (refreshCredits) refreshCredits();
     } catch (error) {
       console.error('Competitor comparison error:', error);
 

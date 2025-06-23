@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { SERVER_URL } from "../components/Constants";
+import { useCredits } from "../contexts/CreditsContext";
 
 const PaymentSuccess = () => {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const { refreshCredits } = useCredits();
 
   useEffect(() => {
     const sessionId = searchParams.get("session_id");
@@ -18,11 +20,13 @@ const PaymentSuccess = () => {
     }
     fetch(`${SERVER_URL}/api/verify-session?session_id=${sessionId}`)
       .then(res => res.json())
-      .then(data => {
+      .then(async data => {
         console.log('[PaymentSuccess] verify-session response:', data);
         if (data.success) {
           setStatus("success");
           setMessage("Payment successful! Your Starter Pack is now active.");
+          // Refresh credits immediately
+          if (refreshCredits) await refreshCredits();
           // Show message for 2s, then redirect
           setTimeout(() => {
             // Optionally, show a toast/notification here
@@ -38,7 +42,7 @@ const PaymentSuccess = () => {
         setStatus("error");
         setMessage("Verification failed.");
       });
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, refreshCredits]);
 
   if (status === "verifying") return <div>Verifying payment...</div>;
   if (status === "success") return <div>{message}<br /><span style={{fontSize:12}}>Redirecting to app...</span></div>;

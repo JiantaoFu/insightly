@@ -14,6 +14,7 @@ import { debounce } from 'lodash';
 import { Search } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useCredits } from '../contexts/CreditsContext';
+import { useStarterPackCheckout } from './useStarterPackCheckout';
 
 // Add new types
 interface SearchResult {
@@ -179,6 +180,16 @@ const MainAnalysis: React.FC = () => {
         signal: abortControllerRef.current.signal
       });
 
+      // Check for non-OK response and throw with server message
+      if (!analysisResponse.ok) {
+        let errorMsg = 'Failed to analyze the app';
+        try {
+          const errorData = await analysisResponse.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
+      }
+
       if (!analysisResponse.body) {
         throw new Error('No response body');
       }
@@ -221,12 +232,21 @@ const MainAnalysis: React.FC = () => {
 
       // After successful analysis, refresh credits
       if (refreshCredits) refreshCredits();
-    } catch (error) {
-      if (error.name === 'AbortError') {
+    } catch (err) {
+      // Debug: log error to console
+      console.error('MainAnalysis error:', err);
+      const error = err as any;
+      let errorMsg = (error && error.message) || 'Failed to analyze the app. Please try again.';
+      if (error && error.name === 'AbortError') {
         setError('Request was cancelled');
+      } else if (
+        errorMsg.includes('Insufficient credits') ||
+        errorMsg.includes('Please purchase a Starter Pack') ||
+        (error && error.response && error.response.status === 402)
+      ) {
+        setError('You are out of credits. Please purchase a Starter Pack to continue.');
       } else {
-        console.error('Error:', error);
-        setError(error.message || 'Failed to analyze the app. Please try again.');
+        setError(errorMsg);
       }
     } finally {
       setLoading(false);
@@ -343,6 +363,8 @@ const MainAnalysis: React.FC = () => {
       </div>
     )
   }
+
+  const startCheckout = useStarterPackCheckout();
 
   return (
     <div className="pt-20">
@@ -486,7 +508,17 @@ const MainAnalysis: React.FC = () => {
               )}
             </div>
             {error && (
-              <p className="mt-2 text-red-600">{error}</p>
+              <div className="mt-2 text-red-600 flex flex-col sm:flex-row items-center gap-2">
+                <span>{error}</span>
+                {error.toLowerCase().includes('out of credits') && (
+                  <button
+                    className="ml-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    onClick={startCheckout}
+                  >
+                    Buy Starter Pack
+                  </button>
+                )}
+              </div>
             )}
           </form>
 

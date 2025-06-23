@@ -574,7 +574,7 @@ app.post('/api/analyze',
   }
   if (!decremented) {
     console.warn('[CREDIT] Insufficient credits for', userEmail, 'in /api/analyze');
-    return res.status(402).json({ error: 'Insufficient credits. Please purchase a Starter Pack.' });
+    return res.status(402).json({ message: 'Insufficient credits. Please purchase a Starter Pack.' });
   }
 
   // Log when user is authorized and credit is decremented successfully
@@ -798,7 +798,7 @@ app.post('/api/compare-competitors',
     }
     if (!decremented) {
       console.warn('[CREDIT] Insufficient credits for', userEmail, 'in /api/compare-competitors');
-      return res.status(402).json({ error: 'Insufficient credits. Please purchase a Starter Pack.' });
+      return res.status(402).json({ message: 'Insufficient credits. Please purchase a Starter Pack.' });
     }
 
     // Log when user is authorized and credit is decremented successfully
@@ -2209,6 +2209,7 @@ app.get('/auth/google', (req, res, next) => {
     maxAge: 15 * 60 * 1000 // 15 minutes
   });
   passport.authenticate('google', {
+
     scope: ['profile', 'email'],
     state: state,
     prompt: 'select_account'

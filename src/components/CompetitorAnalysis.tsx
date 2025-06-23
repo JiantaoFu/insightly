@@ -26,6 +26,7 @@ import { Combobox } from '@headlessui/react';
 import { debounce } from 'lodash';
 import { useAuth } from './AuthContext';
 import { useCredits } from '../contexts/CreditsContext';
+import { useStarterPackCheckout } from './useStarterPackCheckout';
 
 // Enable math challenge based on environment variable
 const ENABLE_MATH_CHALLENGE = import.meta.env.VITE_ENABLE_MATH_CHALLENGE === 'true';
@@ -191,6 +192,7 @@ export const CompetitorAnalysis: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const { token } = useAuth();
   const { refreshCredits } = useCredits();
+  const startCheckout = useStarterPackCheckout();
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCustomComparisonPrompt(e.target.value);
@@ -320,8 +322,12 @@ export const CompetitorAnalysis: React.FC = () => {
 
       // Check response status
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        let errorMsg = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
       }
 
       if (!response.body) {
@@ -361,14 +367,17 @@ export const CompetitorAnalysis: React.FC = () => {
       if (refreshCredits) refreshCredits();
     } catch (error) {
       console.error('Competitor comparison error:', error);
-
-      // Detailed error handling
-      if (error instanceof Error) {
-        setError(`Comparison failed: ${error.message}`);
+      const err = error as any;
+      let errorMsg = (err && err.message) || 'Comparison failed';
+      if (
+        errorMsg.includes('Insufficient credits') ||
+        errorMsg.includes('Please purchase a Starter Pack') ||
+        (err && err.response && err.response.status === 402)
+      ) {
+        setError('You are out of credits. Please purchase a Starter Pack to continue.');
       } else {
-        setError('An unexpected error occurred during competitor comparison');
+        setError(`Comparison failed: ${errorMsg}`);
       }
-
       setIsComparing(false);
     }
   };
@@ -450,6 +459,14 @@ export const CompetitorAnalysis: React.FC = () => {
               <div className="flex items-center">
                 <AlertOctagon className="w-5 h-5 text-red-500 mr-3" />
                 <p className="text-red-700 text-sm">{error}</p>
+                {error.includes('out of credits') && (
+                  <button
+                    className="ml-4 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    onClick={startCheckout}
+                  >
+                    Buy Starter Pack
+                  </button>
+                )}
               </div>
               <button
                 onClick={() => setError(null)}

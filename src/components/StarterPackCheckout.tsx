@@ -49,22 +49,28 @@ const StarterPackCheckout: React.FC = () => {
   }, [user, token, login, location.pathname]);
 
   useEffect(() => {
+    // Option 2: Auto-trigger checkout if flag is set in localStorage
+    if (localStorage.getItem('startCheckoutOnLoad') === 'true') {
+      localStorage.removeItem('startCheckoutOnLoad');
+      handleCheckout();
+    }
+    // Existing post-login auto-checkout
     const postLoginAction = localStorage.getItem('postLoginAction');
     if (postLoginAction === 'startCheckout' && user) {
-      // Clean up the flag to prevent re-triggering
       localStorage.removeItem('postLoginAction');
-      handleCheckout(); // Automatically trigger checkout
+      handleCheckout();
     }
   }, [user, handleCheckout]);
 
   return (
     <div style={{ textAlign: 'center' }}>
       <button
+        data-starterpack-checkout
         onClick={handleCheckout}
         disabled={loading}
-        style={{ padding: '1em 2em', fontSize: '1.2em', borderRadius: 8, background: '#4f46e5', color: 'white', fontWeight: 600 }}
+        className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center gap-2"
       >
-        {loading ? 'Redirecting…' : 'Buy Starter Pack'}
+        {loading ? 'Redirecting...' : 'Buy Starter Pack'}
       </button>
       {error && <div style={{ color: 'red', marginTop: '1em' }}>{error}</div>}
     </div>

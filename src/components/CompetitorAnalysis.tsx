@@ -72,7 +72,11 @@ const extractPlatformFromUrl = (url: string): 'ios' | 'android' | null => {
   return null;
 };
 
-const fetchCompetitorAppDetails = async (url: string): Promise<CompetitorApp> => {
+const fetchCompetitorAppDetails = async (
+  url: string,
+  maxReviews?: number,
+  months?: number
+): Promise<CompetitorApp> => {
   let processUrlEndpoint = '';
 
   // Detect URL type
@@ -93,10 +97,15 @@ const fetchCompetitorAppDetails = async (url: string): Promise<CompetitorApp> =>
       'Content-Type': 'application/json'
     };
 
+    // Only send options if set
+    const body: any = { url, includeFullDetails: true };
+    if (maxReviews) body.maxReviews = maxReviews;
+    if (months) body.months = months;
+
     const response = await fetch(processUrlEndpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ url, includeFullDetails: true }), // Request full details
+      body: JSON.stringify(body),
       signal: abortController.signal
     });
 
@@ -190,9 +199,11 @@ export const CompetitorAnalysis: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const { token } = useAuth();
+  const { token, login, logout } = useAuth();
   const { refreshCredits } = useCredits();
   const startCheckout = useStarterPackCheckout();
+  const [maxReviews, setMaxReviews] = useState<number | undefined>(100);
+  const [months, setMonths] = useState<number | undefined>(3);
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCustomComparisonPrompt(e.target.value);
@@ -219,7 +230,7 @@ export const CompetitorAnalysis: React.FC = () => {
       setError(null);
 
       // Fetch competitor details
-      const competitorDetails = await fetchCompetitorAppDetails(currentUrl);
+      const competitorDetails = await fetchCompetitorAppDetails(currentUrl, maxReviews, months);
 
       // Update state
       setCompetitors(prev => [...prev, competitorDetails]);
@@ -273,7 +284,7 @@ export const CompetitorAnalysis: React.FC = () => {
         competitors.map(async (competitor) => {
           try {
             // Fetch full app details using the existing fetchCompetitorAppDetails function
-            const fullDetails = await fetchCompetitorAppDetails(competitor.url);
+            const fullDetails = await fetchCompetitorAppDetails(competitor.url, maxReviews, months);
             return fullDetails;
           } catch (error) {
             console.error(`Failed to fetch details for ${competitor.name}:`, error);
@@ -323,11 +334,19 @@ export const CompetitorAnalysis: React.FC = () => {
       // Check response status
       if (!response.ok) {
         let errorMsg = `HTTP error! status: ${response.status}`;
+        let status = response.status;
         try {
           const errorData = await response.json();
-          errorMsg = errorData.message || errorMsg;
-        } catch {}
-        throw new Error(errorMsg);
+          errorMsg = errorData.message || errorData.error || errorMsg;
+          console.error('Analysis error:', errorData, 'errorMsg:', errorMsg);
+        } catch {
+          console.error('Failed to parse error response from server, response:', response);
+          errorMsg = 'Failed to analyze the app. Please try again.';
+        }
+        // Throw error with status code for downstream handling
+        const err = new Error(errorMsg) as any;
+        err.response = response;
+        throw err;
       }
 
       if (!response.body) {
@@ -369,15 +388,46 @@ export const CompetitorAnalysis: React.FC = () => {
       console.error('Competitor comparison error:', error);
       const err = error as any;
       let errorMsg = (err && err.message) || 'Comparison failed';
-      if (
-        errorMsg.includes('Insufficient credits') ||
-        errorMsg.includes('Please purchase a Starter Pack') ||
-        (err && err.response && err.response.status === 402)
-      ) {
-        setError('You are out of credits. Please purchase a Starter Pack to continue.');
+
+      // Prefer HTTP status code if available
+      if (error && error.response && error.response.status) {
+        const status = error.response.status;
+        if (status === 401) {
+          // Use AuthContext logout for 401
+          setError('Invalid or expired token. Logging out...');
+          setTimeout(() => {
+            if (token && typeof logout === 'function') {
+              logout();
+            } else if (!token && typeof login === 'function') {
+              login();
+            } else {
+              window.location.replace('/');
+            }
+          }, 2000);
+        } else if (status === 402) {
+          // Show payment popup
+          setError('You are out of credits. Please purchase a Starter Pack to continue.');
+          setTimeout(() => {
+            if (typeof startCheckout === 'function') {
+              startCheckout();
+            }
+          }, 2000);
+        } else {
+          setError(errorMsg);
+        }
       } else {
-        setError(`Comparison failed: ${errorMsg}`);
+        setError(errorMsg);
       }
+
+      // if (
+      //   errorMsg.includes('Insufficient credits') ||
+      //   errorMsg.includes('Please purchase a Starter Pack') ||
+      //   (err && err.response && err.response.status === 402)
+      // ) {
+      //   setError('You are out of credits. Please purchase a Starter Pack to continue.');
+      // } else {
+      //   setError(`Comparison failed: ${errorMsg}`);
+      // }
       setIsComparing(false);
     }
   };
@@ -478,7 +528,7 @@ export const CompetitorAnalysis: React.FC = () => {
           )}
 
           {/* URL Input Section - Adjust z-index */}
-          <div className="relative" style={{ zIndex: 0 }}>
+          <div className="relative" style={{ zIndex: 50 }}>
             <div className="bg-white/90 backdrop-blur-sm p-4 sm:p-6 rounded-xl shadow-md border border-gray-100">
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                 <div className="flex-grow">
@@ -626,6 +676,39 @@ export const CompetitorAnalysis: React.FC = () => {
                   </button>
                   {showAdvancedOptions && (
                     <div className="mt-4">
+
+                      {/* New Controls for maxReviews and months */}
+                      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1" htmlFor="maxReviews">
+                            Max Reviews
+                          </label>
+                          <input
+                            id="maxReviews"
+                            type="number"
+                            min={1}
+                            placeholder="100"
+                            value={maxReviews === undefined ? '' : maxReviews}
+                            onChange={e => setMaxReviews(e.target.value === '' ? undefined : Number(e.target.value))}
+                            className="w-32 px-2 py-1 rounded border border-gray-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1" htmlFor="months">
+                            Months (recent)
+                          </label>
+                          <input
+                            id="months"
+                            type="number"
+                            min={1}
+                            placeholder="3"
+                            value={months === undefined ? '' : months}
+                            onChange={e => setMonths(e.target.value === '' ? undefined : Number(e.target.value))}
+                            className="w-32 px-2 py-1 rounded border border-gray-300"
+                          />
+                        </div>
+                      </div>
+
                       <label className="block text-gray-700 font-bold mb-2" htmlFor="customComparisonPrompt">
                         Customized Comparison Prompt
                       </label>
@@ -643,6 +726,7 @@ export const CompetitorAnalysis: React.FC = () => {
                           style={{ lineHeight: '1.5' }}
                         />
                       </div>
+
                     </div>
                   )}
                 </div>

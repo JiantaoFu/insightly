@@ -40,34 +40,78 @@ export async function fetchAppDetails(appId, countryCode = 'us') {
 
 export async function getAppReviews(appId, countryCode = 'us', options = {}) {
   console.log(`Fetching Google Play reviews for ${appId} from ${countryCode}`);
+  console.log(`[getAppReviews] options:`, options);
 
   try {
-    const maxReviews = options.maxReviews || 100;
-    const reviewsResult = await gplay.reviews({
-      appId,
-      num: maxReviews,
-      sort: gplay.sort.NEWEST,
-      country: countryCode,
-      lang: options.lang || countryCode // Use country code as language by default
-    });
+    const months = options.months !== undefined ? options.months : 3;
+    const maxReviews = options.maxReviews !== undefined ? options.maxReviews : Infinity;
 
-    const reviews = reviewsResult.data || [];
+    let allReviews = [];
+    let nextPaginationToken = null;
+    let loopCount = 0;
 
-    return {
-      total: reviews.length,
-      reviews: reviews.map(review => ({
+    while (allReviews.length < maxReviews) {
+      loopCount++;
+      if (loopCount > 10) {
+        console.warn(`[getAppReviews] Breaking loop for ${appId} after 10 iterations to prevent infinite loop. allReviews.length=${allReviews.length}`);
+        break;
+      }
+      const batchSize = Math.min(100, maxReviews - allReviews.length);
+      let params = {
+        appId,
+        num: batchSize,
+        sort: gplay.sort.NEWEST,
+        country: countryCode,
+        lang: options.lang || countryCode,
+        paginate: true,
+        nextPaginationToken
+      };
+      console.debug(`[getAppReviews] Fetching page ${loopCount} with params:`, params);
+      const reviewsResult = await gplay.reviews(params);
+
+      let reviews = reviewsResult.data || [];
+      console.log('page review IDs:', reviews.map(r => r.id));
+
+      // Filter by months as we fetch
+      let cutoff = null;
+      if (months && Number.isFinite(months)) {
+        const now = new Date();
+        cutoff = new Date(now.setMonth(now.getMonth() - months));
+        reviews = reviews.filter(r => new Date(r.date) >= cutoff);
+      }
+
+      allReviews.push(...reviews);
+
+      // Debug log for each loop, show nextPaginationToken value and allReviews count
+      console.debug(`[getAppReviews] appId=${appId} page=${loopCount} fetched=${reviews.length} total=${allReviews.length} nextToken=${reviewsResult.nextPaginationToken ? reviewsResult.nextPaginationToken : 'absent'} allReviews.length=${allReviews.length}`);
+
+      if (allReviews.length >= maxReviews || !reviewsResult.nextPaginationToken || reviews.length === 0) {
+        break;
+      }
+
+      nextPaginationToken = reviewsResult.nextPaginationToken;
+    }
+
+    // Map to output format and sort
+    let filteredReviews = allReviews
+      .slice(0, maxReviews)
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .map(review => ({
         text: review.text || '',
         score: review.score || 0,
         timestamp: review.date,
         userName: review.userName || ''
-      })),
-      averageRating: calculateAverageRating(reviews),
-      scoreDistribution: calculateScoreDistribution(reviews)
+      }));
+
+    return {
+      total: filteredReviews.length,
+      reviews: filteredReviews,
+      averageRating: calculateAverageRating(filteredReviews),
+      scoreDistribution: calculateScoreDistribution(filteredReviews)
     };
   } catch (error) {
     console.error(`Error fetching reviews for ${appId} from ${countryCode}:`, error);
 
-    // If country-specific fetch fails, try US store as fallback
     if (countryCode !== 'us') {
       console.log(`Retrying reviews with US store for ${appId}`);
       return getAppReviews(appId, 'us', options);
@@ -129,7 +173,7 @@ export async function getSimilarApps(appId, options = {}) {
   }
 }
 
-export async function processGooglePlayUrl(url) {
+export async function processGooglePlayUrl(url, options = {}) {
   try {
     const appId = extractGooglePlayId(url);
     const countryCode = extractCountryCode(url);
@@ -138,7 +182,7 @@ export async function processGooglePlayUrl(url) {
     console.log(`App ID: ${appId}, Country: ${countryCode}`);
 
     const details = await fetchAppDetails(appId, countryCode);
-    const reviews = await getAppReviews(appId, countryCode);
+    const reviews = await getAppReviews(appId, countryCode, options);
 
     return {
       details,

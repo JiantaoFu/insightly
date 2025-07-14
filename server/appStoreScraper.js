@@ -7,11 +7,11 @@ export function extractAppStoreId(url) {
   // Regex to match App Store URL patterns
   const appStoreRegex = /https?:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[^/]+\/id(\d+)/;
   const match = url.match(appStoreRegex);
-  
+
   if (match && match[1]) {
     return match[1];
   }
-  
+
   throw new Error('Invalid App Store URL');
 }
 
@@ -32,11 +32,11 @@ export async function fetchBundleId(appId) {
   try {
     const response = await axios.get(`https://itunes.apple.com/lookup?id=${appId}`);
     const results = response.data.results;
-    
+
     if (results && results.length > 0) {
       return results[0].bundleId;
     }
-    
+
     console.error('Bundle ID not found');
     return '';
   } catch (error) {
@@ -64,13 +64,20 @@ export async function getAppDetails(appId, countryCode) {
   }
 }
 
-export async function getAppReviews(appId, country) {
-  try {
-    const maxPages = 10;
-    const allReviews = [];
+export async function getAppReviews(appId, country, options = {}) {
+  const months = options.months !== undefined ? options.months : 3;
+  const maxReviews = options.maxReviews !== undefined ? options.maxReviews : Infinity;
 
-    // Collect reviews from pages 1 to 10
-    for (let page = 1; page <= maxPages; page++) {
+  try {
+    const allReviews = [];
+    let page = 1;
+    let cutoff = null;
+    if (months && Number.isFinite(months)) {
+      const now = new Date();
+      cutoff = new Date(now.setMonth(now.getMonth() - months));
+    }
+
+    while (allReviews.length < maxReviews && page < 10) {
       try {
         const reviews = await store.reviews({
           id: appId,
@@ -78,41 +85,50 @@ export async function getAppReviews(appId, country) {
           country: country
         });
 
-        // If no reviews are returned, break the loop
         if (reviews.length === 0) {
           break;
         }
 
-        // Map and aggregate reviews
-        const mappedReviews = reviews.map(review => ({
-          id: review.id,
-          userName: review.userName,
-          userUrl: review.userUrl,
-          version: review.version,
-          score: review.score,
-          title: review.title,
-          text: review.text,
-          url: review.url,
-          timestamp: review.updated
-        }));
+        // Filter reviews by cutoff date as we fetch
+        const mappedReviews = reviews
+          .map(review => ({
+            id: review.id,
+            userName: review.userName,
+            userUrl: review.userUrl,
+            version: review.version,
+            score: review.score,
+            title: review.title,
+            text: review.text,
+            url: review.url,
+            timestamp: review.updated
+          }))
+          .filter(r => !cutoff || new Date(r.timestamp) >= cutoff);
 
         allReviews.push(...mappedReviews);
+
+        // Stop if we've reached the maxReviews after filtering
+        if (allReviews.length >= maxReviews) {
+          break;
+        }
+
+        page++;
       } catch (pageError) {
         console.error(`Error fetching reviews for page ${page}:`, pageError);
-        // Continue to next page even if one fails
+        page++;
         continue;
       }
     }
 
-    // Optional: Sort reviews by date (most recent first)
-    allReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+    let filteredReviews = allReviews;
+    // Remove redundant slice, filtering is already handled in the loop
+
+    filteredReviews.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     return {
-      total: allReviews.length,
-      reviews: allReviews,
-      // Additional metadata
-      averageRating: calculateAverageRating(allReviews),
-      scoreDistribution: calculateScoreDistribution(allReviews)
+      total: filteredReviews.length,
+      reviews: filteredReviews,
+      averageRating: calculateAverageRating(filteredReviews),
+      scoreDistribution: calculateScoreDistribution(filteredReviews)
     };
   } catch (error) {
     console.error('Error fetching app reviews:', error);
@@ -170,7 +186,7 @@ export async function getSimilarApps(appId) {
 }
 
 // Convenience function to handle full workflow from URL
-export async function processAppStoreUrl(url) {
+export async function processAppStoreUrl(url, options = {}) {
   try {
     const appId = extractAppStoreId(url);
     const countryCode = extractCountryCode(url);
@@ -182,7 +198,7 @@ export async function processAppStoreUrl(url) {
     console.log(`Processing app ID ${appId} from country ${countryCode}`);
 
     const details = await getAppDetails(appId, countryCode);
-    const reviews = await getAppReviews(appId, countryCode);
+    const reviews = await getAppReviews(appId, countryCode, options);
 
     console.log('App Details:', details);
 

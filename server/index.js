@@ -259,11 +259,20 @@ app.get('/app-store/reviews/:id', async (req, res) => {
 
 // Google Play Routes
 app.post('/google-play/process-url', async (req, res) => {
-  const { url } = req.body;
-
   try {
-    const appData = await processGooglePlayUrl(url);
-    res.json(appData);
+    const { url, maxReviews, months } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Pass options to processAppStoreUrl
+    const options = {};
+    if (maxReviews !== undefined) options.maxReviews = maxReviews;
+    if (months !== undefined) options.months = months;
+
+    const result = await processGooglePlayUrl(url, options);
+    res.json(result);
   } catch (error) {
     console.error('Google Play URL processing error:', error);
     res.status(500).json({ error: error.message });
@@ -273,13 +282,18 @@ app.post('/google-play/process-url', async (req, res) => {
 // New route to process full App Store URL
 app.post('/app-store/process-url', async (req, res) => {
   try {
-  const { url } = req.body;
+    const { url, maxReviews, months } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    const result = await processAppStoreUrl(url);
+    // Pass options to processAppStoreUrl
+    const options = {};
+    if (maxReviews !== undefined) options.maxReviews = maxReviews;
+    if (months !== undefined) options.months = months;
+
+    const result = await processAppStoreUrl(url, options);
     res.json(result);
   } catch (error) {
     console.error('Error processing App Store URL:', error);
@@ -2251,23 +2265,40 @@ app.get('/auth/google/callback', async (req, res, next) => {
         // Issue JWT
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
 
-        // Also update user in database
-        const { error: upsertError } = await supabase
+        // Check if user exists
+        const { data: existingUser, error: fetchError } = await supabase
           .from('users')
-          .upsert({
-            google_id: user.id,
-            email: user.emails?.[0]?.value,
-            display_name: user.displayName,
-            photo_url: photoUrl,
-            provider: user.provider,
-            last_login: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }, { onConflict: ['google_id'] });
+          .select('id')
+          .eq('google_id', user.id)
+          .single();
 
-        if (upsertError) {
-
-
-          console.error('Supabase user upsert error:', upsertError);
+        if (!existingUser) {
+          // New user: insert with 3 credits
+          await supabase
+            .from('users')
+            .insert({
+              google_id: user.id,
+              email: user.emails?.[0]?.value,
+              display_name: user.displayName,
+              photo_url: photoUrl,
+              provider: user.provider,
+              last_login: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              dataset_credits: 3
+            });
+        } else {
+          // Existing user: update info, do not touch credits
+          await supabase
+            .from('users')
+            .update({
+              email: user.emails?.[0]?.value,
+              display_name: user.displayName,
+              photo_url: photoUrl,
+              provider: user.provider,
+              last_login: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('google_id', user.id);
         }
 
         // Redirect to frontend with token

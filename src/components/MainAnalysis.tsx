@@ -40,12 +40,16 @@ const MainAnalysis: React.FC = () => {
   const [isRefresh, setIsRefresh] = useState(false);
 
   const { provider, model } = useProviderModel();
-  const { token } = useAuth();
+  const { token, login, logout } = useAuth(); // <-- add logout here
   const { refreshCredits } = useCredits();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  // New states for maxReviews and months
+  const [maxReviews, setMaxReviews] = useState<number | undefined>(100);
+  const [months, setMonths] = useState<number | undefined>(3);
 
   // Handle textarea changes without refreshing
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -150,10 +154,15 @@ const MainAnalysis: React.FC = () => {
         headers['X-Math-Challenge'] = mathChallenge.challenge;
       }
 
+      // Only send options if set
+      const processBody: any = { url };
+      if (maxReviews) processBody.maxReviews = maxReviews;
+      if (months) processBody.months = months;
+
       const processResponse = await fetch(processUrlEndpoint, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ url }),
+        body: JSON.stringify(processBody),
         signal: abortControllerRef.current.signal
       });
 
@@ -183,11 +192,19 @@ const MainAnalysis: React.FC = () => {
       // Check for non-OK response and throw with server message
       if (!analysisResponse.ok) {
         let errorMsg = 'Failed to analyze the app';
+        let status = analysisResponse.status;
         try {
           const errorData = await analysisResponse.json();
-          errorMsg = errorData.message || errorMsg;
-        } catch {}
-        throw new Error(errorMsg);
+          errorMsg = errorData.message || errorData.error || errorMsg;
+          console.error('Analysis error:', errorData, 'errorMsg:', errorMsg);
+        } catch {
+          console.error('Failed to parse error response from server, response:', analysisResponse);
+          errorMsg = 'Failed to analyze the app. Please try again.';
+        }
+        // Throw error with status code for downstream handling
+        const err = new Error(errorMsg) as any;
+        err.response = analysisResponse;
+        throw err;
       }
 
       if (!analysisResponse.body) {
@@ -237,14 +254,33 @@ const MainAnalysis: React.FC = () => {
       console.error('MainAnalysis error:', err);
       const error = err as any;
       let errorMsg = (error && error.message) || 'Failed to analyze the app. Please try again.';
-      if (error && error.name === 'AbortError') {
-        setError('Request was cancelled');
-      } else if (
-        errorMsg.includes('Insufficient credits') ||
-        errorMsg.includes('Please purchase a Starter Pack') ||
-        (error && error.response && error.response.status === 402)
-      ) {
-        setError('You are out of credits. Please purchase a Starter Pack to continue.');
+
+      // Prefer HTTP status code if available
+      if (error && error.response && error.response.status) {
+        const status = error.response.status;
+        if (status === 401) {
+          // Use AuthContext logout for 401
+          setError('Invalid or expired token. Logging out...');
+          setTimeout(() => {
+            if (token && typeof logout === 'function') {
+              logout();
+            } else if (!token && typeof login === 'function') {
+              login();
+            } else {
+              window.location.replace('/');
+            }
+          }, 2000);
+        } else if (status === 402) {
+          // Show payment popup
+          setError('You are out of credits. Please purchase a Starter Pack to continue.');
+          setTimeout(() => {
+            if (typeof startCheckout === 'function') {
+              startCheckout();
+            }
+          }, 2000);
+        } else {
+          setError(errorMsg);
+        }
       } else {
         setError(errorMsg);
       }
@@ -532,6 +568,38 @@ const MainAnalysis: React.FC = () => {
             </button>
             {showAdvancedOptions && (
               <div className="mt-4">
+                {/* New controls for maxReviews and months */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1" htmlFor="maxReviews">
+                      Max Reviews
+                    </label>
+                    <input
+                      id="maxReviews"
+                      type="number"
+                      min={1}
+                      placeholder="100"
+                      value={maxReviews === undefined ? '' : maxReviews}
+                      onChange={e => setMaxReviews(e.target.value === '' ? undefined : Number(e.target.value))}
+                      className="w-32 px-2 py-1 rounded border border-gray-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-bold mb-1" htmlFor="months">
+                      Months (recent)
+                    </label>
+                    <input
+                      id="months"
+                      type="number"
+                      min={1}
+                      placeholder="3"
+                      value={months === undefined ? '' : months}
+                      onChange={e => setMonths(e.target.value === '' ? undefined : Number(e.target.value))}
+                      className="w-32 px-2 py-1 rounded border border-gray-300"
+                    />
+                  </div>
+                </div>
+
                 <label className="block text-gray-700 font-bold mb-2" htmlFor="customPrompt">
                   Customized Prompt
                 </label>

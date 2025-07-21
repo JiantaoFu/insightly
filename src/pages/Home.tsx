@@ -310,9 +310,14 @@ const Home: React.FC = () => {
             <Link to="/app" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
               Start Free Research
             </Link>
-            <button className="bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors">
+            <a
+              href="https://calendly.com/jeromyfu-/insightly-top-demo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
+            >
               Book Demo
-            </button>
+            </a>
           </div>
         </div>
       </div>

@@ -246,31 +246,63 @@ const Home: React.FC = () => {
 
       {/* Starter Pack Section (replaces Pricing Plans) */}
       <div className="py-16 bg-gray-50">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4">
-              🚀 Starter Pack — Just $1
+              Choose Your Plan
             </h2>
             <p className="text-xl text-gray-700 max-w-2xl mx-auto mb-4">
-              Get insights from up to <b>5 datasets</b>.<br />
-              No subscription, no lock-in — just explore and see what you uncover.
+              Get started with the <b>Starter Pack</b> or unlock unlimited research with <b>Unlimited</b>.
             </p>
-            <ul className="text-lg text-gray-700 mb-6 space-y-2">
-              <li>✔ AI-generated market gaps</li>
-              <li>✔ Real user pain points</li>
-              <li>✔ Instantly actionable opportunities</li>
-            </ul>
-            <div className="mb-4">
-              <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
-                🎁 Beta pricing — help shape the product
-              </span>
-            </div>
-            <div className="flex justify-center">
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Starter Pack Card */}
+            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
+              <h3 className="text-2xl font-bold mb-2 text-blue-700">🚀 Starter Pack</h3>
+              <div className="text-4xl font-extrabold text-gray-900 mb-2">$1</div>
+              <div className="text-gray-500 mb-4 text-sm">One-time, no subscription</div>
+              <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
+                <li>✔ AI-generated market gaps</li>
+                <li>✔ Real user pain points</li>
+                <li>✔ Instantly actionable opportunities</li>
+                <li>✔ Analyze up to <b>5 datasets</b></li>
+              </ul>
+              <div className="mb-4">
+                <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
+                  🎁 Beta pricing — help shape the product
+                </span>
+              </div>
               <StarterPackCheckout />
+              <p className="text-gray-500 text-sm mt-6 text-center">
+                Limited-time offer. You can easily top up more credits later if you love it!
+              </p>
             </div>
-            <p className="text-gray-500 text-sm mt-6">
-              Limited-time offer. You can easily top up more credits later if you love it!
-            </p>
+            {/* Unlimited Plan Card */}
+            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center border-2 border-indigo-600 relative">
+              <div className="absolute top-0 right-0 bg-indigo-600 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
+                Best Value
+              </div>
+              <h3 className="text-2xl font-bold mb-2 text-indigo-700">💎 Unlimited</h3>
+              <div className="text-4xl font-extrabold text-gray-900 mb-2">$99</div>
+              <div className="text-gray-500 mb-4 text-sm">per month</div>
+              <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
+                <li>✔ Unlimited datasets</li>
+                <li>✔ Unlimited AI-generated insights</li>
+                <li>✔ Priority support</li>
+                <li>✔ Early access to new features</li>
+              </ul>
+              <a
+                href="https://buy.stripe.com/7sI7uV2wM0wQ2yA3cc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block w-full py-3 px-6 text-center rounded-lg font-semibold shadow-md bg-indigo-600 text-white hover:bg-indigo-700 transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
+              >
+                Subscribe Now
+              </a>
+              <p className="text-gray-500 text-sm mt-6 text-center">
+                Cancel anytime. Perfect for power users & teams.
+              </p>
+            </div>
           </div>
         </div>
       </div>

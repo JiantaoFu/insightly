@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { SERVER_URL } from "../components/Constants";
 import { useCredits } from "../contexts/CreditsContext";
@@ -24,17 +25,29 @@ const PaymentSuccess = () => {
         console.log('[PaymentSuccess] verify-session response:', data);
         if (data.success) {
           setStatus("success");
-          setMessage("Payment successful! Your Starter Pack is now active.");
+          let notificationMsg = "";
+          // Determine payment type for correct message using 'type' field
+          if (data.type === "one-time") {
+            notificationMsg = "Starter Pack already activated.";
+          } else if (data.type === "subscription") {
+            notificationMsg = "Subscription activated! You now have unlimited access.";
+          } else if (data.type === "one-time") {
+            notificationMsg = "Starter Pack activated! Credits added.";
+          } else {
+            notificationMsg = "Payment processed.";
+          }
+          setMessage("Payment successful! " + notificationMsg);
+          toast.success(notificationMsg, { duration: 2000, id: 'payment-success' });
           // Refresh credits immediately
           if (refreshCredits) await refreshCredits();
           // Show message for 2s, then redirect
           setTimeout(() => {
-            // Optionally, show a toast/notification here
-            navigate("/app", { state: { toast: "Starter Pack activated! Credits added." } });
+            navigate("/app");
           }, 2000);
         } else {
           setStatus("error");
           setMessage(data.error || "Verification failed.");
+          toast.error(data.error || "Verification failed.", { id: 'payment-error' });
         }
       })
       .catch((err) => {
@@ -44,9 +57,16 @@ const PaymentSuccess = () => {
       });
   }, [searchParams, navigate, refreshCredits]);
 
-  if (status === "verifying") return <div>Verifying payment...</div>;
-  if (status === "success") return <div>{message}<br /><span style={{fontSize:12}}>Redirecting to app...</span></div>;
-  return <div style={{ color: "red" }}>{message}</div>;
+  return (
+    <>
+      <Toaster position="top-center" />
+      {status === "verifying" && <div>Verifying payment...</div>}
+      {status === "success" && (
+        <div>{message}<br /><span style={{fontSize:12}}>Redirecting to app...</span></div>
+      )}
+      {status === "error" && <div style={{ color: "red" }}>{message}</div>}
+    </>
+  );
 };
 
 export default PaymentSuccess;

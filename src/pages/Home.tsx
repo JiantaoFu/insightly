@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import CachedAnalysesList from '../components/CachedAnalysesList';
 import StarterPackCheckout from '../components/StarterPackCheckout';
+import SubscriptionCheckoutButton from '../components/SubscriptionCheckoutButton';
 
 // Feature Card Component
 const FeatureCard: React.FC<{
@@ -291,14 +292,11 @@ const Home: React.FC = () => {
                 <li>✔ Priority support</li>
                 <li>✔ Early access to new features</li>
               </ul>
-              <a
-                href="https://buy.stripe.com/7sI7uV2wM0wQ2yA3cc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block w-full py-3 px-6 text-center rounded-lg font-semibold shadow-md bg-indigo-600 text-white hover:bg-indigo-700 transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
-              >
-                Subscribe Now
-              </a>
+              {/*
+                IMPORTANT: Replace 'price_...' with your actual Stripe Price ID for the Unlimited plan.
+                You can find this in your Stripe Dashboard under Products.
+              */}
+              <SubscriptionCheckoutButton priceId={import.meta.env.VITE_STRIPE_UNLIMITED_PRICE_ID || "price_1RpKtULBIjw2TCwNvyahls62"} />
               <p className="text-gray-500 text-sm mt-6 text-center">
                 Cancel anytime. Perfect for power users & teams.
               </p>

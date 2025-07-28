@@ -3,6 +3,7 @@ import { SERVER_URL } from '../components/Constants';
 
 interface CreditsContextType {
   credits: number | null;
+  unlimited: boolean;
   loadingCredits: boolean;
   refreshCredits: () => Promise<void>;
 }
@@ -11,6 +12,7 @@ const CreditsContext = createContext<CreditsContextType | undefined>(undefined);
 
 export const CreditsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [credits, setCredits] = useState<number | null>(null);
+  const [unlimited, setUnlimited] = useState(false);
   const [loadingCredits, setLoadingCredits] = useState(false);
 
   const refreshCredits = useCallback(async () => {
@@ -24,11 +26,14 @@ export const CreditsProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (res.ok) {
         const data = await res.json();
         setCredits(data.credits);
+        setUnlimited(!!data.unlimited);
       } else {
         setCredits(null);
+        setUnlimited(false);
       }
     } catch (e) {
       setCredits(null);
+      setUnlimited(false);
     } finally {
       setLoadingCredits(false);
     }
@@ -39,7 +44,7 @@ export const CreditsProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [refreshCredits]);
 
   return (
-    <CreditsContext.Provider value={{ credits, loadingCredits, refreshCredits }}>
+    <CreditsContext.Provider value={{ credits, unlimited, loadingCredits, refreshCredits }}>
       {children}
     </CreditsContext.Provider>
   );

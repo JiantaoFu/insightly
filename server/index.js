@@ -50,6 +50,148 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+
+// Stripe webhook handler
+// This needs to be before `express.json()` to access the raw body
+app.post('/stripe-webhook', express.raw({type: 'application/json'}), async (req, res) => {
+  if (!stripe) {
+    return res.status(400).send('Stripe not configured.');
+  }
+
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.NODE_ENV === 'production'
+    ? process.env.STRIPE_WEBHOOK_SECRET
+    : process.env.STRIPE_TEST_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err) {
+    console.error(`❌ Error message: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Helper function to find user and manage subscription data in the database
+  const manageSubscriptionChange = async (subscriptionId) => {
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const customerId = subscription.customer;
+
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single();
+
+      if (userError || !user) {
+        console.error(`Webhook Error: User not found for customer ID: ${customerId}`);
+        return; // Stop processing if user not found
+      }
+
+      const subscriptionData = {
+        user_id: user.id,
+        stripe_customer_id: customerId,
+        stripe_subscription_id: subscription.id,
+        stripe_price_id: subscription.items.data[0].price.id,
+        stripe_subscription_status: subscription.status,
+        stripe_current_period_end: new Date(subscription.current_period_end * 1000),
+      };
+
+      // Handle scheduled cancellation
+      if (subscription.cancel_at_period_end === true && subscription.status === 'active') {
+        // Mark as scheduled for cancellation
+        const { error: updateError } = await supabase
+          .from('user_subscriptions')
+          .update({
+            stripe_subscription_status: 'scheduled_for_cancellation',
+            stripe_current_period_end: new Date(subscription.current_period_end * 1000),
+          })
+          .eq('stripe_subscription_id', subscription.id);
+        if (updateError) {
+          console.error('Error updating scheduled_for_cancellation subscription:', updateError);
+        } else {
+          console.log(`✅ Subscription status updated to 'scheduled_for_cancellation' for user ${user.id}`);
+        }
+        // Keep credits until period ends
+        await supabase.from('users').update({ dataset_credits: 999999 }).eq('id', user.id);
+        console.log(`✅ User ${user.id} scheduled for cancellation, credits remain until period end.`);
+      } else if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired' || subscription.status === 'unpaid') {
+        // Update the record to reflect canceled status
+        const { error: updateError } = await supabase
+          .from('user_subscriptions')
+          .update({
+            stripe_subscription_status: subscription.status,
+            stripe_current_period_end: new Date(subscription.current_period_end * 1000),
+          })
+          .eq('stripe_subscription_id', subscription.id);
+        if (updateError) {
+          console.error('Error updating canceled subscription:', updateError);
+        } else {
+          console.log(`✅ Subscription status updated to '${subscription.status}' for user ${user.id}`);
+        }
+        // Reset credits
+        await supabase.from('users').update({ dataset_credits: 0 }).eq('id', user.id);
+        console.log(`✅ Reset credits for user ${user.id} due to subscription status: ${subscription.status}`);
+      } else {
+        // Upsert for active/trialing status
+        const { error: upsertError } = await supabase
+          .from('user_subscriptions')
+          .upsert(subscriptionData, { onConflict: 'stripe_subscription_id' });
+        if (upsertError) {
+          console.error('Error upserting subscription data:', upsertError);
+        } else {
+          console.log(`✅ Subscription data upserted for user ${user.id}`);
+        }
+        // Update user credits based on subscription status
+        if (subscription.status === 'active') {
+          await supabase.from('users').update({ dataset_credits: 999999 }).eq('id', user.id);
+          console.log(`✅ Granted 'unlimited' credits to user ${user.id}`);
+        } else {
+          await supabase.from('users').update({ dataset_credits: 0 }).eq('id', user.id);
+          console.log(`✅ Reset credits for user ${user.id} due to subscription status: ${subscription.status}`);
+        }
+      }
+    } catch (error) {
+      console.error(`Error managing subscription change for ${subscriptionId}:`, error);
+    }
+  };
+
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object;
+      if (session.mode === 'subscription' && session.subscription) {
+        console.log(`✅ Handling checkout.session.completed for subscription: ${session.subscription}`);
+        await manageSubscriptionChange(session.subscription);
+      }
+      break;
+    }
+    case 'invoice.payment_succeeded': {
+      const invoice = event.data.object;
+      if (invoice.billing_reason === 'subscription_cycle' && invoice.subscription) {
+        console.log(`✅ Handling invoice.payment_succeeded for subscription: ${invoice.subscription}`);
+        await manageSubscriptionChange(invoice.subscription);
+      }
+      break;
+    }
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object;
+      console.log(`[STRIPE WEBHOOK] Event: ${event.type}`);
+      console.log(`[STRIPE WEBHOOK] Subscription object:`, JSON.stringify(subscription, null, 2));
+      console.log(`✅ Handling subscription update/delete for: ${subscription.id}, status: ${subscription.status}`);
+      await manageSubscriptionChange(subscription.id);
+      break;
+    }
+    default:
+      console.log(`🤷‍♀️ Unhandled event type ${event.type}`);
+  }
+
+  // Return a 200 response to acknowledge receipt of the event
+  res.json({received: true});
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Enable trust proxy
@@ -542,6 +684,51 @@ const createComparisonCacheEntry = (urls, cacheKey, competitors, finalReport) =>
   return cacheEntry;
 };
 
+// Helper function to check user access (credits or active subscription)
+async function checkUserAccess(userId, userEmail) {
+  // 1. Check for an active subscription first
+  const { data: activeSubscriptions, error: subError } = await supabase
+    .from('user_subscriptions')
+    .select('id, stripe_subscription_status, stripe_subscription_id')
+    .eq('user_id', userId)
+    .in('stripe_subscription_status', ['active', 'trialing']);
+
+  if (subError && subError.code !== 'PGRST116') {
+    console.error(`[ACCESS] Error checking subscription for user ${userId}:`, subError);
+    return { authorized: false, status: 500, message: 'Error checking subscription status.' };
+  }
+
+  if (activeSubscriptions && activeSubscriptions.length > 0) {
+    console.log(`[ACCESS] User ${userEmail} has active/trialing subscriptions. Access granted.`);
+    return {
+      authorized: true,
+      subscriptions: activeSubscriptions.map(sub => ({
+        id: sub.id,
+        status: sub.stripe_subscription_status,
+        stripe_subscription_id: sub.stripe_subscription_id
+      })),
+      count: activeSubscriptions.length
+    };
+  }
+
+  // 2. If no active subscription, check for and decrement one-time credits
+  console.log(`[ACCESS] No active subscription for ${userEmail}. Checking credits.`);
+  const { data: decremented, error: decError } = await supabase.rpc('decrement_user_credit_by_id', { p_user_id: userId });
+
+  if (decError) {
+    console.error(`[ACCESS] decrement_user_credit_by_id error for ${userId}:`, decError);
+    return { authorized: false, status: 500, message: 'Failed to check credits.' };
+  }
+
+  if (!decremented) {
+    console.warn(`[ACCESS] Insufficient credits for ${userEmail}.`);
+    return { authorized: false, status: 402, message: 'Insufficient credits. Please purchase a Starter Pack or subscribe.' };
+  }
+
+  console.log(`[ACCESS] Credit decremented for ${userEmail}. Access granted.`);
+  return { authorized: true };
+}
+
 app.post('/api/analyze',
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(),
   verifyToken, // Ensure user is authenticated for credit logic
@@ -574,25 +761,11 @@ app.post('/api/analyze',
     await removeEntryFromSupabase(hashUrl);
   }
 
-  // Credit deficit logic (minimal diff)
-  const userEmail = req.user?.email;
-  if (!userEmail) {
-    console.log('[CREDIT] Unauthorized access attempt in /api/analyze: missing user email');
-    return res.status(401).json({ error: 'Unauthorized: missing user email' });
+  // Check if user has access (active subscription or credits)
+  const access = await checkUserAccess(req.user.id, req.user.email);
+  if (!access.authorized) {
+    return res.status(access.status).json({ message: access.message });
   }
-  console.log('[CREDIT] Checking and decrementing credit for', userEmail, 'in /api/analyze');
-  const { data: decremented, error: decError } = await supabase.rpc('decrement_user_credit', { p_user_email: userEmail });
-  if (decError) {
-    console.error('[CREDIT] decrement_user_credit error:', decError, 'for', userEmail);
-    return res.status(500).json({ error: 'Failed to check credits' });
-  }
-  if (!decremented) {
-    console.warn('[CREDIT] Insufficient credits for', userEmail, 'in /api/analyze');
-    return res.status(402).json({ message: 'Insufficient credits. Please purchase a Starter Pack.' });
-  }
-
-  // Log when user is authorized and credit is decremented successfully
-  console.log('[CREDIT] Credit decremented for', userEmail, 'in /api/analyze');
 
   // If not in memory cache, check database
   if (!force) {
@@ -798,25 +971,11 @@ app.post('/api/compare-competitors',
       return;
     }
 
-    // Credit deficit logic (minimal diff)
-    const userEmail = req.user?.email;
-    if (!userEmail) {
-      console.log('[CREDIT] Unauthorized access attempt in /api/analyze: missing user email');
-      return res.status(401).json({ error: 'Unauthorized: missing user email' });
+    // Check if user has access (active subscription or credits)
+    const access = await checkUserAccess(req.user.id, req.user.email);
+    if (!access.authorized) {
+      return res.status(access.status).json({ message: access.message });
     }
-    console.log('[CREDIT] Checking and decrementing credit for', userEmail, 'in /api/compare-competitors');
-    const { data: decremented, error: decError } = await supabase.rpc('decrement_user_credit', { p_user_email: userEmail });
-    if (decError) {
-      console.error('[CREDIT] decrement_user_credit error:', decError, 'for', userEmail);
-      return res.status(500).json({ error: 'Failed to check credits' });
-    }
-    if (!decremented) {
-      console.warn('[CREDIT] Insufficient credits for', userEmail, 'in /api/compare-competitors');
-      return res.status(402).json({ message: 'Insufficient credits. Please purchase a Starter Pack.' });
-    }
-
-    // Log when user is authorized and credit is decremented successfully
-    console.log('[CREDIT] Credit decremented for', userEmail, 'in /api/analyze');
 
     // Prepare the comparison prompt with reviews
     const competitorDetails = validCompetitors.map(comp => {
@@ -2119,28 +2278,37 @@ app.get('/api/verify-session', async (req, res) => {
     const session = await stripe.checkout.sessions.retrieve(session_id);
     console.log('[VERIFY SESSION] Stripe session:', session);
     if (session.payment_status === 'paid') {
-      const userEmail = session.customer_email;
-      const datasets = parseInt(session.metadata?.datasets || '0', 10);
-      const amount = session.amount_total;
-
-      if (userEmail && datasets > 0) {
-        // Use the atomic function to apply credits and record payment
-        const { data, error } = await supabase.rpc('apply_payment_and_credit', {
-          p_user_email: userEmail,
-          p_stripe_session_id: session.id,
-          p_amount: amount,
-          p_datasets: datasets,
-        });
-        if (error) {
-          console.error('apply_payment_and_credit error:', error);
-          return res.status(500).json({ success: false, error: 'Failed to apply payment and credit' });
+      // One-time payment flow
+      if (session.mode === 'payment') {
+        const userEmail = session.customer_email;
+        const datasets = parseInt(session.metadata?.datasets || '0', 10);
+        const amount = session.amount_total;
+        if (userEmail && datasets > 0) {
+          // Use the atomic function to apply credits and record payment
+          const { data, error } = await supabase.rpc('apply_payment_and_credit', {
+            p_user_email: userEmail,
+            p_stripe_session_id: session.id,
+            p_amount: amount,
+            p_datasets: datasets,
+          });
+          if (error) {
+            console.error('apply_payment_and_credit error:', error);
+            return res.status(500).json({ success: false, error: 'Failed to apply payment and credit' });
+          }
+          if (data === false) {
+            // Already processed
+            return res.json({ success: true, message: 'Payment already processed.', type: 'one-time' });
+          }
         }
-        if (data === false) {
-          // Already processed
-          return res.json({ success: true, message: 'Payment already processed.' });
-        }
+        return res.json({ success: true, type: 'one-time' });
       }
-      return res.json({ success: true });
+      // Subscription flow
+      if (session.mode === 'subscription') {
+        // Do not update DB here; rely on Stripe webhook for subscription updates
+        return res.json({ success: true, type: 'subscription' });
+      }
+      // Fallback: unknown mode
+      return res.json({ success: true, type: 'unknown' });
     } else {
       console.log('[VERIFY SESSION] Payment not completed. Status:', session.payment_status);
       return res.status(400).json({ success: false, error: 'Payment not completed' });
@@ -2250,21 +2418,6 @@ app.get('/auth/google/callback', async (req, res, next) => {
         const { supabase } = await import('./supabaseClient.js');
         const photoUrl = (user.photos && user.photos.length > 0) ? user.photos[0].value : null;
 
-        // Create JWT token payload
-        const tokenPayload = {
-          id: user.id,
-          sub: user.id,
-          displayName: user.displayName,
-          email: user.emails?.[0]?.value,
-          photo: photoUrl,
-          provider: user.provider
-        };
-
-        console.log('Creating JWT token with payload:', tokenPayload);
-
-        // Issue JWT
-        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
-
         // Check if user exists
         const { data: existingUser, error: fetchError } = await supabase
           .from('users')
@@ -2272,9 +2425,10 @@ app.get('/auth/google/callback', async (req, res, next) => {
           .eq('google_id', user.id)
           .single();
 
+        let dbUserId;
         if (!existingUser) {
           // New user: insert with 3 credits
-          await supabase
+          const { data: inserted, error: insertError } = await supabase
             .from('users')
             .insert({
               google_id: user.id,
@@ -2285,8 +2439,13 @@ app.get('/auth/google/callback', async (req, res, next) => {
               last_login: new Date().toISOString(),
               updated_at: new Date().toISOString(),
               dataset_credits: 3
-            });
+            })
+            .select('id')
+            .single();
+          if (insertError) throw insertError;
+          dbUserId = inserted.id;
         } else {
+          dbUserId = existingUser.id;
           // Existing user: update info, do not touch credits
           await supabase
             .from('users')
@@ -2300,6 +2459,21 @@ app.get('/auth/google/callback', async (req, res, next) => {
             })
             .eq('google_id', user.id);
         }
+
+        // Create JWT token payload with database UUID
+        const tokenPayload = {
+          id: dbUserId,
+          sub: dbUserId,
+          displayName: user.displayName,
+          email: user.emails?.[0]?.value,
+          photo: photoUrl,
+          provider: user.provider
+        };
+
+        console.log('Creating JWT token with payload:', tokenPayload);
+
+        // Issue JWT
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
 
         // Redirect to frontend with token
         res.redirect(`${CLIENT_ORIGIN}/?token=${token}`);
@@ -2355,7 +2529,7 @@ app.post('/create-checkout-session', verifyToken, async (req, res) => {
       client_reference_id: req.user.id, // Use user ID for reference
       mode: 'payment',
       success_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/pricing`,
+      cancel_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/payment-cancel`,
       metadata: {
         datasets: '5',
         plan: 'starter'
@@ -2371,7 +2545,23 @@ app.post('/create-checkout-session', verifyToken, async (req, res) => {
 app.get('/api/user-credits', verifyToken, async (req, res) => {
   try {
     const userEmail = req.user.email;
+    const userId = req.user.id;
     if (!userEmail) return res.status(400).json({ error: 'Missing user email' });
+    // Check for active subscription
+    const { data: subscriptions, error: subError } = await supabase
+      .from('user_subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .in('stripe_subscription_status', ['active', 'trialing', 'scheduled_for_cancellation']);
+    if (subError && subError.code !== 'PGRST116') {
+      console.error('Error checking subscription:', subError);
+      return res.status(500).json({ error: 'Failed to check subscription' });
+    }
+    if (subscriptions && subscriptions.length > 0) {
+      // User has unlimited credits
+      return res.json({ credits: null, unlimited: true });
+    }
+    // Otherwise, return actual credits
     const { data, error } = await supabase
       .from('users')
       .select('dataset_credits')
@@ -2381,9 +2571,134 @@ app.get('/api/user-credits', verifyToken, async (req, res) => {
       console.error('Error fetching user credits:', error);
       return res.status(500).json({ error: 'Failed to fetch credits' });
     }
-    res.json({ credits: data?.dataset_credits ?? 0 });
+    res.json({ credits: data?.dataset_credits ?? 0, unlimited: false });
   } catch (err) {
     console.error('Unexpected error in /api/user-credits:', err);
     res.status(500).json({ error: 'Unexpected error' });
+  }
+});
+
+// Create a subscription checkout session
+app.post('/create-subscription-session', verifyToken, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  const { priceId } = req.body;
+  const userEmail = req.user.email;
+  const userId = req.user.id;
+
+  if (!priceId) {
+    return res.status(400).json({ error: 'priceId is required' });
+  }
+
+  try {
+    // Check if user already has a Stripe customer ID
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('stripe_customer_id')
+      .eq('id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116: No rows found
+      console.error('Error fetching user from DB:', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    let customerId = user?.stripe_customer_id;
+
+    // If user is not a Stripe customer yet, create one
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: userEmail,
+        metadata: {
+          userId: userId,
+        },
+      });
+      customerId = customer.id;
+
+      // Save customerId to our database
+      await supabase
+        .from('users')
+        .update({ stripe_customer_id: customerId })
+        .eq('id', userId);
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      customer: customerId,
+      line_items: [{
+        price: priceId,
+        quantity: 1,
+      }],
+      success_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/payment-cancel`,
+      metadata: {
+        userId: userId,
+      }
+    });
+
+    res.json({ sessionId: session.id });
+  } catch (err) {
+    console.error('Stripe subscription session error:', err);
+    res.status(500).json({ error: 'Failed to create subscription session', details: err.message });
+  }
+});
+
+// Create a Stripe Customer Portal session
+app.post('/create-portal-session', verifyToken, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+
+  try {
+    const { data: user } = await supabase
+      .from('users')
+      .select('stripe_customer_id')
+      .eq('id', req.user.id)
+      .single();
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: user.stripe_customer_id,
+      return_url: `${process.env.CLIENT_ORIGIN || 'http://localhost:5173'}/account`,
+    });
+
+    res.json({ url: portalSession.url });
+  } catch (err) {
+    console.error('Stripe portal session error:', err);
+    res.status(500).json({ error: 'Failed to create portal session', details: err.message });
+  }
+});
+
+// Get user subscription status (protected route)
+app.get('/api/subscription-status', verifyToken, async (req, res) => {
+  try {
+    // Include scheduled_for_cancellation subscriptions in the response
+    const { data: subscriptions, error } = await supabase
+      .from('user_subscriptions')
+      .select('stripe_subscription_status, stripe_current_period_end')
+      .eq('user_id', req.user.id)
+      .in('stripe_subscription_status', ['active', 'trialing', 'scheduled_for_cancellation']);
+
+    if (error) {
+      console.error('Error fetching subscription status:', error);
+      return res.status(500).json({ error: 'Failed to fetch subscription status' });
+    }
+
+    const hasActiveSubscription = Array.isArray(subscriptions) && subscriptions.length > 0;
+
+    // Return more details for scheduled_for_cancellation
+    res.json({
+      hasActiveSubscription,
+      count: subscriptions?.length || 0,
+      statuses: subscriptions?.map(s => s.stripe_subscription_status) || [],
+      scheduledForCancellation: subscriptions?.filter(s => s.stripe_subscription_status === 'scheduled_for_cancellation').map(s => ({
+        status: s.stripe_subscription_status,
+        periodEnd: s.stripe_current_period_end
+      })) || []
+    });
+  } catch (err) {
+    console.error('Unexpected error in /api/subscription-status:', err);
+    res.status(500).json({ error: 'Unexpected server error' });
   }
 });

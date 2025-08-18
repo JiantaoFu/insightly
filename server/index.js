@@ -2427,7 +2427,7 @@ app.get('/auth/google/callback', async (req, res, next) => {
 
         let dbUserId;
         if (!existingUser) {
-          // New user: insert with 3 credits
+          // New user: insert with 1 credits
           const { data: inserted, error: insertError } = await supabase
             .from('users')
             .insert({
@@ -2438,7 +2438,7 @@ app.get('/auth/google/callback', async (req, res, next) => {
               provider: user.provider,
               last_login: new Date().toISOString(),
               updated_at: new Date().toISOString(),
-              dataset_credits: 3
+              dataset_credits: 1
             })
             .select('id')
             .single();

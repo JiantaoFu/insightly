@@ -280,11 +280,14 @@ const Home: React.FC = () => {
             </div>
             {/* Unlimited Plan Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center border-2 border-indigo-600 relative">
-              <div className="absolute top-0 right-0 bg-indigo-600 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
-                Best Value
+              <div className="absolute top-0 right-0 bg-red-500 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
+                Limited Time Offer
               </div>
               <h3 className="text-2xl font-bold mb-2 text-indigo-700">💎 Unlimited</h3>
-              <div className="text-4xl font-extrabold text-gray-900 mb-2">$99</div>
+              <div className="flex items-baseline justify-center mb-2">
+                <span className="text-2xl font-semibold text-gray-500 line-through mr-2">$99</span>
+                <span className="text-4xl font-extrabold text-gray-900">$79</span>
+              </div>
               <div className="text-gray-500 mb-4 text-sm">per month</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
                 <li>✔ Unlimited datasets</li>

@@ -106,23 +106,23 @@ const Home: React.FC = () => {
   const features = [
     {
       icon: Search,
-      title: "Market Gap Analysis",
-      description: "Identify unmet needs and opportunities in your target market"
+      title: "Save Research Time",
+      description: "AI scans thousands of reviews and delivers clear insights in minutes."
     },
     {
       icon: Zap,
-      title: "Real-time Insights",
-      description: "Monitor market trends and user pain points as they emerge"
+      title: "Validate Your Ideas",
+      description: "Check if your feature solves real user problems before investing."
     },
     {
       icon: TrendingUp,
-      title: "Competitive Intelligence",
-      description: "Track market movements and stay ahead of emerging trends"
+      title: "Stay Ahead of Competitors",
+      description: "Track emerging trends and unmet needs in your niche."
     },
     {
       icon: Rocket,
-      title: "Strategic Validation",
-      description: "Validate product ideas with real user feedback data"
+      title: "Spot Market Gaps",
+      description: "See what users complain about and what they wish existed."
     }
   ];
 
@@ -187,10 +187,10 @@ const Home: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-16 lg:pb-24">
           <div className="text-center">
             <h1 className="text-4xl tracking-tight font-extrabold sm:text-5xl md:text-6xl">
-              Uncover Market Gaps from Online Reviews
+              Find Out What App Users Really Want
             </h1>
             <p className="mt-3 max-w-md mx-auto text-lg text-gray-200 sm:text-xl md:mt-5 md:max-w-3xl">
-              AI-Powered Market Research for Entrepreneurs & Innovators
+              Instant AI analysis of competitor app reviews: discover pain points, feature requests, and hidden opportunities before you build.
             </p>
           </div>
         </div>
@@ -201,11 +201,11 @@ const Home: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-extrabold text-gray-900">
-              Market Intelligence for Product Innovation
+              Our tool shows you exactly what users love, hate, and still want, so you don’t waste months building the wrong features.
             </h2>
-            <p className="mt-4 text-xl text-gray-600">
+            {/* <p className="mt-4 text-xl text-gray-600">
               Turn user feedback into market opportunities
-            </p>
+            </p> */}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">

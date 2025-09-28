@@ -1,3 +1,6 @@
+-- Enable pgvector extension
+create extension if not exists vector;
+
 create table IF NOT EXISTS report_section_embeddings (
   id bigint primary key generated always as identity,
   report_id BIGINT references analysis_reports(id) on delete cascade,

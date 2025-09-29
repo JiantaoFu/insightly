@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { ShareComponent } from './ShareButton';
 import ReviewPreview from './ReviewPreview';
 import { SERVER_URL } from './Constants';
+import { updateMetadata } from '../utils/metadata';
 
 interface SharedReportViewProps {
   reportType: 'app' | 'competitor';
@@ -53,6 +54,52 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
   useEffect(() => {
     fetchSharedReport();
   }, [shareId, reportType]);
+
+  useEffect(() => {
+    if (appData && report) {
+      const appName = appData.title || 'App';
+      const reportTitle = reportType === 'app'
+        ? `${appName} Review Analysis Report | Insightly`
+        : `${appName} Competitor Analysis Report | Insightly`;
+
+      // Extract summary from report
+      const getSummary = (text: string): string => {
+        // Remove markdown headers, formatting, and the standard summary header
+        const cleanText = text
+          .replace(/#{1,6}\s?[^\n]+\n*/g, '') // Remove all headers
+          .replace(/\*\*/g, '')               // Remove bold formatting
+          .replace(/Summary of Key Insights\s*\n+/g, '') // Remove the summary header
+          .trim();
+
+        // Get first 2-3 sentences (up to 155 chars)
+        const sentences = cleanText.split(/[.!?]+/);
+        let summary = '';
+        for (const sentence of sentences) {
+          const trimmedSentence = sentence.trim();
+          if (trimmedSentence && (summary + trimmedSentence).length < 155) {
+            summary += (summary ? ' ' : '') + trimmedSentence + '.';
+          } else {
+            break;
+          }
+        }
+        return summary.trim();
+      };
+
+      const reportDescription = getSummary(report) || (reportType === 'app'
+        ? `Detailed AI-powered review analysis for ${appName}. Get insights about user feedback, sentiment analysis, and key improvement areas.`
+        : `Comprehensive competitor analysis report comparing ${appName} with similar apps. Understand market positioning and competitive advantages.`);
+
+      updateMetadata(reportTitle, reportDescription);
+    }
+
+    // Cleanup function to reset metadata on unmount
+    return () => {
+      updateMetadata(
+        'Insightly: AI-Powered App Review Intelligence',
+        'Transform app reviews into actionable insights. Leverage AI to understand user feedback, drive product growth, and enhance user satisfaction.'
+      );
+    };
+  }, [appData, reportType, report]);
 
   const downloadReport = () => {
     if (!report) return;

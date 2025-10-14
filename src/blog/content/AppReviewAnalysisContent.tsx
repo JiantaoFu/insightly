@@ -29,6 +29,9 @@ const AppReviewAnalysisContent: React.FC = () => {
 
       <h2>Bottom line:</h2>
       <p>App review analysis is the simplest, smartest way to find market gaps and you don’t need a huge research budget to do it. You can do it manually… or save the time and let Insightly do it for you.</p>
+      <div className="button-container">
+        <a href="https://insightly.top/app" className="button">Validate Your Idea</a>
+      </div>
     </>
   );
 };

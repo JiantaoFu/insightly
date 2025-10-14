@@ -8,6 +8,7 @@ import { AuthProvider } from './components/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CreditsProvider } from './contexts/CreditsContext';
 
+
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
 const AppInsightsPage = lazy(() => import('./pages/AppInsightsPage'));
@@ -16,6 +17,8 @@ const MainAnalysis = lazy(() => import('./components/MainAnalysis'));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
 const PaymentCancel = lazy(() => import('./pages/PaymentCancel'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
+const BlogListPage = lazy(() => import('./pages/BlogListPage'));
+const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -53,6 +56,8 @@ const App: React.FC = () => {
               <Route path="/payment-success" element={<PaymentSuccess />} />
               <Route path="/payment-cancel" element={<PaymentCancel />} />
               <Route path="/account" element={<AccountPage />} />
+              <Route path="/blog" element={<BlogListPage />} />
+              <Route path="/blog/:slug" element={<BlogPostPage />} />
             </Routes>
           </Suspense>
         </Router>

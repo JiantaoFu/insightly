@@ -12,7 +12,8 @@ import {
   Globe,
   MessageCircle as MessageCircleIcon,
   MessageSquare,
-  ChevronDown
+  ChevronDown,
+  FileText
 } from 'lucide-react';
 import FeedbackForm from './FeedbackForm';
 import UserMenu from './UserMenu';
@@ -82,6 +83,11 @@ const Navigation: React.FC = () => {
       to: '/app-insights',
       icon: Microscope,
       label: 'Insights',
+    },
+    {
+      to: '/blog',
+      icon: FileText,
+      label: 'Blog',
     },
   ];
 

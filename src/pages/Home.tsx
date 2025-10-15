@@ -183,7 +183,11 @@ const Home: React.FC = () => {
       <Navigation />
 
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-br from-blue-600 to-purple-600 text-white pt-20">
+      <div
+        className="relative bg-cover bg-center text-white pt-20"
+        style={{ backgroundImage: "url('/public/hero-banner.png')" }}
+      >
+        {/* <div className="absolute inset-0 bg-black opacity-50"></div> Optional: adds an overlay for better text readability */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-16 lg:pb-24">
           <div className="text-center">
             <h1 className="text-4xl tracking-tight font-extrabold sm:text-5xl md:text-6xl">

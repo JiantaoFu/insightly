@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Zap,
   Home as HomeIcon,
   Rocket as RocketIcon,
   Menu,
@@ -123,8 +122,10 @@ const Navigation: React.FC = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Zap className="w-8 h-8 text-blue-600 mr-2" />
-            <span className="text-xl font-bold text-gray-900">Insightly</span>
+            <a href="/" className="flex items-center">
+              <img src="/logo-small.png" alt="Insightly Logo" className="w-5 h-5 mr-2" />
+              <span className="text-2xl font-bold text-gray-900">insightly</span>
+            </a>
           </div>
 
           {/* Desktop Navigation */}

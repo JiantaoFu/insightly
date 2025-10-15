@@ -289,8 +289,8 @@ const Home: React.FC = () => {
               </div>
               <h3 className="text-2xl font-bold mb-2 text-indigo-700">💎 Unlimited</h3>
               <div className="flex items-baseline justify-center mb-2">
-                <span className="text-2xl font-semibold text-gray-500 line-through mr-2">$99</span>
-                <span className="text-4xl font-extrabold text-gray-900">$79</span>
+                <span className="text-2xl font-semibold text-gray-500 line-through mr-2">$79</span>
+                <span className="text-4xl font-extrabold text-gray-900">$39</span>
               </div>
               <div className="text-gray-500 mb-4 text-sm">per month</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">

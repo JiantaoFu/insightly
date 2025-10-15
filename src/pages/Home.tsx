@@ -184,24 +184,35 @@ const Home: React.FC = () => {
 
       {/* Hero Section */}
       <div
-        className="relative bg-cover bg-center text-white pt-20"
+        className="relative bg-cover bg-center text-white min-h-screen flex items-center justify-center"
         style={{ backgroundImage: "url('/hero-banner.png')" }}
       >
-        {/* <div className="absolute inset-0 bg-black opacity-50"></div> Optional: adds an overlay for better text readability */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-16 lg:pb-24">
+        <div className="absolute inset-0 bg-black/30"></div> {/* Subtle overlay for text readability */}
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="text-center">
-            <h1 className="text-4xl tracking-tight font-extrabold sm:text-5xl md:text-6xl">
+            <h1 className="text-5xl tracking-tight font-extrabold sm:text-6xl lg:text-7xl">
               Find Out What App Users Really Want
             </h1>
-            <p className="mt-3 max-w-md mx-auto text-lg text-gray-200 sm:text-xl md:mt-5 md:max-w-3xl">
+            <p className="mt-5 max-w-md mx-auto text-xl text-gray-200 sm:text-2xl md:mt-8 md:max-w-3xl">
               Instant AI analysis of competitor app reviews: discover pain points, feature requests, and hidden opportunities before you build.
             </p>
+            <div className="mt-10 flex justify-center gap-4">
+              <a
+                href="#pricing"
+                className="inline-block bg-white text-indigo-600 px-8 py-3 rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
+              >
+                Try for $1
+              </a>
+              <a href="#features" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105">
+                Learn More
+              </a>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Features Section */}
-      <div className="py-16 bg-white">
+      <div id="features" className="py-16 bg-white scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-extrabold text-gray-900">
@@ -250,7 +261,7 @@ const Home: React.FC = () => {
       </div>
 
       {/* Starter Pack Section (replaces Pricing Plans) */}
-      <div className="py-16 bg-gray-50">
+      <div id="pricing" className="py-16 bg-gray-50 scroll-mt-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4">

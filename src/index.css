@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Enable smooth scrolling for in-page links */
+html {
+  scroll-behavior: smooth;
+}
+
 /* Citation styling */
 .citation {
   color: #4B5563;

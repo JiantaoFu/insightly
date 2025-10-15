@@ -185,7 +185,7 @@ const Home: React.FC = () => {
       {/* Hero Section */}
       <div
         className="relative bg-cover bg-center text-white pt-20"
-        style={{ backgroundImage: "url('/public/hero-banner.png')" }}
+        style={{ backgroundImage: "url('/hero-banner.png')" }}
       >
         {/* <div className="absolute inset-0 bg-black opacity-50"></div> Optional: adds an overlay for better text readability */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-16 lg:pb-24">
@@ -260,7 +260,7 @@ const Home: React.FC = () => {
               Get started with the <b>Starter Pack</b> or unlock unlimited research with <b>Unlimited</b>.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Starter Pack Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
               <h3 className="text-2xl font-bold mb-2 text-blue-700">🚀 Starter Pack</h3>
@@ -281,6 +281,22 @@ const Home: React.FC = () => {
               <p className="text-gray-500 text-sm mt-6 text-center">
                 Limited-time offer. You can easily top up more credits later if you love it!
               </p>
+            </div>
+            {/* Pro Plan Card */}
+            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center border-2 border-indigo-600 relative">
+              <div className="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
+                Most Popular
+              </div>
+              <h3 className="text-2xl font-bold mb-2 text-indigo-700">🏆 Pro Plan</h3>
+              <div className="text-4xl font-extrabold text-gray-900">$11.99</div>
+              <div className="text-gray-500 mb-4 text-sm">per month</div>
+              <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
+                <li>✔ Up to <b>25 analyses</b> per month</li>
+                <li>✔ Priority support</li>
+                <li>✔ Early access to new features</li>
+              </ul>
+              <SubscriptionCheckoutButton priceId={import.meta.env.VITE_STRIPE_PRO_PRICE_ID || "price_1PqHqULBIjw2TCwN1234abcd"} />
+              <p className="text-gray-500 text-sm mt-6 text-center">Ideal for frequent analysis and faster insights.</p>
             </div>
             {/* Unlimited Plan Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center border-2 border-indigo-600 relative">

@@ -26,16 +26,15 @@ const PaymentSuccess = () => {
         if (data.success) {
           setStatus("success");
           let notificationMsg = "";
-          // Determine payment type for correct message using 'type' field
+
           if (data.type === "one-time") {
-            notificationMsg = "Starter Pack already activated.";
-          } else if (data.type === "subscription") {
-            notificationMsg = "Subscription activated! You now have unlimited access.";
-          } else if (data.type === "one-time") {
             notificationMsg = "Starter Pack activated! Credits added.";
+          } else if (data.type === "subscription") {
+            notificationMsg = "Subscription activated successfully!";
           } else {
-            notificationMsg = "Payment processed.";
+            notificationMsg = "Payment processed successfully!";
           }
+
           setMessage("Payment successful! " + notificationMsg);
           toast.success(notificationMsg, { duration: 2000, id: 'payment-success' });
           // Refresh credits immediately

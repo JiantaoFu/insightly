@@ -144,12 +144,25 @@ app.post('/stripe-webhook', express.raw({type: 'application/json'}), async (req,
           console.log(`✅ Subscription data upserted for user ${user.id}`);
         }
         // Update user credits based on subscription status
-        if (subscription.status === 'active') {
-          await supabase.from('users').update({ dataset_credits: 999999 }).eq('id', user.id);
-          console.log(`✅ Granted 'unlimited' credits to user ${user.id}`);
+        if (subscription.status === 'active' || subscription.status === 'trialing') {
+          const priceId = subscription.items.data[0].price.id;
+          const proPriceId = process.env.STRIPE_PRO_PRICE_ID;
+          const unlimitedPriceId = process.env.STRIPE_UNLIMITED_PRICE_ID;
+
+          if (priceId === proPriceId) {
+            // Pro Plan: Reset credits to 25
+            await supabase.from('users').update({ dataset_credits: 25 }).eq('id', user.id);
+            console.log(`✅ Set/reset Pro plan credits to 25 for user ${user.id}`);
+          } else if (priceId === unlimitedPriceId) {
+            // Unlimited Plan: Grant "unlimited" credits
+            await supabase.from('users').update({ dataset_credits: 999999 }).eq('id', user.id);
+            console.log(`✅ Granted 'unlimited' credits to user ${user.id}`);
+          } else {
+            console.warn(`🤷‍♀️ Unknown priceId ${priceId} for active subscription. No credits assigned.`);
+          }
         } else {
           await supabase.from('users').update({ dataset_credits: 0 }).eq('id', user.id);
-          console.log(`✅ Reset credits for user ${user.id} due to subscription status: ${subscription.status}`);
+          console.log(`✅ Reset credits for user ${user.id} due to non-active subscription status: ${subscription.status}`);
         }
       }
     } catch (error) {
@@ -690,7 +703,7 @@ async function checkUserAccess(userId, userEmail) {
   const { data: activeSubscriptions, error: subError } = await supabase
     .from('user_subscriptions')
     .select('id, stripe_subscription_status, stripe_subscription_id')
-    .eq('user_id', userId)
+    .eq('user_id', userId) // Check for active, trialing, or scheduled for cancellation
     .in('stripe_subscription_status', ['active', 'trialing']);
 
   if (subError && subError.code !== 'PGRST116') {
@@ -699,16 +712,9 @@ async function checkUserAccess(userId, userEmail) {
   }
 
   if (activeSubscriptions && activeSubscriptions.length > 0) {
-    console.log(`[ACCESS] User ${userEmail} has active/trialing subscriptions. Access granted.`);
-    return {
-      authorized: true,
-      subscriptions: activeSubscriptions.map(sub => ({
-        id: sub.id,
-        status: sub.stripe_subscription_status,
-        stripe_subscription_id: sub.stripe_subscription_id
-      })),
-      count: activeSubscriptions.length
-    };
+    // An active subscription exists, but we still need to check credits for metered plans (like Pro)
+    // The check for one-time credits below will now also handle subscription credits.
+    console.log(`[ACCESS] User ${userEmail} has an active subscription. Proceeding to credit check.`);
   }
 
   // 2. If no active subscription, check for and decrement one-time credits
@@ -2304,7 +2310,48 @@ app.get('/api/verify-session', async (req, res) => {
       }
       // Subscription flow
       if (session.mode === 'subscription') {
-        // Do not update DB here; rely on Stripe webhook for subscription updates
+        // In production, we rely solely on webhooks to prevent race conditions.
+        // This block provides immediate feedback in development environments without webhooks.
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[VERIFY SESSION] Handling subscription directly for dev/test environment.');
+          const subscriptionId = session.subscription;
+          if (subscriptionId) {
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            const customerId = subscription.customer;
+
+            const { data: user, error: userError } = await supabase
+              .from('users')
+              .select('id')
+              .eq('stripe_customer_id', customerId)
+              .single();
+
+            if (userError || !user) {
+              console.error(`[VERIFY SESSION] User not found for customer ID: ${customerId}`);
+              return res.status(404).json({ success: false, error: 'User for subscription not found.' });
+            }
+
+            const priceId = subscription.items.data[0].price.id;
+            const proPriceId = process.env.STRIPE_PRO_PRICE_ID;
+            const unlimitedPriceId = process.env.STRIPE_UNLIMITED_PRICE_ID;
+
+            if (priceId === proPriceId) {
+              await supabase.from('users').update({ dataset_credits: 25 }).eq('id', user.id);
+              console.log(`[VERIFY SESSION] ✅ Set Pro plan credits to 25 for user ${user.id}`);
+            } else if (priceId === unlimitedPriceId) {
+              await supabase.from('users').update({ dataset_credits: 999999 }).eq('id', user.id);
+              console.log(`[VERIFY SESSION] ✅ Granted 'unlimited' credits to user ${user.id}`);
+            } else {
+              console.warn(`[VERIFY SESSION] 🤷‍♀️ Unknown priceId ${priceId} for active subscription. No credits assigned.`);
+            }
+          } else {
+            console.warn('[VERIFY SESSION] Subscription mode checkout completed, but no subscription ID found.');
+            return res.status(400).json({ success: false, error: 'Subscription ID missing from session.' });
+          }
+        } else {
+          console.log('[VERIFY SESSION] In production. Skipping direct subscription handling, relying on webhook.');
+        }
+
+        // Always return success for the subscription flow on the frontend.
         return res.json({ success: true, type: 'subscription' });
       }
       // Fallback: unknown mode
@@ -2548,20 +2595,25 @@ app.get('/api/user-credits', verifyToken, async (req, res) => {
     const userId = req.user.id;
     if (!userEmail) return res.status(400).json({ error: 'Missing user email' });
     // Check for active subscription
+    const unlimitedPriceId = process.env.STRIPE_UNLIMITED_PRICE_ID;
     const { data: subscriptions, error: subError } = await supabase
       .from('user_subscriptions')
-      .select('id')
+      .select('stripe_price_id')
       .eq('user_id', userId)
       .in('stripe_subscription_status', ['active', 'trialing', 'scheduled_for_cancellation']);
     if (subError && subError.code !== 'PGRST116') {
       console.error('Error checking subscription:', subError);
       return res.status(500).json({ error: 'Failed to check subscription' });
     }
-    if (subscriptions && subscriptions.length > 0) {
-      // User has unlimited credits
+
+    // Check if any of the active subscriptions is the Unlimited plan
+    const hasUnlimitedPlan = subscriptions?.some(sub => sub.stripe_price_id === unlimitedPriceId);
+
+    if (hasUnlimitedPlan) {
       return res.json({ credits: null, unlimited: true });
     }
-    // Otherwise, return actual credits
+
+    // For Pro plan or one-time credits, return the actual credit count
     const { data, error } = await supabase
       .from('users')
       .select('dataset_credits')

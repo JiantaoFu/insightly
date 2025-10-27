@@ -2675,7 +2675,7 @@ app.post('/create-subscription-session', verifyToken, async (req, res) => {
         .eq('id', userId);
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams = {
       payment_method_types: ['card'],
       mode: 'subscription',
       customer: customerId,
@@ -2688,7 +2688,11 @@ app.post('/create-subscription-session', verifyToken, async (req, res) => {
       metadata: {
         userId: userId,
       }
-    });
+    };
+
+    sessionParams.allow_promotion_codes = true;
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     res.json({ sessionId: session.id });
   } catch (err) {

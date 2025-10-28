@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import CachedAnalysesList from '../components/CachedAnalysesList';
 import StarterPackCheckout from '../components/StarterPackCheckout';
+import Footer from '../components/Footer';
 import SubscriptionCheckoutButton from '../components/SubscriptionCheckoutButton';
 
 // Feature Card Component
@@ -385,6 +386,9 @@ const Home: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };

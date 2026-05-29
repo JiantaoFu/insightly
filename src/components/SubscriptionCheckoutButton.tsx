@@ -10,7 +10,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 const SubscriptionCheckoutButton: React.FC<{ priceId: string }> = ({ priceId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user, login, token } = useAuth();
+  const { user, login, logout, token } = useAuth();
   const location = useLocation();
 
   const handleCheckout = useCallback(async () => {
@@ -34,6 +34,15 @@ const SubscriptionCheckoutButton: React.FC<{ priceId: string }> = ({ priceId }) 
         headers,
         body: JSON.stringify({ priceId }),
       });
+
+      if (response.status === 401) {
+        setError('Invalid or expired token. Redirecting to login...');
+        setTimeout(() => {
+          logout();
+        }, 2000);
+        return;
+      }
+
       const session = await response.json();
       if (!response.ok || !session.sessionId) {
         throw new Error(session.error || 'Failed to create checkout session.');
@@ -46,7 +55,7 @@ const SubscriptionCheckoutButton: React.FC<{ priceId: string }> = ({ priceId }) 
     } finally {
       setLoading(false);
     }
-  }, [user, token, login, location.pathname, priceId]);
+  }, [user, token, login, logout, location.pathname, priceId]);
 
   // Optionally auto-trigger after login
   React.useEffect(() => {

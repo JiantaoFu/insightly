@@ -43,6 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const processToken = async (tokenToUse: string) => {
       try {
         const decoded: any = jwtDecode(tokenToUse);
+        if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+          throw new Error('Token has expired');
+        }
         const photoUrl = decoded.photo || (decoded.photos?.[0]?.value);
 
         setToken(tokenToUse);

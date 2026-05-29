@@ -10,7 +10,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 const StarterPackCheckout: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user, login, token } = useAuth();
+  const { user, login, logout, token } = useAuth();
   const location = useLocation();
 
   const handleCheckout = useCallback(async () => {
@@ -34,6 +34,15 @@ const StarterPackCheckout: React.FC = () => {
         method: 'POST',
         headers,
       });
+
+      if (res.status === 401) {
+        setError('Invalid or expired token. Redirecting to login...');
+        setTimeout(() => {
+          logout();
+        }, 2000);
+        return;
+      }
+
       const data = await res.json();
       if (!data.sessionId) throw new Error(data.error || 'No session ID returned');
 
@@ -46,7 +55,7 @@ const StarterPackCheckout: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, token, login, location.pathname]);
+  }, [user, token, login, logout, location.pathname]);
 
   useEffect(() => {
     // Option 2: Auto-trigger checkout if flag is set in localStorage

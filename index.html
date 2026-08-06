@@ -12,13 +12,10 @@
       gtag('config', 'G-173ZM0TR8H');
     </script>
 
-    <!-- Amplitude -->
-    <script src="https://cdn.amplitude.com/libs/analytics-browser-2.11.1-min.js.gz"></script><script src="https://cdn.amplitude.com/libs/plugin-session-replay-browser-1.8.0-min.js.gz"></script><script>window.amplitude.add(window.sessionReplay.plugin({sampleRate: 1}));window.amplitude.init('b08ab8f33f0cea43bb32450a681e9094', {"autocapture":{"elementInteractions":true}});</script>
-
     <!-- Viewport and Compatibility -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    
+
     <!-- Primary Meta Tags -->
     <title>Insightly: AI-Powered App Review Intelligence</title>
     <meta name="title" content="Insightly: AI-Powered App Review Intelligence">
@@ -28,9 +25,6 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="alternate icon" type="image/x-icon" href="/favicon.ico">
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Insightly</title>
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -86,5 +80,19 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Amplitude: unified script (replaces the old separate analytics-browser +
+         plugin-session-replay CDN files, which left window.amplitude undefined).
+         Loaded after the app so it doesn't block first render. -->
+    <script src="https://cdn.amplitude.com/script/b08ab8f33f0cea43bb32450a681e9094.js"></script>
+    <script>
+      window.amplitude.add(window.sessionReplay.plugin({sampleRate: 1}));
+      window.amplitude.init('b08ab8f33f0cea43bb32450a681e9094', {
+        fetchRemoteConfig: true,
+        autocapture: {
+          elementInteractions: true
+        }
+      });
+    </script>
   </body>
 </html>

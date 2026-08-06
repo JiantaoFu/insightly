@@ -191,7 +191,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
       {/* Hero Section */}
       <div
         className="relative bg-cover bg-center text-white min-h-screen flex items-center justify-center"
-        style={{ backgroundImage: "url('/hero-banner.png')" }}
+        style={{ backgroundImage: "url('/hero-banner.webp')" }}
       >
         <div className="absolute inset-0 bg-black/30"></div> {/* Subtle overlay for text readability */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

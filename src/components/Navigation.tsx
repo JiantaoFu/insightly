@@ -198,6 +198,8 @@ const Navigation: React.FC = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={isMenuOpen}
             className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
           >
             {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}

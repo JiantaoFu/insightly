@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { Loader2 } from 'lucide-react';
 import { AppReportView, CompetitorReportView } from './components/ShareReportView';
-import { ChatBox } from './components/ChatBox';  // Change import path
 import { AuthProvider } from './components/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CreditsProvider } from './contexts/CreditsContext';
@@ -23,6 +22,8 @@ const MainAnalysis = lazy(() => import('./components/MainAnalysis'));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
 const PaymentCancel = lazy(() => import('./pages/PaymentCancel'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
+// ChatBox has a named (not default) export, so wrap the dynamic import.
+const ChatBox = lazy(() => import('./components/ChatBox').then(m => ({ default: m.ChatBox })));
 
 // Loading fallback component
 const LoadingFallback = () => (

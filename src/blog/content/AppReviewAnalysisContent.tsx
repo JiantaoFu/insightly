@@ -1,12 +1,12 @@
 import React from 'react';
-import blogBanner from '/blogs/app-review-analysis.png';
+import blogBanner from '/blogs/app-review-analysis.webp';
 
 const AppReviewAnalysisContent: React.FC = () => {
   return (
     <>
       <h1>App Review Analysis: How to Turn User Feedback into Your Next Big App Idea</h1>
 
-      <img src={blogBanner} alt="Illustration of analyzing app reviews to find ideas" className="blog-banner" />
+      <img src={blogBanner} alt="Illustration of analyzing app reviews to find ideas" width={1536} height={1024} className="blog-banner" />
 
       <p>People love to share opinions, especially in app stores. Every “I wish this app could…” or “this feature is annoying” is basically free market research. The problem is, most founders don’t know how to turn those comments into something useful.</p>
 

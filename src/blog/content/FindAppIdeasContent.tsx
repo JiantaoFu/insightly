@@ -1,12 +1,12 @@
 import React from 'react';
-import blogBanner from '/blogs/how-to-find-app-ideas.png';
+import blogBanner from '/blogs/how-to-find-app-ideas.webp';
 
 const FindAppIdeasContent: React.FC = () => {
   return (
     <>
       <h1>How to Find App Ideas That People Actually Want</h1>
 
-      <img src={blogBanner} alt="Banner showing how to find app ideas using app reviews and AI" className="blog-banner" />
+      <img src={blogBanner} alt="Banner showing how to find app ideas using app reviews and AI" width={1536} height={1024} className="blog-banner" />
 
       <p>How do you come up with good app ideas? The truth is, you don’t need to “invent” something new. You just need to spot what’s already frustrating people and solve it better.</p>
 

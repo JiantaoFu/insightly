@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   server: {
@@ -12,23 +11,7 @@ export default defineConfig({
     }
   },
   plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      manifest: {
-        name: 'Insightly: AI-Powered App Review Intelligence',
-        short_name: 'Insightly',
-        description: 'Transform app reviews into actionable insights',
-        theme_color: '#6366F1',
-        icons: [
-          {
-            src: '/favicon.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml'
-          }
-        ]
-      }
-    })
+    react()
   ],
   build: {
     // No manual vendor chunk: bundling every dependency (Stripe, OpenAI,

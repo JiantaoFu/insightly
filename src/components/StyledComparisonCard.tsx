@@ -9,8 +9,9 @@ const StyledComparisonCard = ({ competitor, index }) => {
   >
     {/* Competitor Header */}
     <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-4">
-      <img 
-        src={competitor.logo} 
+      <img
+        src={competitor.logo}
+        alt={`${competitor.name} icon`}
         className="w-16 h-16 rounded-full border-4 border-indigo-100 object-cover"
       />
       <div className="text-center sm:text-left w-full">

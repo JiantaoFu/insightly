@@ -13,6 +13,21 @@ const BlogPostPage: React.FC = () => {
   }
 
   const ContentComponent = post.component;
+  const canonicalUrl = `https://insightly.top/blog/${post.slug}`;
+  const imageUrl = post.banner ? `https://insightly.top${post.banner}` : undefined;
+  const publishedDate = new Date(post.date);
+
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.description,
+    ...(isNaN(publishedDate.getTime()) ? {} : { datePublished: publishedDate.toISOString() }),
+    ...(imageUrl ? { image: [imageUrl] } : {}),
+    mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+    author: { '@type': 'Organization', name: 'Insightly' },
+    publisher: { '@type': 'Organization', name: 'Insightly', url: 'https://insightly.top' },
+  };
 
   return (
     <BlogLayout
@@ -20,7 +35,8 @@ const BlogPostPage: React.FC = () => {
       description={post.description}
       keywords={`insightly, blog, ${post.slug}`}
       path={`/blog/${post.slug}`}
-      image={post.banner ? `https://insightly.top${post.banner}` : undefined}
+      image={imageUrl}
+      articleSchema={articleSchema}
     >
       <ContentComponent />
     </BlogLayout>

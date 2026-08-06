@@ -53,3 +53,22 @@ export function updateMetadata(title: string, description: string, options: Meta
     setMeta('meta[name="twitter:url"]', canonicalUrl);
   }
 }
+
+const DYNAMIC_JSONLD_ID = 'dynamic-jsonld';
+
+/** Replaces the page's structured data with a page-specific schema (e.g. Article). */
+export function setStructuredData(data: Record<string, unknown>) {
+  let script = document.getElementById(DYNAMIC_JSONLD_ID) as HTMLScriptElement | null;
+  if (!script) {
+    script = document.createElement('script');
+    script.id = DYNAMIC_JSONLD_ID;
+    script.type = 'application/ld+json';
+    document.head.appendChild(script);
+  }
+  script.textContent = JSON.stringify(data);
+}
+
+/** Removes the page-specific schema, falling back to the site-wide one in index.html. */
+export function clearStructuredData() {
+  document.getElementById(DYNAMIC_JSONLD_ID)?.remove();
+}

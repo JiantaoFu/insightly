@@ -1,0 +1,17 @@
+# Insightly
+
+> AI-powered app review analysis. Paste any App Store or Google Play link and get a structured report of user pain points, requested features, and startup opportunities.
+
+Insightly scans public App Store and Google Play reviews with AI to help indie developers and founders find their next product idea, and helps product/ASO teams track competitive intelligence from user feedback.
+
+## Product
+
+- [Homepage](https://insightly.top/): Overview for developers and founders looking for product ideas hidden in competitor app reviews.
+- [For Teams](https://insightly.top/for-teams): Competitive intelligence positioning for product and ASO teams.
+- [Analyze an app](https://insightly.top/app): Submit an App Store or Google Play URL to generate an AI review analysis report.
+- [App Analysis Archive](https://insightly.top/app-insights): Browse previously analyzed apps and competitor comparison reports.
+
+## Blog
+
+- [How to Find App Ideas That People Actually Want](https://insightly.top/blog/find-app-ideas): Using app reviews and AI analysis to spot market gaps and validate a startup idea.
+- [App Review Analysis: How to Turn User Feedback into Your Next Big App Idea](https://insightly.top/blog/app-review-analysis): How to analyze app store reviews for ideas, pain points, and feature requests.

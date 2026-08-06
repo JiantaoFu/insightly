@@ -1,6 +1,28 @@
 import { create } from 'xmlbuilder2';
 import { supabase } from './supabaseClient.js';
 
+// Static marketing/content routes that don't come from the database.
+// Keep this in sync with src/App.tsx routes and src/blog/Posts.ts slugs.
+const STATIC_ROUTES = [
+  { path: '/', changefreq: 'daily', priority: '1.0' },
+  { path: '/for-teams', changefreq: 'weekly', priority: '0.9' },
+  { path: '/app-insights', changefreq: 'daily', priority: '0.7' },
+  { path: '/blog', changefreq: 'weekly', priority: '0.8' },
+  { path: '/blog/find-app-ideas', changefreq: 'monthly', priority: '0.7' },
+  { path: '/blog/app-review-analysis', changefreq: 'monthly', priority: '0.7' },
+];
+
+function addStaticUrls(root, origin) {
+  const lastmod = new Date().toISOString();
+  STATIC_ROUTES.forEach(route => {
+    const url = root.ele('url');
+    url.ele('loc').txt(`${origin}${route.path}`);
+    url.ele('lastmod').txt(lastmod);
+    url.ele('changefreq').txt(route.changefreq);
+    url.ele('priority').txt(route.priority);
+  });
+}
+
 // Replace Set with sorted array
 const sitemapState = {
   urls: [],  // Changed from Set to Array
@@ -78,6 +100,8 @@ export async function generateSitemap(origin) {
         'xmlns:meta': 'http://www.google.com/schemas/sitemap-meta/1.0'
       });
 
+    addStaticUrls(root, origin);
+
     // No need to sort, array is already sorted
     sitemapState.urls.forEach(record => {
       const url = root.ele('url');
@@ -141,6 +165,8 @@ export async function initializeSitemap() {
       .ele('urlset', {
         xmlns: 'http://www.sitemaps.org/schemas/sitemap/0.9'
       });
+
+    addStaticUrls(root, origin);
 
     // No need to sort, array is already sorted
     sitemapState.urls.forEach(record => {

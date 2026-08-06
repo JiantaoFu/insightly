@@ -11,7 +11,7 @@ const BlogListPage: React.FC = () => {
   };
 
   return (
-    <BlogLayout title={meta.title} description={meta.description} keywords={meta.keywords}>
+    <BlogLayout title={meta.title} description={meta.description} keywords={meta.keywords} path="/blog">
       <h1>Insightly Blog</h1>
       <p className="text-xl text-gray-600 mb-12">Articles on app development, user feedback, and growth strategies.</p>
 

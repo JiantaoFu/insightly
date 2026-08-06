@@ -89,17 +89,22 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
         ? `Detailed AI-powered review analysis for ${appName}. Get insights about user feedback, sentiment analysis, and key improvement areas.`
         : `Comprehensive competitor analysis report comparing ${appName} with similar apps. Understand market positioning and competitive advantages.`);
 
-      updateMetadata(reportTitle, reportDescription);
+      const canonicalPath = reportType === 'app'
+        ? `/shared-app-report/${shareId}`
+        : `/shared-competitor-report/${shareId}`;
+
+      updateMetadata(reportTitle, reportDescription, { canonicalPath });
     }
 
     // Cleanup function to reset metadata on unmount
     return () => {
       updateMetadata(
         'Insightly: AI-Powered App Review Intelligence',
-        'Transform app reviews into actionable insights. Leverage AI to understand user feedback, drive product growth, and enhance user satisfaction.'
+        'Transform app reviews into actionable insights. Leverage AI to understand user feedback, drive product growth, and enhance user satisfaction.',
+        { canonicalPath: '/', image: 'https://insightly.top/og-image.png' }
       );
     };
-  }, [appData, reportType, report]);
+  }, [appData, reportType, report, shareId]);
 
   const downloadReport = () => {
     if (!report) return;

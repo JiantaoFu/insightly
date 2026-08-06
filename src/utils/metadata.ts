@@ -1,14 +1,55 @@
-export function updateMetadata(title: string, description: string) {
+const SITE_ORIGIN = 'https://insightly.top';
+
+interface MetadataOptions {
+  /** Site-relative path, e.g. '/for-teams' or '/blog/find-app-ideas' */
+  canonicalPath?: string;
+  /** Absolute image URL for social share cards */
+  image?: string;
+  keywords?: string;
+}
+
+function setMeta(selector: string, content: string) {
+  document.querySelector(selector)?.setAttribute('content', content);
+}
+
+function setCanonicalLink(href: string) {
+  let link = document.querySelector('link[rel="canonical"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.setAttribute('rel', 'canonical');
+    document.head.appendChild(link);
+  }
+  link.setAttribute('href', href);
+}
+
+export function updateMetadata(title: string, description: string, options: MetadataOptions = {}) {
   // Update standard meta tags
   document.title = title;
-  document.querySelector('meta[name="title"]')?.setAttribute('content', title);
-  document.querySelector('meta[name="description"]')?.setAttribute('content', description);
-  
+  setMeta('meta[name="title"]', title);
+  setMeta('meta[name="description"]', description);
+  if (options.keywords) {
+    setMeta('meta[name="keywords"]', options.keywords);
+  }
+
   // Update OpenGraph meta tags
-  document.querySelector('meta[property="og:title"]')?.setAttribute('content', title);
-  document.querySelector('meta[property="og:description"]')?.setAttribute('content', description);
-  
+  setMeta('meta[property="og:title"]', title);
+  setMeta('meta[property="og:description"]', description);
+
   // Update Twitter meta tags
-  document.querySelector('meta[name="twitter:title"]')?.setAttribute('content', title);
-  document.querySelector('meta[name="twitter:description"]')?.setAttribute('content', description);
+  setMeta('meta[name="twitter:title"]', title);
+  setMeta('meta[name="twitter:description"]', description);
+
+  if (options.image) {
+    setMeta('meta[property="og:image"]', options.image);
+    setMeta('meta[property="og:image:alt"]', title);
+    setMeta('meta[name="twitter:image"]', options.image);
+    setMeta('meta[name="twitter:image:alt"]', title);
+  }
+
+  if (options.canonicalPath) {
+    const canonicalUrl = `${SITE_ORIGIN}${options.canonicalPath}`;
+    setCanonicalLink(canonicalUrl);
+    setMeta('meta[property="og:url"]', canonicalUrl);
+    setMeta('meta[name="twitter:url"]', canonicalUrl);
+  }
 }

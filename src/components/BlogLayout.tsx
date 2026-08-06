@@ -1,20 +1,20 @@
 import React from 'react';
 import './BlogLayout.css';
+import { updateMetadata } from '../utils/metadata';
 
 interface BlogLayoutProps {
   title: string;
   description: string;
   keywords: string;
+  path: string;
+  image?: string;
   children: React.ReactNode;
 }
 
-const BlogLayout: React.FC<BlogLayoutProps> = ({ title, description, keywords, children }) => {
-  // Set meta tags based on props
+const BlogLayout: React.FC<BlogLayoutProps> = ({ title, description, keywords, path, image, children }) => {
   React.useEffect(() => {
-    document.title = title;
-    document.querySelector('meta[name="description"]')?.setAttribute('content', description);
-    document.querySelector('meta[name="keywords"]')?.setAttribute('content', keywords);
-  }, [title, description, keywords]);
+    updateMetadata(title, description, { keywords, canonicalPath: path, image });
+  }, [title, description, keywords, path, image]);
 
   return (
     <main className="blog-container">

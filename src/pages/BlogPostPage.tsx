@@ -19,6 +19,8 @@ const BlogPostPage: React.FC = () => {
       title={`${post.title} | Insightly Blog`}
       description={post.description}
       keywords={`insightly, blog, ${post.slug}`}
+      path={`/blog/${post.slug}`}
+      image={post.banner ? `https://insightly.top${post.banner}` : undefined}
     >
       <ContentComponent />
     </BlogLayout>

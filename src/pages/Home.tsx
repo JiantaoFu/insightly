@@ -53,6 +53,7 @@ export type LandingAudience = 'founders' | 'teams';
 interface LandingCopy {
   pageTitle: string;
   pageDescription: string;
+  canonicalPath: string;
   heroTitle: string;
   heroSubtitle: string;
   heroPrimaryCta: { label: string; href: string; external?: boolean };
@@ -72,6 +73,7 @@ const COPY: Record<LandingAudience, LandingCopy> = {
   founders: {
     pageTitle: 'Insightly: Find Your Next Product Idea in App Reviews',
     pageDescription: 'Paste any App Store or Google Play link and get an AI report of user pain points, requested features, and startup opportunities in minutes.',
+    canonicalPath: '/',
     heroTitle: 'Find Your Next Product Idea in Competitors’ 1-Star Reviews',
     heroSubtitle: 'Paste any App Store or Google Play link. Get an AI report of what users hate, what they wish existed, and the feature gaps you can build into a business — in minutes, not weeks of manual review reading.',
     heroPrimaryCta: { label: 'Try for $1', href: '#pricing' },
@@ -121,6 +123,7 @@ const COPY: Record<LandingAudience, LandingCopy> = {
   teams: {
     pageTitle: 'Insightly for Teams: Competitive Intelligence from App Reviews',
     pageDescription: 'Give your product and ASO team sentiment trends, feature-gap analysis, and SWOT comparisons built from real competitor app reviews.',
+    canonicalPath: '/for-teams',
     heroTitle: 'Turn Competitor App Reviews Into Your Team’s Competitive Intelligence',
     heroSubtitle: 'Track what users love and hate about competing apps — sentiment trends, feature-request themes, and SWOT comparisons your product and ASO team can act on every sprint.',
     heroPrimaryCta: { label: 'Book a Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true },
@@ -178,8 +181,8 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
   const { features, testimonials } = copy;
 
   useEffect(() => {
-    updateMetadata(copy.pageTitle, copy.pageDescription);
-  }, [copy.pageTitle, copy.pageDescription]);
+    updateMetadata(copy.pageTitle, copy.pageDescription, { canonicalPath: copy.canonicalPath });
+  }, [copy.pageTitle, copy.pageDescription, copy.canonicalPath]);
 
   return (
     <div className="min-h-screen bg-gray-50">

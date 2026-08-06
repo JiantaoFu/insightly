@@ -11,6 +11,7 @@ import { CreditsProvider } from './contexts/CreditsContext';
 
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
+const TeamsLandingPage = lazy(() => import('./pages/TeamsLandingPage'));
 const AppInsightsPage = lazy(() => import('./pages/AppInsightsPage'));
 const CompetitorAnalysis = lazy(() => import('./components/CompetitorAnalysis'));
 const MainAnalysis = lazy(() => import('./components/MainAnalysis'));
@@ -35,6 +36,7 @@ const App: React.FC = () => {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/for-teams" element={<TeamsLandingPage />} />
               <Route path="/app" element={
                 <ProtectedRoute>
                   <MainAnalysis />

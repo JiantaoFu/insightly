@@ -1,15 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Rocket,
   BarChart2,
   Zap,
   Shield,
   TrendingUp,
-  Globe,
-  Check,
   Search,
-  Layers,
-  CheckCircle
+  Layers
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
@@ -17,6 +14,7 @@ import CachedAnalysesList from '../components/CachedAnalysesList';
 import StarterPackCheckout from '../components/StarterPackCheckout';
 import Footer from '../components/Footer';
 import SubscriptionCheckoutButton from '../components/SubscriptionCheckoutButton';
+import { updateMetadata } from '../utils/metadata';
 
 // Feature Card Component
 const FeatureCard: React.FC<{
@@ -30,59 +28,6 @@ const FeatureCard: React.FC<{
       <h3 className="text-xl font-bold text-gray-900">{title}</h3>
     </div>
     <p className="text-gray-600">{description}</p>
-  </div>
-);
-
-// Pricing Card Component
-const PricingCard: React.FC<{
-  title: string;
-  price: string;
-  icon: React.ElementType;
-  features: string[];
-  background?: string;
-  isMostPopular?: boolean;
-}> = ({
-  title,
-  price,
-  icon: Icon,
-  features,
-  background = 'bg-white',
-  isMostPopular = false
-}) => (
-  <div className={`
-    ${background}
-    rounded-xl shadow-lg p-6
-    ${isMostPopular
-      ? 'border-2 border-blue-500 shadow-xl hover:shadow-2xl'
-      : 'hover:shadow-lg'}
-    relative flex flex-col
-    ${isMostPopular ? 'scale-[1.02]' : ''}
-  `}>
-    {isMostPopular && (
-      <div className="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 rounded-bl-xl">
-        Most Popular
-      </div>
-    )}
-    <div className="flex items-center mb-4">
-      <Icon className="w-10 h-10 text-blue-600 mr-4" />
-      <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
-    </div>
-    <div className="text-4xl font-extrabold text-gray-900 mb-4">{price}</div>
-    <ul className="space-y-3 mb-6 flex-grow">
-      {features.map((feature, index) => (
-        <li key={index} className="flex items-center">
-          <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-          <span className="text-gray-700">{feature}</span>
-        </li>
-      ))}
-    </ul>
-    <Link
-      to="/app"
-      className={`${isMostPopular ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-600'}
-      inline-block w-full py-3 px-6 text-center rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105`}
-    >
-      Get Started
-    </Link>
   </div>
 );
 
@@ -103,81 +48,138 @@ const Testimonial: React.FC<{
   </div>
 );
 
-const Home: React.FC = () => {
-  const features = [
-    {
-      icon: Search,
-      title: "Save Research Time",
-      description: "AI scans thousands of reviews and delivers clear insights in minutes."
-    },
-    {
-      icon: Zap,
-      title: "Validate Your Ideas",
-      description: "Check if your feature solves real user problems before investing."
-    },
-    {
-      icon: TrendingUp,
-      title: "Stay Ahead of Competitors",
-      description: "Track emerging trends and unmet needs in your niche."
-    },
-    {
-      icon: Rocket,
-      title: "Spot Market Gaps",
-      description: "See what users complain about and what they wish existed."
-    }
-  ];
+export type LandingAudience = 'founders' | 'teams';
 
-  const pricingPlans = [
-    {
-      title: "Explorer",
-      price: "$0",
-      icon: Layers,
-      features: [
-        "Basic market gap analysis",
-        "100 reviews per month",
-        "7-day historical data",
-        "Basic trend detection"
-      ]
-    },
-    {
-      title: "Innovator",
-      price: "$49",
-      icon: TrendingUp,
-      features: [
-        "Advanced market research",
-        "1,000 reviews per month",
-        "30-day historical data",
-        "Trend analysis & predictions",
-        "Competitive insights"
-      ],
-      isMostPopular: true
-    },
-    {
-      title: "Enterprise",
-      price: "Custom",
-      icon: Shield,
-      features: [
-        "Full market intelligence suite",
-        "Unlimited reviews analysis",
-        "Full historical data access",
-        "Custom integrations",
-        "Dedicated research analyst"
-      ]
-    }
-  ];
+interface LandingCopy {
+  pageTitle: string;
+  pageDescription: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  heroPrimaryCta: { label: string; href: string; external?: boolean };
+  heroSecondaryCta: { label: string; href: string; external?: boolean };
+  featuresSectionTitle: string;
+  startSectionTitle: string;
+  startSectionSubtitle: string;
+  features: { icon: React.ElementType; title: string; description: string }[];
+  testimonials: { quote: string; name: string; role: string }[];
+  ctaTitle: string;
+  ctaSubtitle: string;
+  ctaPrimary: { label: string; href: string };
+  ctaSecondary: { label: string; href: string; external?: boolean };
+}
 
-  const testimonials = [
-    {
-      quote: 'Helped us identify a $2M market opportunity we would have missed.',
-      name: 'Sarah Chen',
-      role: 'Founder, TechVentures'
-    },
-    {
-      quote: 'The most comprehensive market research tool for digital products.',
-      name: 'Mike Peterson',
-      role: 'Product Strategy, InnovateCo'
-    }
-  ];
+const COPY: Record<LandingAudience, LandingCopy> = {
+  founders: {
+    pageTitle: 'Insightly: Find Your Next Product Idea in App Reviews',
+    pageDescription: 'Paste any App Store or Google Play link and get an AI report of user pain points, requested features, and startup opportunities in minutes.',
+    heroTitle: 'Find Your Next Product Idea in Competitors’ 1-Star Reviews',
+    heroSubtitle: 'Paste any App Store or Google Play link. Get an AI report of what users hate, what they wish existed, and the feature gaps you can build into a business — in minutes, not weeks of manual review reading.',
+    heroPrimaryCta: { label: 'Try for $1', href: '#pricing' },
+    heroSecondaryCta: { label: 'Learn More', href: '#features' },
+    featuresSectionTitle: 'See exactly what to build next — before you write a line of code.',
+    startSectionTitle: 'Start Market Research',
+    startSectionSubtitle: 'Discover untapped opportunities in your target market',
+    features: [
+      {
+        icon: Search,
+        title: 'Save Research Time',
+        description: 'AI scans thousands of reviews and delivers clear insights in minutes.'
+      },
+      {
+        icon: Zap,
+        title: 'Validate Your Ideas',
+        description: 'Check if your feature solves real user problems before investing.'
+      },
+      {
+        icon: TrendingUp,
+        title: 'Stay Ahead of Competitors',
+        description: 'Track emerging trends and unmet needs in your niche.'
+      },
+      {
+        icon: Rocket,
+        title: 'Spot Market Gaps',
+        description: 'See what users complain about and what they wish existed.'
+      }
+    ],
+    testimonials: [
+      {
+        quote: 'Helped us identify a $2M market opportunity we would have missed.',
+        name: 'Sarah Chen',
+        role: 'Founder, TechVentures'
+      },
+      {
+        quote: 'I found my last three product ideas by reading Insightly reports instead of scrolling reviews manually.',
+        name: 'Mike Peterson',
+        role: 'Indie Hacker'
+      }
+    ],
+    ctaTitle: 'Ready to Discover Your Next Product Idea?',
+    ctaSubtitle: 'Start your journey to data-driven product success today.',
+    ctaPrimary: { label: 'Start Free Research', href: '/app' },
+    ctaSecondary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true }
+  },
+  teams: {
+    pageTitle: 'Insightly for Teams: Competitive Intelligence from App Reviews',
+    pageDescription: 'Give your product and ASO team sentiment trends, feature-gap analysis, and SWOT comparisons built from real competitor app reviews.',
+    heroTitle: 'Turn Competitor App Reviews Into Your Team’s Competitive Intelligence',
+    heroSubtitle: 'Track what users love and hate about competing apps — sentiment trends, feature-request themes, and SWOT comparisons your product and ASO team can act on every sprint.',
+    heroPrimaryCta: { label: 'Book a Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true },
+    heroSecondaryCta: { label: 'Try for $1', href: '#pricing' },
+    featuresSectionTitle: 'See what your competitors’ users are really saying — before your roadmap meeting.',
+    startSectionTitle: 'Start Competitive Analysis',
+    startSectionSubtitle: 'Benchmark your app against competitors in minutes, not analyst-days',
+    features: [
+      {
+        icon: Layers,
+        title: 'Competitive Benchmarking',
+        description: 'SWOT-style comparisons across competitor apps, built from real user reviews.'
+      },
+      {
+        icon: BarChart2,
+        title: 'Sentiment & Trend Tracking',
+        description: 'Monitor how competitor sentiment shifts release over release.'
+      },
+      {
+        icon: Search,
+        title: 'Feature Gap Analysis',
+        description: 'Surface the features users beg competitors for — feed it straight into your roadmap.'
+      },
+      {
+        icon: Shield,
+        title: 'Save Analyst Hours',
+        description: 'Skip the manual review-reading. Get a shareable report your whole team can act on.'
+      }
+    ],
+    testimonials: [
+      {
+        quote: 'The most comprehensive competitive research tool for digital products we’ve tried.',
+        name: 'Mike Peterson',
+        role: 'Product Strategy, InnovateCo'
+      },
+      {
+        quote: 'We used to spend a full day before each roadmap review just reading competitor reviews. Now it’s minutes.',
+        name: 'Sarah Chen',
+        role: 'Head of Product, TechVentures'
+      }
+    ],
+    ctaTitle: 'Ready to Bring Competitive Intelligence Into Your Roadmap?',
+    ctaSubtitle: 'See a live walkthrough, or start a self-serve analysis today.',
+    ctaPrimary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo' },
+    ctaSecondary: { label: 'Start Free Research', href: '/app' }
+  }
+};
+
+interface HomeProps {
+  audience?: LandingAudience;
+}
+
+const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
+  const copy = COPY[audience];
+  const { features, testimonials } = copy;
+
+  useEffect(() => {
+    updateMetadata(copy.pageTitle, copy.pageDescription);
+  }, [copy.pageTitle, copy.pageDescription]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -192,20 +194,25 @@ const Home: React.FC = () => {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="text-center">
             <h1 className="text-5xl tracking-tight font-extrabold sm:text-6xl lg:text-7xl">
-              Find Out What App Users Really Want
+              {copy.heroTitle}
             </h1>
             <p className="mt-5 max-w-md mx-auto text-xl text-gray-200 sm:text-2xl md:mt-8 md:max-w-3xl">
-              Instant AI analysis of competitor app reviews: discover pain points, feature requests, and hidden opportunities before you build.
+              {copy.heroSubtitle}
             </p>
             <div className="mt-10 flex justify-center gap-4">
               <a
-                href="#pricing"
+                href={copy.heroPrimaryCta.href}
+                {...(copy.heroPrimaryCta.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 className="inline-block bg-white text-indigo-600 px-8 py-3 rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
               >
-                Try for $1
+                {copy.heroPrimaryCta.label}
               </a>
-              <a href="#features" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105">
-                Learn More
+              <a
+                href={copy.heroSecondaryCta.href}
+                {...(copy.heroSecondaryCta.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
+              >
+                {copy.heroSecondaryCta.label}
               </a>
             </div>
           </div>
@@ -217,11 +224,8 @@ const Home: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-extrabold text-gray-900">
-              Our tool shows you exactly what users love, hate, and still want, so you don’t waste months building the wrong features.
+              {copy.featuresSectionTitle}
             </h2>
-            {/* <p className="mt-4 text-xl text-gray-600">
-              Turn user feedback into market opportunities
-            </p> */}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
@@ -241,10 +245,10 @@ const Home: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 bg-white">
         <div className="text-center">
           <h2 className="text-4xl font-extrabold text-gray-900 mb-6">
-            Start Market Research
+            {copy.startSectionTitle}
           </h2>
           <p className="text-xl text-gray-600 mb-8">
-            Discover untapped opportunities in your target market
+            {copy.startSectionSubtitle}
           </p>
           <Link
             to="/app"
@@ -366,23 +370,40 @@ const Home: React.FC = () => {
       <div className="bg-blue-600 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-extrabold text-white mb-6">
-            Ready to Discover Market Opportunities?
+            {copy.ctaTitle}
           </h2>
           <p className="text-xl text-blue-200 mb-8">
-            Start your journey to data-driven product success today.
+            {copy.ctaSubtitle}
           </p>
           <div className="flex justify-center space-x-4">
-            <Link to="/app" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-              Start Free Research
-            </Link>
-            <a
-              href="https://calendly.com/jeromyfu-/insightly-top-demo"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
-            >
-              Book Demo
-            </a>
+            {copy.ctaPrimary.href.startsWith('http') ? (
+              <a
+                href={copy.ctaPrimary.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              >
+                {copy.ctaPrimary.label}
+              </a>
+            ) : (
+              <Link to={copy.ctaPrimary.href} className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                {copy.ctaPrimary.label}
+              </Link>
+            )}
+            {copy.ctaSecondary.href.startsWith('http') ? (
+              <a
+                href={copy.ctaSecondary.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
+              >
+                {copy.ctaSecondary.label}
+              </a>
+            ) : (
+              <Link to={copy.ctaSecondary.href} className="bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors">
+                {copy.ctaSecondary.label}
+              </Link>
+            )}
           </div>
         </div>
       </div>

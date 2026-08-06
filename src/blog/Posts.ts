@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { lazy } from 'react';
 
-// We will create this component in the next step.
-import FindAppIdeasContent from './content/FindAppIdeasContent';
-import AppReviewAnalysisContent from './content/AppReviewAnalysisContent';
+// Post metadata (title/description/etc.) is used eagerly by the blog list
+// and by BlogPostPage before the article renders, so it must stay a plain
+// import. The article body itself is lazy so its text/markup doesn't get
+// bundled into every page's shared entry chunk -- only /blog/:slug visitors
+// pay for it.
+const FindAppIdeasContent = lazy(() => import('./content/FindAppIdeasContent'));
+const AppReviewAnalysisContent = lazy(() => import('./content/AppReviewAnalysisContent'));
 
 export interface BlogPost {
   slug: string;

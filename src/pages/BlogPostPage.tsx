@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import BlogLayout from '../components/BlogLayout';
 import { blogPosts } from '../blog/Posts';
@@ -38,7 +38,9 @@ const BlogPostPage: React.FC = () => {
       image={imageUrl}
       articleSchema={articleSchema}
     >
-      <ContentComponent />
+      <Suspense fallback={null}>
+        <ContentComponent />
+      </Suspense>
     </BlogLayout>
   );
 };

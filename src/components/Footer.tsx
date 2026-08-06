@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Footer: React.FC = () => {
   return (
@@ -15,7 +16,12 @@ const Footer: React.FC = () => {
             <img src="https://submitmysaas.com/images/badges/top2-light.png" alt="SubmitMySaas Top 2 Daily Winner" className="h-14 w-auto"/>
           </a>
         </div>
-        <p className="text-center text-gray-400 text-sm mt-8">&copy; {new Date().getFullYear()} Insightly. All rights reserved.</p>
+        <div className="flex justify-center mt-6">
+          <Link to="/for-teams" className="text-gray-400 text-sm hover:text-white transition-colors">
+            Insightly for Teams &amp; ASO
+          </Link>
+        </div>
+        <p className="text-center text-gray-400 text-sm mt-4">&copy; {new Date().getFullYear()} Insightly. All rights reserved.</p>
       </div>
     </footer>
   );

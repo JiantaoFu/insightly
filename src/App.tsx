@@ -7,6 +7,11 @@ import { ChatBox } from './components/ChatBox';  // Change import path
 import { AuthProvider } from './components/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CreditsProvider } from './contexts/CreditsContext';
+// Loaded eagerly (not lazy): Netlify's prerender crawler snapshots the page
+// before async route chunks finish loading, so these SEO-critical blog
+// pages were being captured with an empty #root and stale meta tags.
+import BlogListPage from './pages/BlogListPage';
+import BlogPostPage from './pages/BlogPostPage';
 
 
 // Lazy load pages
@@ -18,8 +23,6 @@ const MainAnalysis = lazy(() => import('./components/MainAnalysis'));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
 const PaymentCancel = lazy(() => import('./pages/PaymentCancel'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
-const BlogListPage = lazy(() => import('./pages/BlogListPage'));
-const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 
 // Loading fallback component
 const LoadingFallback = () => (

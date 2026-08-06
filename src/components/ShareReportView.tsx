@@ -93,7 +93,10 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
         ? `/shared-app-report/${shareId}`
         : `/shared-competitor-report/${shareId}`;
 
-      updateMetadata(reportTitle, reportDescription, { canonicalPath });
+      updateMetadata(reportTitle, reportDescription, {
+        canonicalPath,
+        image: appData.icon || undefined
+      });
     }
 
     // Cleanup function to reset metadata on unmount

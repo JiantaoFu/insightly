@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2942"/>
+      <stop offset="100%" stop-color="#2f6fa8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- review cards -->
+  <g opacity="0.95">
+    <rect x="120" y="150" width="360" height="140" rx="16" fill="#ffffff" opacity="0.08"/>
+    <rect x="120" y="150" width="360" height="140" rx="16" fill="none" stroke="#ffffff" stroke-opacity="0.25"/>
+    <circle cx="160" cy="192" r="16" fill="#ffffff" opacity="0.35"/>
+    <rect x="188" y="184" width="120" height="10" rx="5" fill="#ffffff" opacity="0.35"/>
+    <rect x="150" y="220" width="290" height="10" rx="5" fill="#ffffff" opacity="0.25"/>
+    <rect x="150" y="242" width="230" height="10" rx="5" fill="#ffffff" opacity="0.25"/>
+    <g transform="translate(150,262)">
+      <path d="M9 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L9 13.8 3.4 17l1.4-6.2L0 6.5l6.4-.6z" fill="#f6c94c"/>
+      <path d="M31 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L31 13.8 25.4 17l1.4-6.2L21 6.5l6.4-.6z" fill="#f6c94c"/>
+      <path d="M53 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L53 13.8 47.4 17l1.4-6.2L43 6.5l6.4-.6z" fill="#f6c94c"/>
+      <path d="M75 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L75 13.8 69.4 17l1.4-6.2L65 6.5l6.4-.6z" fill="#ffffff" opacity="0.3"/>
+      <path d="M97 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L97 13.8 91.4 17l1.4-6.2L87 6.5l6.4-.6z" fill="#ffffff" opacity="0.3"/>
+    </g>
+  </g>
+
+  <g opacity="0.95">
+    <rect x="720" y="340" width="360" height="140" rx="16" fill="#ffffff" opacity="0.08"/>
+    <rect x="720" y="340" width="360" height="140" rx="16" fill="none" stroke="#ffffff" stroke-opacity="0.25"/>
+    <circle cx="760" cy="382" r="16" fill="#ffffff" opacity="0.35"/>
+    <rect x="788" y="374" width="120" height="10" rx="5" fill="#ffffff" opacity="0.35"/>
+    <rect x="750" y="410" width="290" height="10" rx="5" fill="#ffffff" opacity="0.25"/>
+    <rect x="750" y="432" width="230" height="10" rx="5" fill="#ffffff" opacity="0.25"/>
+    <g transform="translate(750,452)">
+      <path d="M9 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L9 13.8 3.4 17l1.4-6.2L0 6.5l6.4-.6z" fill="#f6c94c"/>
+      <path d="M31 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L31 13.8 25.4 17l1.4-6.2L21 6.5l6.4-.6z" fill="#ffffff" opacity="0.3"/>
+      <path d="M53 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L53 13.8 47.4 17l1.4-6.2L43 6.5l6.4-.6z" fill="#ffffff" opacity="0.3"/>
+      <path d="M75 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L75 13.8 69.4 17l1.4-6.2L65 6.5l6.4-.6z" fill="#ffffff" opacity="0.3"/>
+      <path d="M97 0l2.6 5.9 6.4.6-4.8 4.3 1.4 6.2L97 13.8 91.4 17l1.4-6.2L87 6.5l6.4-.6z" fill="#ffffff" opacity="0.3"/>
+    </g>
+  </g>
+
+  <!-- lightbulb / idea icon -->
+  <g transform="translate(560,240)">
+    <circle cx="0" cy="0" r="70" fill="#f6c94c" opacity="0.15"/>
+    <path d="M0-40a34 34 0 00-16 64c3 2 4 5 4 8v6h24v-6c0-3 1-6 4-8A34 34 0 000-40z" fill="#f6c94c"/>
+    <rect x="-12" y="38" width="24" height="8" rx="4" fill="#e0ab2f"/>
+    <rect x="-9" y="48" width="18" height="7" rx="3.5" fill="#e0ab2f"/>
+  </g>
+
+  <text x="120" y="80" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff">10 App Ideas Hiding in Reviews</text>
+</svg>

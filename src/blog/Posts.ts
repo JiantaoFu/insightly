@@ -7,6 +7,8 @@ import React, { lazy } from 'react';
 // pay for it.
 const FindAppIdeasContent = lazy(() => import('./content/FindAppIdeasContent'));
 const AppReviewAnalysisContent = lazy(() => import('./content/AppReviewAnalysisContent'));
+const AppIdeasFromReviewsContent = lazy(() => import('./content/AppIdeasFromReviewsContent'));
+const CompetitorResearchContent = lazy(() => import('./content/CompetitorResearchContent'));
 
 export interface BlogPost {
   slug: string;
@@ -34,5 +36,21 @@ export const blogPosts: BlogPost[] = [
     banner: '/blogs/app-review-analysis.webp',
     date: 'May 27, 2024',
     component: AppReviewAnalysisContent,
+  },
+  {
+    slug: 'app-ideas-from-reviews',
+    title: '10 App Ideas Hiding in App Store Reviews Right Now',
+    description: 'Ten recurring complaint patterns from real app reviews, and the product opportunity hiding behind each one.',
+    banner: '/blogs/app-ideas-from-reviews.svg',
+    date: 'Aug 6, 2026',
+    component: AppIdeasFromReviewsContent,
+  },
+  {
+    slug: 'competitor-research-afternoon',
+    title: 'How to Do Competitor Research for Your App in an Afternoon (Not a Week)',
+    description: 'A five-step competitor research process for app founders that actually gets finished, instead of dying in a half-filled spreadsheet.',
+    banner: '/blogs/competitor-research-afternoon.svg',
+    date: 'Aug 6, 2026',
+    component: CompetitorResearchContent,
   },
 ];

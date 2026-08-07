@@ -10,6 +10,8 @@ const STATIC_ROUTES = [
   { path: '/blog', changefreq: 'weekly', priority: '0.8' },
   { path: '/blog/find-app-ideas', changefreq: 'monthly', priority: '0.7' },
   { path: '/blog/app-review-analysis', changefreq: 'monthly', priority: '0.7' },
+  { path: '/blog/app-ideas-from-reviews', changefreq: 'monthly', priority: '0.7' },
+  { path: '/blog/competitor-research-afternoon', changefreq: 'monthly', priority: '0.7' },
 ];
 
 function addStaticUrls(root, origin) {

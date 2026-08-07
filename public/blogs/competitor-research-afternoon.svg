@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1440"/>
+      <stop offset="100%" stop-color="#3b4fc4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg2)"/>
+
+  <!-- two app cards being compared -->
+  <g>
+    <rect x="150" y="260" width="220" height="280" rx="20" fill="#ffffff" opacity="0.08"/>
+    <rect x="150" y="260" width="220" height="280" rx="20" fill="none" stroke="#ffffff" stroke-opacity="0.25"/>
+    <circle cx="260" cy="330" r="34" fill="#ffffff" opacity="0.35"/>
+    <rect x="190" y="384" width="140" height="10" rx="5" fill="#ffffff" opacity="0.35"/>
+    <rect x="205" y="404" width="110" height="8" rx="4" fill="#ffffff" opacity="0.22"/>
+    <rect x="180" y="440" width="160" height="46" rx="10" fill="#ffffff" opacity="0.12"/>
+  </g>
+
+  <g>
+    <rect x="830" y="260" width="220" height="280" rx="20" fill="#ffffff" opacity="0.08"/>
+    <rect x="830" y="260" width="220" height="280" rx="20" fill="none" stroke="#ffffff" stroke-opacity="0.25"/>
+    <circle cx="940" cy="330" r="34" fill="#ffffff" opacity="0.35"/>
+    <rect x="870" y="384" width="140" height="10" rx="5" fill="#ffffff" opacity="0.35"/>
+    <rect x="885" y="404" width="110" height="8" rx="4" fill="#ffffff" opacity="0.22"/>
+    <rect x="860" y="440" width="160" height="46" rx="10" fill="#ffffff" opacity="0.12"/>
+  </g>
+
+  <text x="590" y="410" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#ffffff" opacity="0.6" text-anchor="middle">VS</text>
+
+  <!-- stopwatch icon -->
+  <g transform="translate(600,190)">
+    <circle cx="0" cy="10" r="66" fill="#7dd3fc" opacity="0.16"/>
+    <circle cx="0" cy="10" r="46" fill="none" stroke="#7dd3fc" stroke-width="8"/>
+    <line x1="0" y1="10" x2="0" y2="-18" stroke="#7dd3fc" stroke-width="7" stroke-linecap="round"/>
+    <line x1="0" y1="10" x2="20" y2="10" stroke="#7dd3fc" stroke-width="7" stroke-linecap="round"/>
+    <rect x="-12" y="-58" width="24" height="12" rx="6" fill="#7dd3fc"/>
+    <line x1="34" y1="-30" x2="46" y2="-42" stroke="#7dd3fc" stroke-width="7" stroke-linecap="round"/>
+  </g>
+
+  <text x="120" y="80" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#ffffff">Competitor Research, Fast</text>
+</svg>

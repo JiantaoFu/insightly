@@ -15,3 +15,5 @@ Insightly scans public App Store and Google Play reviews with AI to help indie d
 
 - [How to Find App Ideas That People Actually Want](https://insightly.top/blog/find-app-ideas): Using app reviews and AI analysis to spot market gaps and validate a startup idea.
 - [App Review Analysis: How to Turn User Feedback into Your Next Big App Idea](https://insightly.top/blog/app-review-analysis): How to analyze app store reviews for ideas, pain points, and feature requests.
+- [10 App Ideas Hiding in App Store Reviews Right Now](https://insightly.top/blog/app-ideas-from-reviews): Ten recurring complaint patterns from real app reviews and the product opportunity behind each one.
+- [How to Do Competitor Research for Your App in an Afternoon (Not a Week)](https://insightly.top/blog/competitor-research-afternoon): A five-step competitor research process for app founders.

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
+import QuickLookup from '../components/QuickLookup';
 import CachedAnalysesList from '../components/CachedAnalysesList';
 import StarterPackCheckout from '../components/StarterPackCheckout';
 import Footer from '../components/Footer';
@@ -183,6 +184,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
                 {copy.heroSecondaryCta.label}
               </a>
             </div>
+            <QuickLookup />
           </div>
         </div>
       </div>

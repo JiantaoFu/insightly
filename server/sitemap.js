@@ -43,14 +43,12 @@ const sitemapState = {
 
 const SITEMAP_CACHE_DURATION = 3600000; // 1 hour in milliseconds
 
-// Legacy rows (~1.8k imported reports) have NULL hash_url/timestamp but DO
-// have a valid shareLink like https://insightly.top/shared-app-report/<hash>.
-// Derive the hash from shareLink so those public pages aren't dropped from
-// the sitemap. Returns null when no usable hash exists.
+// ~1.8k legacy imported reports have NULL timestamp (but a valid hash_url).
+// The old incremental query `.gt('timestamp', since)` silently excluded them
+// forever once the background init failed. Normalize here: keep the hash,
+// fall back timestamp to 0 for sorting.
 function toSitemapRecord(row) {
-  const hash =
-    row.hash_url ||
-    (row.shareLink ? String(row.shareLink).split('/').filter(Boolean).pop() : null);
+  const hash = row.hash_url;
   if (!hash || hash === 'null' || hash === 'undefined') return null;
   return { hash_url: hash, timestamp: row.timestamp || 0 };
 }
@@ -71,7 +69,7 @@ const LEGACY_LASTMOD = '2025-01-01T00:00:00.000Z';
 async function fetchNewRecords(since) {
   const { data, error } = await supabase
     .from('analysis_reports')
-    .select('hash_url, shareLink, timestamp')
+    .select('hash_url, timestamp')
     .gt('timestamp', since)
     .order('timestamp', { ascending: true })
     // Safety cap: on a cold start the first /sitemap.xml request can race
@@ -92,7 +90,7 @@ async function fetchNewRecords(since) {
 async function fetchAllRecords() {
   const { data, error } = await supabase
     .from('analysis_reports')
-    .select('hash_url, shareLink, timestamp')
+    .select('hash_url, timestamp')
     .order('timestamp', { ascending: false, nullsFirst: false })
     .limit(SITEMAP_MAX_URLS);
 

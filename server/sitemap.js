@@ -87,15 +87,29 @@ async function fetchNewRecords(since) {
 // as a self-heal path when background init never succeeded: the incremental
 // .gt('timestamp', since) query permanently excludes legacy rows whose
 // timestamp is NULL, so an init failure used to leave them out forever.
+//
+// IMPORTANT: paginate with .range() instead of a single .limit(20000):
+// Supabase/PostgREST clamps single-query rows to ~1000 (PGRST max-rows),
+// which is why the sitemap used to contain only ~1001 report URLs.
 async function fetchAllRecords() {
-  const { data, error } = await supabase
-    .from('analysis_reports')
-    .select('hash_url, timestamp')
-    .order('timestamp', { ascending: false, nullsFirst: false })
-    .limit(SITEMAP_MAX_URLS);
+  const PAGE_SIZE = 1000;
+  const all = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .select('hash_url, timestamp')
+      .order('timestamp', { ascending: false, nullsFirst: false })
+      .range(from, from + PAGE_SIZE - 1);
 
-  if (error) throw error;
-  return toSitemapRecords(data);
+    if (error) throw error;
+    const recs = toSitemapRecords(data);
+    all.push(...recs);
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+    if (all.length >= SITEMAP_MAX_URLS) break;
+  }
+  return all.slice(0, SITEMAP_MAX_URLS);
 }
 
 async function updateSitemapUrls() {

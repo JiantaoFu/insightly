@@ -29,6 +29,41 @@
   status = 200
   force = true
 
+# Other backend endpoints the frontend calls (NOT under /api/* or /auth/*).
+# Found by auditing every `${SERVER_URL}...` usage in src/: the Stripe
+# checkout/portal/subscription endpoints and the app-store scrapers.
+# Without these, switching VITE_SERVER_URL to insightly.top would 404
+# payments and "process app URL".
+[[redirects]]
+  from = "/app-store/*"
+  to = "https://insightly-5iyw.onrender.com/app-store/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/google-play/*"
+  to = "https://insightly-5iyw.onrender.com/google-play/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/create-checkout-session"
+  to = "https://insightly-5iyw.onrender.com/create-checkout-session"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/create-portal-session"
+  to = "https://insightly-5iyw.onrender.com/create-portal-session"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/create-subscription-session"
+  to = "https://insightly-5iyw.onrender.com/create-subscription-session"
+  status = 200
+  force = true
+
 # Known SPA routes: serve the app shell with HTTP 200.
 # (Frontend requirement: VITE_SERVER_URL=https://insightly.top so the
 # browser never leaves the custom domain for API calls.)

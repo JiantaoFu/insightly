@@ -47,7 +47,13 @@ async function fetchNewRecords(since) {
     .from('analysis_reports')
     .select('hash_url, timestamp')  // Removed description
     .gt('timestamp', since)
-    .order('timestamp', { ascending: true });
+    .order('timestamp', { ascending: true })
+    // Safety cap: on a cold start the first /sitemap.xml request can race
+    // the background initializeSitemap(); without a limit this would scan
+    // the whole table. 20k is plenty per hourly refresh; any remainder is
+    // picked up on the next refresh since lastUpdateTimestamp only advances
+    // to the max timestamp actually fetched.
+    .limit(SITEMAP_MAX_URLS);
 
   if (error) throw error;
   return data;

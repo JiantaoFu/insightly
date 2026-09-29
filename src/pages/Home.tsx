@@ -421,20 +421,6 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               </a>
             ) : copy.ctaSecondary.href.startsWith('http') ? (
               <a
-                href={copy.ctaPrimary.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
-              >
-                {copy.ctaPrimary.label}
-              </a>
-            ) : (
-              <Link to={copy.ctaPrimary.href} className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-                {copy.ctaPrimary.label}
-              </Link>
-            )}
-            {copy.ctaSecondary.href.startsWith('http') ? (
-              <a
                 href={copy.ctaSecondary.href}
                 target="_blank"
                 rel="noopener noreferrer"

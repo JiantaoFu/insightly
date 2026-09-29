@@ -1830,6 +1830,58 @@ app.get('/', (req, res) => {
   });
 });
 
+// LLM health check: verifies the configured Gemini model is still served by
+// Google and the API key can generate. Catches silent breakage like the
+// 2026-06-01 gemini-2.0-flash retirement (analysis was broken for ~4 months
+// with nobody noticing). Polled by the daily monitoring cron; notifies on failure.
+// The API key never leaves the server: only ok/boolean details are returned.
+const llmHealthCache = { at: 0, result: null };
+app.get('/api/health/llm', async (req, res) => {
+  const now = Date.now();
+  if (llmHealthCache.result && now - llmHealthCache.at < 5 * 60 * 1000) {
+    return res.json({ ...llmHealthCache.result, cached: true });
+  }
+  const provider = LLM_PROVIDERS['gemini'];
+  const model = provider.resolveModel();
+  const started = Date.now();
+  try {
+    // 1. Is the model still listed by Google?
+    const listResp = await fetch(`${provider.url}?key=${provider.apiKey}`);
+    let listed = false;
+    if (listResp.ok) {
+      const listData = await listResp.json();
+      const names = (listData.models || []).map(m => String(m.name || '').replace(/^models\//, ''));
+      listed = names.includes(model);
+    }
+    // 2. Can the key actually generate? (tiny fixed ping, negligible cost)
+    let pingOk = false;
+    let pingError = null;
+    try {
+      const out = await provider.generateResponse(model, 'Reply with exactly this word: ok');
+      pingOk = /\bok\b/i.test(String(out || ''));
+    } catch (e) {
+      pingError = String(e && e.message || e).slice(0, 200);
+    }
+    const result = {
+      ok: listed && pingOk,
+      model,
+      listed,
+      pingOk,
+      pingError,
+      ms: Date.now() - started,
+      checkedAt: new Date().toISOString(),
+    };
+    llmHealthCache.at = now;
+    llmHealthCache.result = result;
+    res.json(result);
+  } catch (e) {
+    const result = { ok: false, model, error: String(e && e.message || e).slice(0, 200), checkedAt: new Date().toISOString() };
+    llmHealthCache.at = now;
+    llmHealthCache.result = result;
+    res.json(result);
+  }
+});
+
 // Sitemap endpoint
 app.get('/sitemap.xml', async (req, res) => {
   try {

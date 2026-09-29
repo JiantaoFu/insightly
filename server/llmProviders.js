@@ -188,10 +188,24 @@ export const LLM_PROVIDERS = {
   gemini: {
     url: process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models',
     apiKey: process.env.GEMINI_API_KEY,
-    defaultModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    defaultModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
+    // Models Google shut down (e.g. gemini-2.0-flash retired 2026-06-01) are
+    // remapped so old frontend builds keep working without a redeploy.
+    retiredModelMap: {
+      'gemini-2.0-flash': 'gemini-3.5-flash',
+      'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite',
+      'gemini-1.5-flash': 'gemini-3.5-flash',
+      'gemini-1.5-pro': 'gemini-3.5-flash',
+      'gemini-pro': 'gemini-3.5-flash',
+      'gemini-pro-vision': 'gemini-3.5-flash',
+    },
+    resolveModel(model) {
+      const requested = model || this.defaultModel;
+      return this.retiredModelMap[requested] || requested;
+    },
     async generateResponse(model, prompt, options = {}) {
       const genAI = new GoogleGenerativeAI(this.apiKey);
-      const generativeModel = genAI.getGenerativeModel({ model: model || this.defaultModel });
+      const generativeModel = genAI.getGenerativeModel({ model: this.resolveModel(model) });
       
       try {
         const result = await generativeModel.generateContent(prompt);
@@ -222,7 +236,7 @@ export const LLM_PROVIDERS = {
       };
 
       const generativeModel = genAI.getGenerativeModel({ 
-        model: model || this.defaultModel,
+        model: this.resolveModel(model),
         generationConfig
       });
       

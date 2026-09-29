@@ -16,9 +16,18 @@ const Footer: React.FC = () => {
             <img src="https://submitmysaas.com/images/badges/top2-light.png" alt="SubmitMySaas Top 2 Daily Winner" className="h-14 w-auto"/>
           </a>
         </div>
-        <div className="flex justify-center mt-6">
+        <div className="flex justify-center flex-wrap gap-x-6 gap-y-2 mt-6">
           <Link to="/for-teams" className="text-gray-400 text-sm hover:text-white transition-colors">
             Insightly for Teams &amp; ASO
+          </Link>
+          <Link to="/privacy" className="text-gray-400 text-sm hover:text-white transition-colors">
+            Privacy Policy
+          </Link>
+          <Link to="/terms" className="text-gray-400 text-sm hover:text-white transition-colors">
+            Terms of Service
+          </Link>
+          <Link to="/refund" className="text-gray-400 text-sm hover:text-white transition-colors">
+            Refund Policy
           </Link>
         </div>
         <p className="text-center text-gray-400 text-sm mt-4">&copy; {new Date().getFullYear()} Insightly. All rights reserved.</p>

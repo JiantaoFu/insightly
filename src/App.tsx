@@ -15,6 +15,9 @@ import BlogPostPage from './pages/BlogPostPage';
 import Home from './pages/Home';
 import TeamsLandingPage from './pages/TeamsLandingPage';
 import AppInsightsPage from './pages/AppInsightsPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+import RefundPage from './pages/RefundPage';
 import Navigation from './components/Navigation';
 import Footer from './components/Footer';
 import { Link } from 'react-router-dom';
@@ -89,6 +92,9 @@ const App: React.FC = () => {
               <Route path="/account" element={<AccountPage />} />
               <Route path="/blog" element={<BlogListPage />} />
               <Route path="/blog/:slug" element={<BlogPostPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/refund" element={<RefundPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

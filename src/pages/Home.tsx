@@ -31,22 +31,8 @@ const FeatureCard: React.FC<{
   </div>
 );
 
-// Testimonial Component
-const Testimonial: React.FC<{
-  quote: string;
-  name: string;
-  role: string;
-}> = ({ quote, name, role }) => (
-  <div className="bg-white rounded-xl shadow-lg p-6">
-    <p className="italic text-gray-600 mb-4">"{quote}"</p>
-    <div className="flex items-center">
-      <div>
-        <h4 className="font-semibold text-gray-900">{name}</h4>
-        <p className="text-sm text-gray-500">{role}</p>
-      </div>
-    </div>
-  </div>
-);
+// (Testimonials removed 2026-09-29: the Sarah Chen / Mike Peterson quotes were
+// placeholder content with inconsistent titles across pages.)
 
 export type LandingAudience = 'founders' | 'teams';
 
@@ -62,7 +48,6 @@ interface LandingCopy {
   startSectionTitle: string;
   startSectionSubtitle: string;
   features: { icon: React.ElementType; title: string; description: string }[];
-  testimonials: { quote: string; name: string; role: string }[];
   ctaTitle: string;
   ctaSubtitle: string;
   ctaPrimary: { label: string; href: string };
@@ -105,18 +90,6 @@ const COPY: Record<LandingAudience, LandingCopy> = {
         description: 'See what users complain about and what they wish existed.'
       }
     ],
-    testimonials: [
-      {
-        quote: 'Helped us identify a $2M market opportunity we would have missed.',
-        name: 'Sarah Chen',
-        role: 'Founder, TechVentures'
-      },
-      {
-        quote: 'I found my last three product ideas by reading Insightly reports instead of scrolling reviews manually.',
-        name: 'Mike Peterson',
-        role: 'Indie Hacker'
-      }
-    ],
     ctaTitle: 'Ready to Discover Your Next Product Idea?',
     ctaSubtitle: 'Browse real sample reports — no sign-up needed — or start your own analysis for $1.',
     // Honest pricing: the minimum spend is the $1 Starter Pack, not "Free".
@@ -156,18 +129,6 @@ const COPY: Record<LandingAudience, LandingCopy> = {
         description: 'Skip the manual review-reading. Get a shareable report your whole team can act on.'
       }
     ],
-    testimonials: [
-      {
-        quote: 'The most comprehensive competitive research tool for digital products we’ve tried.',
-        name: 'Mike Peterson',
-        role: 'Product Strategy, InnovateCo'
-      },
-      {
-        quote: 'We used to spend a full day before each roadmap review just reading competitor reviews. Now it’s minutes.',
-        name: 'Sarah Chen',
-        role: 'Head of Product, TechVentures'
-      }
-    ],
     ctaTitle: 'Ready to Bring Competitive Intelligence Into Your Roadmap?',
     ctaSubtitle: 'See a live walkthrough, or start a self-serve analysis today.',
     ctaPrimary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo' },
@@ -182,7 +143,7 @@ interface HomeProps {
 
 const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
   const copy = COPY[audience];
-  const { features, testimonials } = copy;
+  const { features } = copy;
 
   useEffect(() => {
     updateMetadata(copy.pageTitle, copy.pageDescription, { canonicalPath: copy.canonicalPath });
@@ -334,7 +295,6 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               </div>
               <h3 className="text-2xl font-bold mb-2 text-indigo-700">💎 Unlimited</h3>
               <div className="flex items-baseline justify-center mb-2">
-                <span className="text-2xl font-semibold text-gray-500 line-through mr-2">$79</span>
                 <span className="text-4xl font-extrabold text-gray-900">$39</span>
               </div>
               <div className="text-gray-500 mb-4 text-sm">per month</div>
@@ -353,28 +313,6 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
                 Cancel anytime. Perfect for power users & teams.
               </p>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Testimonials Section */}
-      <div className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-extrabold text-gray-900">
-              What Our Users Say
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <Testimonial
-                key={index}
-                quote={testimonial.quote}
-                name={testimonial.name}
-                role={testimonial.role}
-              />
-            ))}
           </div>
         </div>
       </div>

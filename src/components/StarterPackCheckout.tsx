@@ -4,8 +4,16 @@ import { SERVER_URL, PROTECTED_ROUTES_ENABLED } from './Constants';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
-// You should set this in your .env file and expose it as VITE_STRIPE_PUBLISHABLE_KEY
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
+// Lazily initialized on first checkout click: js.stripe.com is only fetched
+// when the user actually starts a payment, not on every page view.
+let stripePromise: ReturnType<typeof loadStripe> | null = null;
+function getStripe() {
+  if (!stripePromise) {
+    // You should set this in your .env file and expose it as VITE_STRIPE_PUBLISHABLE_KEY
+    stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
+  }
+  return stripePromise;
+}
 
 const StarterPackCheckout: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -46,12 +54,12 @@ const StarterPackCheckout: React.FC = () => {
       const data = await res.json();
       if (!data.sessionId) throw new Error(data.error || 'No session ID returned');
 
-      const stripe = await stripePromise;
+      const stripe = await getStripe();
       if (!stripe) throw new Error('Stripe.js failed to load');
       // Redirect to Stripe Checkout
       await stripe.redirectToCheckout({ sessionId: data.sessionId });
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }

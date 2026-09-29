@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import {
   Home as HomeIcon,
   Rocket as RocketIcon,
@@ -17,7 +17,6 @@ import {
 import FeedbackForm from './FeedbackForm';
 import UserMenu from './UserMenu';
 import { PROTECTED_ROUTES } from './Constants';
-import { SERVER_URL } from './Constants';
 
 interface NavLink {
   to: string;
@@ -32,12 +31,6 @@ const Navigation: React.FC = () => {
   const [browserType, setBrowserType] = useState<'chrome' | 'firefox' | 'other'>('other');
   const [showFeedback, setShowFeedback] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
-
-  // Just navigate, let ProtectedRoute handle protection
-  const handleNavigation = (to: string) => {
-    navigate(to);
-  };
 
   useEffect(() => {
     // Detect browser type
@@ -133,9 +126,9 @@ const Navigation: React.FC = () => {
             {/* Main Links */}
             <div className="flex items-center space-x-2">
               {mainLinks.map((link) => (
-                <button
+                <Link
                   key={link.to}
-                  onClick={() => handleNavigation(link.to)}
+                  to={link.to}
                   className={`flex items-center px-3 py-2 rounded-lg transition-colors duration-300 ${
                     link.primary
                       ? 'bg-blue-600 text-white hover:bg-blue-700'
@@ -144,7 +137,7 @@ const Navigation: React.FC = () => {
                 >
                   <link.icon className="w-5 h-5 mr-2" />
                   <span className="font-medium">{link.label}</span>
-                </button>
+                </Link>
               ))}
             </div>
 
@@ -160,23 +153,36 @@ const Navigation: React.FC = () => {
 
               {isToolsOpen && (
                 <div className="absolute top-full right-0 mt-1 w-48 py-2 bg-white rounded-lg shadow-lg border border-gray-100">
-                  {filteredToolsLinks.map((link) => (
-                    <button
-                      key={link.to}
-                      onClick={() => {
-                        setIsToolsOpen(false);
-                        if (link.to.startsWith('http')) {
-                          window.open(link.to, '_blank');
-                        } else {
-                          handleNavigation(link.to);
-                        }
-                      }}
-                      className="flex items-center px-4 py-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full"
-                    >
-                      <link.icon className="w-5 h-5 mr-2" />
-                      <span className="font-medium">{link.label}</span>
-                    </button>
-                  ))}
+                  {filteredToolsLinks.map((link) => {
+                    const linkClassName = "flex items-center px-4 py-2 text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full";
+                    const linkContent = (
+                      <>
+                        <link.icon className="w-5 h-5 mr-2" />
+                        <span className="font-medium">{link.label}</span>
+                      </>
+                    );
+                    return link.to.startsWith('http') ? (
+                      <a
+                        key={link.to}
+                        href={link.to}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setIsToolsOpen(false)}
+                        className={linkClassName}
+                      >
+                        {linkContent}
+                      </a>
+                    ) : (
+                      <Link
+                        key={link.to}
+                        to={link.to}
+                        onClick={() => setIsToolsOpen(false)}
+                        className={linkClassName}
+                      >
+                        {linkContent}
+                      </Link>
+                    );
+                  })}
                   <button
                     onClick={() => {
                       setShowFeedback(true);
@@ -209,27 +215,40 @@ const Navigation: React.FC = () => {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden py-2 space-y-1">
-            {[...mainLinks, ...filteredToolsLinks].map((link) => (
-              <button
-                key={link.to}
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  if (link.to.startsWith('http')) {
-                    window.open(link.to, '_blank');
-                  } else {
-                    handleNavigation(link.to);
-                  }
-                }}
-                className={`flex items-center px-3 py-2 rounded-lg w-full ${
-                  link.primary
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
-                }`}
-              >
-                <link.icon className="w-5 h-5 mr-2" />
-                <span className="font-medium">{link.label}</span>
-              </button>
-            ))}
+            {[...mainLinks, ...filteredToolsLinks].map((link) => {
+              const linkClassName = `flex items-center px-3 py-2 rounded-lg w-full ${
+                link.primary
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+              }`;
+              const linkContent = (
+                <>
+                  <link.icon className="w-5 h-5 mr-2" />
+                  <span className="font-medium">{link.label}</span>
+                </>
+              );
+              return link.to.startsWith('http') ? (
+                <a
+                  key={link.to}
+                  href={link.to}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setIsMenuOpen(false)}
+                  className={linkClassName}
+                >
+                  {linkContent}
+                </a>
+              ) : (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  onClick={() => setIsMenuOpen(false)}
+                  className={linkClassName}
+                >
+                  {linkContent}
+                </Link>
+              );
+            })}
             <button
               onClick={() => {
                 setShowFeedback(true);

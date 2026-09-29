@@ -25,7 +25,7 @@ export const blogPosts: BlogPost[] = [
     title: 'How to Find App Ideas That People Actually Want',
     description: 'Discover proven ways to find app ideas fast. Learn how to use app reviews, Reddit, and Insightly’s AI analysis to spot market gaps and validate your startup idea.',
     banner: '/blogs/how-to-find-app-ideas.webp',
-    date: 'May 20, 2024',
+    date: 'May 20, 2025',
     component: FindAppIdeasContent,
   },
   // Future blog posts can be added here
@@ -34,7 +34,7 @@ export const blogPosts: BlogPost[] = [
     title: 'App Review Analysis: How to Turn User Feedback into Your Next Big App Idea',
     description: 'Learn how to analyze app store reviews to find new ideas, pain points, and feature requests. Use Insightly to turn feedback into growth opportunities.',
     banner: '/blogs/app-review-analysis.webp',
-    date: 'May 27, 2024',
+    date: 'May 27, 2025',
     component: AppReviewAnalysisContent,
   },
   {

@@ -5,7 +5,15 @@ import { SERVER_URL } from './Constants';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
+// Lazily initialized on first checkout click: js.stripe.com is only fetched
+// when the user actually starts a payment, not on every page view.
+let stripePromise: ReturnType<typeof loadStripe> | null = null;
+function getStripe() {
+  if (!stripePromise) {
+    stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
+  }
+  return stripePromise;
+}
 
 const SubscriptionCheckoutButton: React.FC<{ priceId: string }> = ({ priceId }) => {
   const [loading, setLoading] = useState(false);
@@ -47,11 +55,11 @@ const SubscriptionCheckoutButton: React.FC<{ priceId: string }> = ({ priceId }) 
       if (!response.ok || !session.sessionId) {
         throw new Error(session.error || 'Failed to create checkout session.');
       }
-      const stripe = await stripePromise;
+      const stripe = await getStripe();
       if (!stripe) throw new Error('Stripe.js failed to load');
       await stripe.redirectToCheckout({ sessionId: session.sessionId });
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during checkout.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred during checkout.');
     } finally {
       setLoading(false);
     }

@@ -25,6 +25,13 @@ function addStaticUrls(root, origin) {
   });
 }
 
+// Cap the number of report URLs in the sitemap. The sitemap protocol allows
+// max 50,000 URLs / 50MB per file, but pulling the entire analysis_reports
+// table on every deploy made startup (and first requests) time out on Render.
+// 20k recent reports is plenty for discovery; older reports stay reachable
+// via /app-insights search.
+const SITEMAP_MAX_URLS = 20000;
+
 // Replace Set with sorted array
 const sitemapState = {
   urls: [],  // Changed from Set to Array
@@ -76,6 +83,10 @@ async function updateSitemapUrls() {
         ...newRecords.map(r => r.timestamp),
         sitemapState.lastUpdateTimestamp
       );
+      // Keep the sitemap capped: drop the oldest entries beyond the limit.
+      if (sitemapState.urls.length > SITEMAP_MAX_URLS) {
+        sitemapState.urls.length = SITEMAP_MAX_URLS;
+      }
       sitemapState.xml = null;
     }
 
@@ -84,6 +95,27 @@ async function updateSitemapUrls() {
     console.error('Error updating sitemap URLs:', error);
     throw error;
   }
+}
+
+function buildSitemapXml(origin) {
+  const root = create({ version: '1.0', encoding: 'UTF-8' })
+    .ele('urlset', {
+      xmlns: 'http://www.sitemaps.org/schemas/sitemap/0.9',
+      'xmlns:meta': 'http://www.google.com/schemas/sitemap-meta/1.0'
+    });
+
+  addStaticUrls(root, origin);
+
+  // No need to sort, array is already sorted
+  sitemapState.urls.forEach(record => {
+    const url = root.ele('url');
+    url.ele('loc').txt(`${origin}/shared-app-report/${record.hash_url}`);
+    url.ele('lastmod').txt(new Date(record.timestamp).toISOString());
+    url.ele('changefreq').txt('hourly');
+    url.ele('priority').txt('0.8');
+  });
+
+  return root.end({ prettyPrint: true });
 }
 
 export async function generateSitemap(origin) {
@@ -96,24 +128,7 @@ export async function generateSitemap(origin) {
     // Update our URL set with any new records
     await updateSitemapUrls();
 
-    const root = create({ version: '1.0', encoding: 'UTF-8' })
-      .ele('urlset', {
-        xmlns: 'http://www.sitemaps.org/schemas/sitemap/0.9',
-        'xmlns:meta': 'http://www.google.com/schemas/sitemap-meta/1.0'
-      });
-
-    addStaticUrls(root, origin);
-
-    // No need to sort, array is already sorted
-    sitemapState.urls.forEach(record => {
-      const url = root.ele('url');
-      url.ele('loc').txt(`${origin}/shared-app-report/${record.hash_url}`);
-      url.ele('lastmod').txt(new Date(record.timestamp).toISOString());
-      url.ele('changefreq').txt('hourly');
-      url.ele('priority').txt('0.8');
-    });
-
-    const xml = root.end({ prettyPrint: true });
+    const xml = buildSitemapXml(origin);
 
     // Update cache
     sitemapState.xml = xml;
@@ -127,28 +142,20 @@ export async function generateSitemap(origin) {
 }
 
 // Update initialization to use sorted array
+// Single capped query: newest reports first. Runs in the background after the
+// server starts listening (see server/index.js), so a slow DB never blocks
+// startup or makes the first /sitemap.xml request time out.
 export async function initializeSitemap() {
   try {
-    let allRecords = [];
-    let page = 0;
-    const pageSize = 1000;
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .select('hash_url, timestamp')
+      .order('timestamp', { ascending: false })
+      .limit(SITEMAP_MAX_URLS);
 
-    while (true) {
-      const { data, error, count } = await supabase
-        .from('analysis_reports')
-        .select('hash_url, timestamp', { count: 'exact' })
-        .order('timestamp', { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) throw error;
 
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-
-      allRecords = allRecords.concat(data);
-      console.log(`Loaded page ${page + 1} with ${data.length} records`);
-
-      if (data.length < pageSize) break;
-      page++;
-    }
+    const allRecords = data || [];
 
     // Initialize the sorted array directly (no need to sort again as records are already sorted)
     sitemapState.urls = allRecords.map(record => ({
@@ -156,33 +163,20 @@ export async function initializeSitemap() {
       timestamp: record.timestamp
     }));
 
-    // Set the last update timestamp
-    sitemapState.lastUpdateTimestamp = allRecords.length > 0
-      ? Math.max(...allRecords.map(r => r.timestamp))
-      : Date.now();
+    // Set the last update timestamp (loop instead of Math.max(...hugeArray)
+    // to avoid stack overflow on large tables)
+    let maxTimestamp = 0;
+    for (const record of allRecords) {
+      if (record.timestamp > maxTimestamp) maxTimestamp = record.timestamp;
+    }
+    sitemapState.lastUpdateTimestamp = allRecords.length > 0 ? maxTimestamp : Date.now();
 
     // Generate initial XML
     const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-    const root = create({ version: '1.0', encoding: 'UTF-8' })
-      .ele('urlset', {
-        xmlns: 'http://www.sitemaps.org/schemas/sitemap/0.9'
-      });
-
-    addStaticUrls(root, origin);
-
-    // No need to sort, array is already sorted
-    sitemapState.urls.forEach(record => {
-      const url = root.ele('url');
-      url.ele('loc').txt(`${origin}/shared-app-report/${record.hash_url}`);
-      url.ele('lastmod').txt(new Date(record.timestamp).toISOString());
-      url.ele('changefreq').txt('hourly');
-      url.ele('priority').txt('0.8');
-    });
-
-    sitemapState.xml = root.end({ prettyPrint: true });
+    sitemapState.xml = buildSitemapXml(origin);
     sitemapState.lastGenerated = Date.now();
 
-    console.log(`Initialized sitemap with ${sitemapState.urls.length} URLs (${page + 1} pages)`);
+    console.log(`Initialized sitemap with ${sitemapState.urls.length} URLs`);
   } catch (error) {
     console.error('Error initializing sitemap:', error);
     throw error;

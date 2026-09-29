@@ -7,16 +7,20 @@ import { AuthProvider } from './components/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { CreditsProvider } from './contexts/CreditsContext';
 // Loaded eagerly (not lazy): Netlify's prerender crawler snapshots the page
-// before async route chunks finish loading, so these SEO-critical blog
-// pages were being captured with an empty #root and stale meta tags.
+// before async route chunks finish loading, so these SEO-critical pages were
+// being captured with an empty #root and stale meta tags. Eager imports make
+// the crawler see real content on /, /for-teams, /app-insights and /blog/*.
 import BlogListPage from './pages/BlogListPage';
 import BlogPostPage from './pages/BlogPostPage';
+import Home from './pages/Home';
+import TeamsLandingPage from './pages/TeamsLandingPage';
+import AppInsightsPage from './pages/AppInsightsPage';
+import Navigation from './components/Navigation';
+import Footer from './components/Footer';
+import { Link } from 'react-router-dom';
 
 
 // Lazy load pages
-const Home = lazy(() => import('./pages/Home'));
-const TeamsLandingPage = lazy(() => import('./pages/TeamsLandingPage'));
-const AppInsightsPage = lazy(() => import('./pages/AppInsightsPage'));
 const CompetitorAnalysis = lazy(() => import('./components/CompetitorAnalysis'));
 const MainAnalysis = lazy(() => import('./components/MainAnalysis'));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
@@ -29,6 +33,27 @@ const ChatBox = lazy(() => import('./components/ChatBox').then(m => ({ default: 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
     <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+  </div>
+);
+
+// Friendly client-side 404. Netlify serves the app shell with HTTP 404 for
+// unknown URLs (see netlify.toml); this renders something useful in it.
+const NotFound: React.FC = () => (
+  <div className="min-h-screen bg-gray-50">
+    <Navigation />
+    <div className="flex flex-col items-center justify-center px-4 pt-32 pb-16 text-center">
+      <h1 className="text-6xl font-extrabold text-gray-900 mb-4">404</h1>
+      <p className="text-xl text-gray-600 mb-8">
+        This page doesn't exist. Let's get you back on track.
+      </p>
+      <Link
+        to="/"
+        className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+      >
+        Back to Home
+      </Link>
+    </div>
+    <Footer />
   </div>
 );
 
@@ -64,6 +89,7 @@ const App: React.FC = () => {
               <Route path="/account" element={<AccountPage />} />
               <Route path="/blog" element={<BlogListPage />} />
               <Route path="/blog/:slug" element={<BlogPostPage />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </Router>

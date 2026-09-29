@@ -77,7 +77,9 @@ const COPY: Record<LandingAudience, LandingCopy> = {
     heroTitle: 'Find Your Next Product Idea in Competitors’ 1-Star Reviews',
     heroSubtitle: 'Paste any App Store or Google Play link. Get an AI report of what users hate, what they wish existed, and the feature gaps you can build into a business — in minutes, not weeks of manual review reading.',
     heroPrimaryCta: { label: 'Try for $1', href: '#pricing' },
-    heroSecondaryCta: { label: 'Learn More', href: '#features' },
+    // No-login demo path: /app-insights is a public archive of real reports.
+    // Visitors must be able to try the product before any Google login.
+    heroSecondaryCta: { label: 'See Live Demo', href: '/app-insights' },
     featuresSectionTitle: 'See exactly what to build next — before you write a line of code.',
     startSectionTitle: 'Start Market Research',
     startSectionSubtitle: 'Discover untapped opportunities in your target market',
@@ -116,8 +118,9 @@ const COPY: Record<LandingAudience, LandingCopy> = {
       }
     ],
     ctaTitle: 'Ready to Discover Your Next Product Idea?',
-    ctaSubtitle: 'Start your journey to data-driven product success today.',
-    ctaPrimary: { label: 'Start Free Research', href: '/app' },
+    ctaSubtitle: 'Browse real sample reports — no sign-up needed — or start your own analysis for $1.',
+    // Honest pricing: the minimum spend is the $1 Starter Pack, not "Free".
+    ctaPrimary: { label: 'Start for $1', href: '#pricing' },
     ctaSecondary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true }
   },
   teams: {
@@ -168,7 +171,8 @@ const COPY: Record<LandingAudience, LandingCopy> = {
     ctaTitle: 'Ready to Bring Competitive Intelligence Into Your Roadmap?',
     ctaSubtitle: 'See a live walkthrough, or start a self-serve analysis today.',
     ctaPrimary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo' },
-    ctaSecondary: { label: 'Start Free Research', href: '/app' }
+    // Honest pricing: the minimum spend is the $1 Starter Pack, not "Free".
+    ctaSecondary: { label: 'Start for $1', href: '#pricing' }
   }
 };
 
@@ -260,6 +264,12 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             <Search className="w-6 h-6 mr-3" />
             Start Research
           </Link>
+          <p className="mt-4 text-sm text-gray-500">
+            Not ready to sign in?{' '}
+            <Link to="/app-insights" className="text-indigo-600 font-medium hover:underline">
+              Browse real sample reports — no sign-up needed →
+            </Link>
+          </p>
         </div>
       </div>
 
@@ -379,7 +389,37 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             {copy.ctaSubtitle}
           </p>
           <div className="flex justify-center space-x-4">
-            {copy.ctaPrimary.href.startsWith('http') ? (
+            {/* Hash links (#pricing) use plain anchors so the browser scrolls natively;
+                react-router <Link> would swallow the scroll. */}
+            {copy.ctaPrimary.href.startsWith('#') ? (
+              <a
+                href={copy.ctaPrimary.href}
+                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              >
+                {copy.ctaPrimary.label}
+              </a>
+            ) : copy.ctaPrimary.href.startsWith('http') ? (
+              <a
+                href={copy.ctaPrimary.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              >
+                {copy.ctaPrimary.label}
+              </a>
+            ) : (
+              <Link to={copy.ctaPrimary.href} className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                {copy.ctaPrimary.label}
+              </Link>
+            )}
+            {copy.ctaSecondary.href.startsWith('#') ? (
+              <a
+                href={copy.ctaSecondary.href}
+                className="bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
+              >
+                {copy.ctaSecondary.label}
+              </a>
+            ) : copy.ctaSecondary.href.startsWith('http') ? (
               <a
                 href={copy.ctaPrimary.href}
                 target="_blank"

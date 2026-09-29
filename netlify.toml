@@ -11,10 +11,99 @@
   status = 200
   force = true
 
+# Auth & API proxy: route these through insightly.top so the whole Google
+# OAuth flow (login -> Google -> callback) stays on the custom domain.
+# Google's login page then shows insightly.top instead of onrender.com.
+# Backend requirement: API_BASE_URL=https://insightly.top on Render, and
+# https://insightly.top/auth/google/callback added as an authorized
+# redirect URI in the Google Cloud Console OAuth client.
+[[redirects]]
+  from = "/auth/*"
+  to = "https://insightly-5iyw.onrender.com/auth/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://insightly-5iyw.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# Known SPA routes: serve the app shell with HTTP 200.
+# (Frontend requirement: VITE_SERVER_URL=https://insightly.top so the
+# browser never leaves the custom domain for API calls.)
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/for-teams"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/app"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/app-insights"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/competitor-insights"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/chat"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/payment-success"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/payment-cancel"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/account"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/blog"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/blog/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/shared-app-report/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/shared-competitor-report/*"
+  to = "/index.html"
+  status = 200
+
+# Unknown URLs: still serve the app shell (so the client-side 404 page
+# renders) but return HTTP 404, so search engines stop treating bogus
+# URLs as real pages.
 [[redirects]]
   from = "/*"
   to = "/index.html"
-  status = 200
+  status = 404
 
 # Vite content-hashes everything under /assets, so it's safe to cache
 # forever -- a new deploy always ships new filenames.

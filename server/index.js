@@ -1673,6 +1673,9 @@ app.get('/sitemap.xml', async (req, res) => {
 
     res.header('Content-Type', 'application/xml');
     res.header('Content-Length', Buffer.byteLength(sitemap));
+    // Cache for an hour at CDNs/proxies (Netlify proxies this path);
+    // the XML itself is also cached in-process for an hour.
+    res.header('Cache-Control', 'public, max-age=3600');
     res.send(sitemap);
   } catch (error) {
     console.error('Error serving sitemap:', error);
@@ -1686,12 +1689,16 @@ const startServer = async () => {
     // Load existing analyses from database
     await loadCacheFromDatabase();
 
-    // Initialize sitemap
-    await initializeSitemap();
-
-    // Start the server
+    // Start the server first, then build the sitemap in the background.
+    // initializeSitemap() used to block startup while paging the entire
+    // analysis_reports table, which made deploys hang and /sitemap.xml
+    // requests time out on Render.
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+    });
+
+    initializeSitemap().catch((err) => {
+      console.error('Background sitemap initialization failed:', err);
     });
   } catch (error) {
     console.error('Failed to start server:', error);

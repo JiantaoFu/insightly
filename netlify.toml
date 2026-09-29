@@ -132,6 +132,21 @@
   to = "/index.html"
   status = 200
 
+[[redirects]]
+  from = "/privacy"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/refund"
+  to = "/index.html"
+  status = 200
+
 # Unknown URLs: still serve the app shell (so the client-side 404 page
 # renders) but return HTTP 404, so search engines stop treating bogus
 # URLs as real pages.

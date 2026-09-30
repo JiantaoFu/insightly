@@ -12,7 +12,7 @@ const UserMenu: React.FC = () => {
     return null;
   }
 
-  const { user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -29,12 +29,12 @@ const UserMenu: React.FC = () => {
 
   if (!user) {
     return (
-      <button
-        onClick={login}
-        className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-300"
+      <a
+        href="/auth/google"
+        className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-300 inline-block"
       >
         Login with Google
-      </button>
+      </a>
     );
   }
 

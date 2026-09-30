@@ -73,7 +73,7 @@ const COPY: Record<LandingAudience, LandingCopy> = {
       {
         icon: Search,
         title: 'Save Research Time',
-        description: 'AI scans thousands of reviews and delivers clear insights in minutes.'
+        description: 'AI reads hundreds of app reviews and delivers clear insights in minutes.'
       },
       {
         icon: Zap,

@@ -189,6 +189,24 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
         </div>
       </div>
 
+      {/* Stats strip — honest, verifiable numbers */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+          <div>
+            <div className="text-3xl font-extrabold text-indigo-600">2,800+</div>
+            <div className="mt-1 text-gray-500">free reports published</div>
+          </div>
+          <div>
+            <div className="text-3xl font-extrabold text-indigo-600">100+</div>
+            <div className="mt-1 text-gray-500">reviews mined per report</div>
+          </div>
+          <div>
+            <div className="text-3xl font-extrabold text-indigo-600">$1</div>
+            <div className="mt-1 text-gray-500">to analyze your own app</div>
+          </div>
+        </div>
+      </div>
+
       {/* Features Section */}
       <div id="features" className="py-16 bg-white scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

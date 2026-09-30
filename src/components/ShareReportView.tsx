@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, AlertTriangle, Download, RefreshCw } from 'lucide-react';
+import { Loader2, AlertTriangle, Download, RefreshCw, Star, Sparkles, ArrowRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import Navigation from './Navigation';
 // import ProductHuntBadge from './ProductHuntBadge';
@@ -132,6 +132,40 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
     link.click();
   };
 
+  // ---- Derived display data (header card, TL;DR, rating bars) ----
+  const { tldr, reportBody } = useMemo(() => {
+    if (!report) return { tldr: '', reportBody: '' };
+    const headerRe = /^##\s+Summary of Key Insights\s*$/m;
+    const match = headerRe.exec(report);
+    if (!match) return { tldr: '', reportBody: report };
+    const start = match.index + match[0].length;
+    const nextHeader = /^##\s+/m.exec(report.slice(start));
+    const end = nextHeader ? start + nextHeader.index : report.length;
+    const section = report.slice(start, end);
+    const firstPara = (section.split(/\n\s*\n/)[0] || '').replace(/\*\*/g, '').trim();
+    const rest = (report.slice(0, match.index) + report.slice(end)).trim();
+    return { tldr: firstPara, reportBody: rest };
+  }, [report]);
+
+  const { scoreCounts, totalReviews, avgRating } = useMemo(() => {
+    const counts = [0, 0, 0, 0, 0, 0]; // index 1..5
+    const reviews = Array.isArray(appData?.reviews) ? appData.reviews : [];
+    reviews.forEach((r: any) => {
+      const s = Math.round(Number(r?.score) || 0);
+      if (s >= 1 && s <= 5) counts[s] += 1;
+    });
+    const total = counts.reduce((a, b) => a + b, 0);
+    const weighted = counts.reduce((a, c, s) => a + c * s, 0);
+    return { scoreCounts: counts, totalReviews: total, avgRating: total ? weighted / total : 0 };
+  }, [appData]);
+
+  const sentiment = avgRating >= 4 ? 'Positive' : avgRating >= 3 ? 'Mixed' : avgRating > 0 ? 'Negative' : '';
+  const sentimentColor = sentiment === 'Positive'
+    ? 'bg-green-100 text-green-800'
+    : sentiment === 'Mixed'
+      ? 'bg-yellow-100 text-yellow-800'
+      : 'bg-red-100 text-red-800';
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -150,8 +184,83 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
   }
 
   return (
-    <div className="container mx-auto p-4 pt-24">
+    <div className="container mx-auto p-4 pt-24 max-w-4xl">
       <Navigation />
+
+      {/* App header card */}
+      {appData && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6 flex items-center gap-5">
+          {appData.icon ? (
+            <img
+              src={appData.icon}
+              alt={`${appData.title || 'App'} icon`}
+              className="w-20 h-20 rounded-2xl object-cover flex-shrink-0"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <div className="w-20 h-20 rounded-2xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-3xl font-extrabold text-indigo-600">
+                {(appData.title || 'A').charAt(0)}
+              </span>
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold text-gray-900 truncate">
+              {appData.title || 'App Report'}
+            </h1>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
+              {totalReviews > 0 && (
+                <span className="inline-flex items-center font-semibold text-gray-700">
+                  <Star className="w-4 h-4 mr-1 text-yellow-500 fill-yellow-500" />
+                  {avgRating.toFixed(1)}
+                </span>
+              )}
+              {totalReviews > 0 && <span>{totalReviews} reviews analyzed</span>}
+              {sentiment && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${sentimentColor}`}>
+                  {sentiment} sentiment
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rating distribution */}
+      {totalReviews > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">
+            Rating breakdown
+          </h2>
+          <div className="space-y-1.5">
+            {[5, 4, 3, 2, 1].map((score) => (
+              <div key={score} className="flex items-center space-x-2">
+                <div className="w-6 text-xs text-gray-600 text-right">{score}★</div>
+                <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`h-full ${score >= 4 ? 'bg-green-500' : score >= 3 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    style={{ width: `${(scoreCounts[score] / totalReviews) * 100}%` }}
+                  />
+                </div>
+                <div className="w-8 text-xs text-gray-600 text-left">{scoreCounts[score]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TL;DR summary card */}
+      {tldr && (
+        <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-6 mb-6">
+          <div className="flex items-center mb-2">
+            <Sparkles className="w-5 h-5 mr-2 text-indigo-600" />
+            <h2 className="text-sm font-bold text-indigo-900 uppercase tracking-wide">
+              TL;DR
+            </h2>
+          </div>
+          <p className="text-gray-800 leading-relaxed">{tldr}</p>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
         <button
@@ -196,11 +305,36 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
       <div className="border-t border-gray-200 my-8"></div>
 
       <div className="prose prose-sm max-w-none mb-8">
-        {report ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{report}</ReactMarkdown>
+        {reportBody ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportBody}</ReactMarkdown>
         ) : (
           <p>No report available</p>
         )}
+      </div>
+
+      {/* Bottom conversion CTA */}
+      <div className="mt-12 mb-8 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-center text-white shadow-lg">
+        <h2 className="text-2xl font-extrabold mb-2">
+          Want the same teardown for your app?
+        </h2>
+        <p className="text-indigo-100 mb-6 max-w-xl mx-auto">
+          Paste any App Store or Google Play link and get an AI report of user pain points,
+          requested features, and startup opportunities — in minutes.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a
+            href="/#pricing"
+            className="inline-flex items-center bg-white text-indigo-700 font-bold px-6 py-3 rounded-lg hover:bg-indigo-50 transition"
+          >
+            Start for $1 <ArrowRight className="w-4 h-4 ml-2" />
+          </a>
+          <a
+            href="/app-insights"
+            className="inline-flex items-center font-semibold px-6 py-3 rounded-lg border border-white/40 hover:bg-white/10 transition"
+          >
+            Browse 2,800+ free reports
+          </a>
+        </div>
       </div>
       {/* <ProductHuntBadge /> */}
     </div>

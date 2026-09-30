@@ -135,11 +135,11 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
   // ---- Derived display data (header card, TL;DR, rating bars) ----
   const { tldr, reportBody } = useMemo(() => {
     if (!report) return { tldr: '', reportBody: '' };
-    const headerRe = /^##\s+Summary of Key Insights\s*$/m;
+    const headerRe = /^#{1,6}\s+Summary of Key Insights\s*$/m;
     const match = headerRe.exec(report);
     if (!match) return { tldr: '', reportBody: report };
     const start = match.index + match[0].length;
-    const nextHeader = /^##\s+/m.exec(report.slice(start));
+    const nextHeader = /^#{1,6}\s+/m.exec(report.slice(start));
     const end = nextHeader ? start + nextHeader.index : report.length;
     const section = report.slice(start, end);
     const firstPara = (section.split(/\n\s*\n/)[0] || '').replace(/\*\*/g, '').trim();

@@ -5,6 +5,16 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Edge function: inject per-report OG/Twitter tags for social crawlers
+# (WhatsApp, X, Facebook, LinkedIn...) on shared report pages. The SPA sets
+# these via JS, which social crawlers never run. Regular users pass through.
+[[edge_functions]]
+  function = "social-cards"
+  path = "/shared-app-report/*"
+[[edge_functions]]
+  function = "social-cards"
+  path = "/shared-competitor-report/*"
+
 [[redirects]]
   from = "/sitemap.xml"
   to = "https://insightly-5iyw.onrender.com/sitemap.xml"

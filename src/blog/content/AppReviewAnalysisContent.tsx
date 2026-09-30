@@ -24,7 +24,7 @@ const AppReviewAnalysisContent: React.FC = () => {
       <p>Read reviews from 3–5 competing apps. If users of one app keep asking for something another already has, that’s a market gap. And if several apps get the same type of complaint, that’s a new opportunity, something nobody’s solving yet.</p>
 
       <h2>4. Let AI do the heavy lifting</h2>
-      <p>Doing this manually takes hours. That’s why we built Insightly, an AI-powered tool that reads thousands of app reviews, summarizes pain points, and highlights opportunities automatically.</p>
+      <p>Doing this manually takes hours. That’s why we built Insightly, an AI-powered tool that reads hundreds of app reviews, summarizes pain points, and highlights opportunities automatically.</p>
       <p>In a few clicks, you can see what users really want, which features they miss most, and where your next big app idea might be hiding.</p>
 
       <h2>Bottom line:</h2>

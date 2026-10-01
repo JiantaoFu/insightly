@@ -156,7 +156,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
 
       {/* Hero Section */}
       <div
-        className="relative text-white min-h-screen flex items-center justify-center"
+        className="relative text-white min-h-screen flex items-center justify-center pt-24 pb-16"
         style={{ background: "linear-gradient(135deg, #0F1B2D 0%, #1E3A5F 100%)" }}
       >
         <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "linear-gradient(#93C5FD 1px, transparent 1px), linear-gradient(90deg, #93C5FD 1px, transparent 1px)", backgroundSize: "48px 48px" }}></div> {/* faint grid texture */}

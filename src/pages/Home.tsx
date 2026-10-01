@@ -168,23 +168,32 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             <p className="mt-5 max-w-md mx-auto text-xl text-gray-200 sm:text-2xl md:mt-8 md:max-w-3xl">
               {copy.heroSubtitle}
             </p>
-            <div className="mt-10 flex justify-center gap-4">
-              <a
-                href={copy.heroPrimaryCta.href}
-                {...(copy.heroPrimaryCta.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                className="inline-block bg-white text-indigo-600 px-8 py-3 rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
-              >
-                {copy.heroPrimaryCta.label}
-              </a>
+            {/* Primary: free report lookup */}
+            <QuickLookup />
+            <p className="mt-4 text-sm text-gray-300">
+              No sign-up · Instant if we have it · 2,800+ public reports
+            </p>
+            <div className="mt-4 flex justify-center gap-6 text-sm">
               <a
                 href={copy.heroSecondaryCta.href}
                 {...(copy.heroSecondaryCta.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
+                className="text-blue-300 hover:text-blue-200 font-medium"
               >
-                {copy.heroSecondaryCta.label}
+                {copy.heroSecondaryCta.label} →
+              </a>
+              <a href="/app-insights" className="text-blue-300 hover:text-blue-200 font-medium">
+                Browse sample reports →
               </a>
             </div>
-            <QuickLookup />
+            <div className="mt-6">
+              <a
+                href={copy.heroPrimaryCta.href}
+                {...(copy.heroPrimaryCta.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                className="inline-block bg-white/10 border border-white/30 text-white px-8 py-3 rounded-lg font-semibold transition duration-300 hover:bg-white/20"
+              >
+                {copy.heroPrimaryCta.label}
+              </a>
+            </div>
             {/* Product preview — real report screenshot */}
             <div className="mt-12 max-w-4xl mx-auto">
               <div className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/20">

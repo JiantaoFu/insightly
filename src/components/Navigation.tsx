@@ -95,11 +95,11 @@ const Navigation: React.FC = () => {
       label: 'Chat Assistant',
     },
     ...(browserType === 'chrome' ? [{
-      to: 'https://chromewebstore.google.com/detail/insightlytop-chrome-exten/jbhfbkkaffgfgjpipkpmgnbojjoajjka?hl=en',
+      to: '/extension',
       icon: Chrome,
       label: 'Chrome Extension',
     }] : browserType === 'firefox' ? [{
-      to: 'https://addons.mozilla.org/en-US/firefox/addon/insightly-app-review-insights/',
+      to: '/extension',
       icon: Globe,
       label: 'Firefox Addon',
     }] : [])

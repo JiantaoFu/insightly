@@ -307,6 +307,9 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
                 </span>
               </div>
               <StarterPackCheckout />
+              <a href="/app-insights" className="text-blue-600 hover:text-blue-700 text-sm mt-3 inline-block">
+                or browse a free sample first →
+              </a>
               <p className="text-gray-500 text-sm mt-6 text-center">
                 Limited-time offer. You can easily top up more credits later if you love it!
               </p>
@@ -322,6 +325,9 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
                 <li>✔ Early access to new features</li>
               </ul>
               <SubscriptionCheckoutButton priceId={import.meta.env.VITE_STRIPE_PRO_PRICE_ID || "price_1PqHqULBIjw2TCwN1234abcd"} />
+              <a href="/app-insights" className="text-blue-600 hover:text-blue-700 text-sm mt-3 inline-block">
+                or browse a free sample first →
+              </a>
               <p className="text-gray-500 text-sm mt-6 text-center">Ideal for frequent analysis and faster insights.</p>
             </div>
             {/* Unlimited Plan Card */}
@@ -342,6 +348,9 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
                 You can find this in your Stripe Dashboard under Products.
               */}
               <SubscriptionCheckoutButton priceId={import.meta.env.VITE_STRIPE_UNLIMITED_PRICE_ID || "price_1RpKtULBIjw2TCwNvyahls62"} />
+              <a href="/app-insights" className="text-blue-600 hover:text-blue-700 text-sm mt-3 inline-block">
+                or browse a free sample first →
+              </a>
               <p className="text-gray-500 text-sm mt-6 text-center">
                 Cancel anytime. Perfect for power users & teams.
               </p>

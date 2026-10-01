@@ -189,9 +189,11 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             <div className="mt-12 max-w-4xl mx-auto">
               <div className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/20">
                 <img
-                  src="/report-preview.png"
+                  src="/report-preview.webp"
                   alt="Sample Insightly AI review analysis report"
                   className="w-full"
+                  width={1919}
+                  height={902}
                   loading="lazy"
                 />
               </div>

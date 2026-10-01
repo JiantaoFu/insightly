@@ -26,7 +26,7 @@
     "@headlessui/react": "^2.2.2",
     "@huggingface/inference": "^3.6.2",
     "@jeromyfu/app-store-scraper": "^0.18.1",
-    "@jeromyfu/google-play-scraper": "^10.0.2",
+    "@jeromyfu/google-play-scraper": "^10.0.3",
     "@modelcontextprotocol/sdk": "^1.8.0",
     "@stripe/react-stripe-js": "^3.7.0",
     "@stripe/stripe-js": "^7.3.1",

@@ -1,0 +1,45 @@
+import React from 'react';
+
+const AuthInterstitial: React.FC = () => {
+  return (
+    <div className="min-h-screen bg-white flex items-center justify-center px-4">
+      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-white rounded-2xl shadow-xl border border-gray-200 p-8 md:p-10">
+        {/* Left: value + sample thumbnail */}
+        <div>
+          <div className="rounded-xl overflow-hidden shadow-lg ring-1 ring-gray-200">
+            <img
+              src="/report-preview.webp"
+              alt="Sample Insightly report"
+              className="w-full"
+              loading="lazy"
+            />
+          </div>
+          <p className="mt-4 text-gray-600">
+            Turn competitors' 1-star reviews into your next product idea.
+          </p>
+        </div>
+        {/* Right: auth actions */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Continue to Insightly</h1>
+          <p className="mt-2 text-gray-600 text-sm">
+            Login saves your credits &amp; report history. Reading public reports never requires login.
+          </p>
+          <a
+            href="/auth/google"
+            className="mt-6 block text-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+          >
+            Continue with Google
+          </a>
+          <a
+            href="/app-insights"
+            className="mt-4 block text-center text-blue-600 hover:text-blue-700 font-medium text-sm"
+          >
+            or browse free sample reports first →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AuthInterstitial;

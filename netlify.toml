@@ -157,6 +157,16 @@
   to = "/index.html"
   status = 200
 
+[[redirects]]
+  from = "/login"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/extension"
+  to = "/index.html"
+  status = 200
+
 # Unknown URLs: still serve the app shell (so the client-side 404 page
 # renders) but return HTTP 404, so search engines stop treating bogus
 # URLs as real pages.

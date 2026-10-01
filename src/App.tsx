@@ -16,6 +16,7 @@ import Home from './pages/Home';
 import TeamsLandingPage from './pages/TeamsLandingPage';
 import AppInsightsPage from './pages/AppInsightsPage';
 import PrivacyPage from './pages/PrivacyPage';
+import AuthInterstitial from './pages/AuthInterstitial';
 import TermsPage from './pages/TermsPage';
 import RefundPage from './pages/RefundPage';
 import Navigation from './components/Navigation';
@@ -93,6 +94,7 @@ const App: React.FC = () => {
               <Route path="/blog" element={<BlogListPage />} />
               <Route path="/blog/:slug" element={<BlogPostPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/login" element={<AuthInterstitial />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/refund" element={<RefundPage />} />
               <Route path="*" element={<NotFound />} />

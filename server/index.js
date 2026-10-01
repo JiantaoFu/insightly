@@ -884,6 +884,7 @@ ${promptConfig.format}
       analysisCache.set(hashUrl, cacheEntry);
 
       // Directly end the response after streaming is complete
+      trackGeneration('analyze', true);
       res.end();
     } catch (generateError) {
       console.error('Generate Response Error:', {
@@ -891,6 +892,7 @@ ${promptConfig.format}
         stack: generateError.stack,
         responseData: generateError.response ? generateError.response.data : 'No response data'
       });
+      trackGeneration('analyze', false, generateError.message);
 
       if (!res.headersSent) {
         res.status(500).json({
@@ -1046,6 +1048,7 @@ ${competitorDetails}
       comparisonCache.set(cacheKey, cacheEntry);
 
       // Directly end the response after streaming is complete
+      trackGeneration('compare', true);
       res.end();
     } catch (generateError) {
       console.error('Generate Response Error:', {
@@ -1053,6 +1056,7 @@ ${competitorDetails}
         stack: generateError.stack,
         responseData: generateError.response ? generateError.response.data : 'No response data'
       });
+      trackGeneration('compare', false, generateError.message);
 
       if (!res.headersSent) {
         res.status(500).json({
@@ -1836,6 +1840,42 @@ app.get('/', (req, res) => {
 // with nobody noticing). Polled by the daily monitoring cron; notifies on failure.
 // The API key never leaves the server: only ok/boolean details are returned.
 const llmHealthCache = { at: 0, result: null };
+
+// ---- Generation outcome tracking (failure monitoring) ----
+// In-memory ring buffer of recent /api/analyze and /api/compare outcomes.
+// Survives as long as the instance stays warm (keepwarm pings every 10 min).
+// Exposed via /api/health/generations for the daily monitor cron.
+const genOutcomes = []; // {t: epoch ms, ok: bool, endpoint: string, error?: string}
+const GEN_OUTCOME_MAX = 200;
+function trackGeneration(endpoint, ok, error) {
+  genOutcomes.push({
+    t: Date.now(),
+    ok: !!ok,
+    endpoint,
+    error: error ? String(error).slice(0, 200) : undefined,
+  });
+  if (genOutcomes.length > GEN_OUTCOME_MAX) {
+    genOutcomes.splice(0, genOutcomes.length - GEN_OUTCOME_MAX);
+  }
+}
+
+app.get('/api/health/generations', (req, res) => {
+  const since = Date.now() - 24 * 60 * 60 * 1000;
+  const recent = genOutcomes.filter(o => o.t >= since);
+  const failed = recent.filter(o => !o.ok);
+  res.json({
+    ok: true,
+    windowHours: 24,
+    success: recent.length - failed.length,
+    failed: failed.length,
+    recentFailures: failed.slice(-10).map(f => ({
+      at: new Date(f.t).toISOString(),
+      endpoint: f.endpoint,
+      error: f.error,
+    })),
+    checkedAt: new Date().toISOString(),
+  });
+});
 app.get('/api/health/llm', async (req, res) => {
   const now = Date.now();
   if (llmHealthCache.result && now - llmHealthCache.at < 5 * 60 * 1000) {

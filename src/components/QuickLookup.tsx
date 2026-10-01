@@ -29,6 +29,14 @@ const QuickLookup: React.FC = () => {
     e.preventDefault();
     const trimmed = url.trim();
     if (!trimmed) return;
+    // Basic validation: must look like an App Store or Play URL
+    if (!/^(https?:\/\/)?(apps\.apple\.com|play\.google\.com)/i.test(trimmed)) {
+      setState({
+        status: 'error',
+        message: 'Please paste a full App Store or Google Play link, e.g. https://apps.apple.com/us/app/…'
+      });
+      return;
+    }
     setState({ status: 'loading' });
     try {
       // Same-origin call: Netlify proxies /api/* to the 5iyw backend, which is
@@ -176,7 +184,7 @@ const QuickLookup: React.FC = () => {
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://apps.apple.com/… or https://play.google.com/…"
+          placeholder="Paste App Store / Play link, e.g. https://apps.apple.com/us/app/…"
           className="flex-1 px-5 py-3 rounded-lg text-gray-900 placeholder-gray-400 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
           aria-label="App Store or Google Play link"
         />

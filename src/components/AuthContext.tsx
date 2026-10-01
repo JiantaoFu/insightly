@@ -100,10 +100,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [isAuthCheckComplete, user]);
 
   const login = () => {
-    console.log('AuthContext: Initiating Google login...');
-    const currentRedirect = localStorage.getItem('redirectAfterLogin');
-    console.log('AuthContext: Current redirect path:', currentRedirect);
-    window.location.href = `${SERVER_URL}/auth/google`;
+    console.log('AuthContext: Routing through branded interstitial...');
+    window.location.href = '/login';
   };
 
   const logout = async () => {

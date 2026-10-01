@@ -79,11 +79,20 @@ export async function getAppReviews(appId, country, options = {}) {
 
     while (allReviews.length < maxReviews && page < 10) {
       try {
-        const reviews = await store.reviews({
-          id: appId,
-          page: page,
-          country: country
-        });
+        // Apple review RSS is flaky (2026-10-01): sometimes returns an empty
+        // feed even when reviews exist. Retry empty page-1 a few times.
+        let reviews = [];
+        const maxAttempts = page === 1 ? 3 : 1;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          reviews = await store.reviews({
+            id: appId,
+            page: page,
+            country: country
+          });
+          if (reviews.length > 0 || attempt === maxAttempts) break;
+          console.log(`[getAppReviews] page ${page} empty, retry ${attempt}/${maxAttempts - 1} after ${(attempt * 2)}s`);
+          await new Promise(r => setTimeout(r, attempt * 2000));
+        }
 
         if (reviews.length === 0) {
           break;

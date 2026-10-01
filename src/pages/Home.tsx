@@ -245,43 +245,6 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
         </div>
       </div>
 
-      {/* Featured sample reports — no login required */}
-      <div className="py-16 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-extrabold text-gray-900">
-              Featured free reports — no login required
-            </h2>
-            <p className="mt-3 text-lg text-gray-600">
-              Real reports from real apps. Browse freely.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { name: 'Forest', hook: '26% of bad reviews say the app blocker doesn\'t block', reviews: 100, path: '/shared-app-report/7638c1a348c0b7764829ce0a76e69807' },
-              { name: 'MyFitnessPal', hook: '37% of negative reviews are about the paywall', reviews: 100, path: '/shared-app-report/c5da665a825b5a533a49a618a1590501' },
-              { name: 'Sunnyside', hook: 'What mindful-drinking users actually complain about', reviews: 96, path: '/shared-app-report/dab624595429f41ab856312d3c429b41' },
-            ].map((s) => (
-              <a
-                key={s.name}
-                href={s.path}
-                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-blue-300 transition-all"
-              >
-                <div className="font-bold text-lg text-gray-900">{s.name}</div>
-                <p className="mt-2 text-gray-600">{s.hook}</p>
-                <div className="mt-4 text-sm text-gray-500">{s.reviews} reviews analyzed</div>
-                <div className="mt-3 text-blue-600 font-medium text-sm">Open report →</div>
-              </a>
-            ))}
-          </div>
-          <div className="text-center mt-8">
-            <a href="/app-insights" className="text-blue-600 hover:text-blue-700 font-medium">
-              Browse all sample reports →
-            </a>
-          </div>
-        </div>
-      </div>
-
       {/* Start Analyzing Section */}
       <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 bg-white">
         <div className="text-center">

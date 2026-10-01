@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2, Star, ExternalLink, AlertCircle } from 'lucide-react';
 import { useAuth } from './AuthContext';
+
+interface SearchResult {
+  title: string;
+  appUrl: string;
+  icon: string;
+  developer: string;
+  platform: 'app-store' | 'google-play';
+}
 
 interface FoundData {
   appTitle?: string;
@@ -23,20 +31,70 @@ type LookupState =
 const QuickLookup: React.FC = () => {
   const [url, setUrl] = useState('');
   const [state, setState] = useState<LookupState>({ status: 'idle' });
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const { login } = useAuth();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Debounced app-name search (skip when input already looks like a URL)
+  useEffect(() => {
+    const q = url.trim();
+    if (!q || /^(https?:\/\/)?(apps\.apple\.com|play\.google\.com)/i.test(q)) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const resp = await fetch(`/api/search-apps?query=${encodeURIComponent(q)}`);
+        const data = await resp.json();
+        setSuggestions(data.results || []);
+        setShowSuggestions(true);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [url]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setShowSuggestions(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const pickSuggestion = (s: SearchResult) => {
+    setUrl(s.appUrl);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = url.trim();
+    let trimmed = url.trim();
     if (!trimmed) return;
-    // Basic validation: must look like an App Store or Play URL
+    // If user typed an app name and didn't pick a suggestion, use the top suggestion
+    if (!/^(https?:\/\/)?(apps\.apple\.com|play\.google\.com)/i.test(trimmed) && suggestions.length > 0) {
+      trimmed = suggestions[0].appUrl;
+      setUrl(trimmed);
+    }
     if (!/^(https?:\/\/)?(apps\.apple\.com|play\.google\.com)/i.test(trimmed)) {
       setState({
         status: 'error',
-        message: 'Please paste a full App Store or Google Play link, e.g. https://apps.apple.com/us/app/…'
+        message: 'Pick an app from the suggestions, or paste a full App Store / Google Play link.'
       });
       return;
     }
+    setShowSuggestions(false);
     setState({ status: 'loading' });
     try {
       // Same-origin call: Netlify proxies /api/* to the 5iyw backend, which is
@@ -177,17 +235,43 @@ const QuickLookup: React.FC = () => {
   return (
     <div className="mt-10 max-w-2xl mx-auto">
       <p className="text-white/90 font-medium mb-3">
-        Paste an App Store / Google Play link — see if we have a free report
+        Paste an App Store / Google Play link — or just type the app name
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste App Store / Play link, e.g. https://apps.apple.com/us/app/…"
-          className="flex-1 px-5 py-3 rounded-lg text-gray-900 placeholder-gray-400 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-          aria-label="App Store or Google Play link"
-        />
+        <div ref={wrapRef} className="relative flex-1">
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onFocus={() => { if (suggestions.length) setShowSuggestions(true); }}
+            placeholder="App name or store link, e.g. Google Photos"
+            className="w-full px-5 py-3 rounded-lg text-gray-900 placeholder-gray-400 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            aria-label="App name or App Store / Google Play link"
+            autoComplete="off"
+          />
+          {showSuggestions && (isSearching || suggestions.length > 0) && (
+            <div className="absolute mt-1 max-h-60 w-full overflow-auto rounded-lg bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 z-50 text-left">
+              {isSearching ? (
+                <div className="py-2 px-4 text-gray-500 text-sm">Searching…</div>
+              ) : (
+                suggestions.map((s) => (
+                  <button
+                    key={s.appUrl}
+                    type="button"
+                    onClick={() => pickSuggestion(s)}
+                    className="w-full flex items-center space-x-3 px-4 py-2 hover:bg-blue-50 text-left"
+                  >
+                    {s.icon && <img src={s.icon} alt="" className="w-8 h-8 rounded" />}
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-gray-900 text-sm">{s.title}</div>
+                      <div className="text-xs text-gray-500">{s.developer} · {s.platform === 'app-store' ? 'App Store' : 'Google Play'}</div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
         <button
           type="submit"
           disabled={state.status === 'loading'}

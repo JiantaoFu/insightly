@@ -68,8 +68,8 @@ const Navigation: React.FC = () => {
     {
       to: PROTECTED_ROUTES.ANALYZE,
       icon: RocketIcon,
-      label: 'Start Analyzing',
-      primary: true,
+      label: 'Analyze my app ($1)',
+      primary: false,
     },
     {
       to: '/app-insights',

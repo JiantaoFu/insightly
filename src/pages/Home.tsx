@@ -43,10 +43,8 @@ interface LandingCopy {
   canonicalPath: string;
   heroTitle: string;
   heroSubtitle: string;
-  /** Demoted paid/demo button under free QuickLookup (ghost style). */
-  heroGhostCta: { label: string; href: string; external?: boolean };
-  /** Text link under free QuickLookup (e.g. See Live Demo). */
-  heroTextLink: { label: string; href: string; external?: boolean };
+  heroPrimaryCta: { label: string; href: string; external?: boolean };
+  heroSecondaryCta: { label: string; href: string; external?: boolean };
   featuresSectionTitle: string;
   startSectionTitle: string;
   startSectionSubtitle: string;
@@ -64,11 +62,10 @@ const COPY: Record<LandingAudience, LandingCopy> = {
     canonicalPath: '/',
     heroTitle: 'Find Your Next Product Idea in Competitors’ 1-Star Reviews',
     heroSubtitle: 'Paste any App Store or Google Play link. Get an AI report of what users hate, what they wish existed, and the feature gaps you can build into a business — in minutes, not weeks of manual review reading.',
-    // Hero primary CTA is the free QuickLookup (paste store URL + Check).
-    // These two are demoted: text link + ghost $1 button.
-    heroGhostCta: { label: 'Try for $1', href: '#pricing' },
+    heroPrimaryCta: { label: 'Try for $1', href: '#pricing' },
     // No-login demo path: /app-insights is a public archive of real reports.
-    heroTextLink: { label: 'See Live Demo', href: '/app-insights' },
+    // Visitors must be able to try the product before any Google login.
+    heroSecondaryCta: { label: 'See Live Demo', href: '/app-insights' },
     featuresSectionTitle: 'See exactly what to build next — before you write a line of code.',
     startSectionTitle: 'Start Market Research',
     startSectionSubtitle: 'Discover untapped opportunities in your target market',
@@ -106,8 +103,8 @@ const COPY: Record<LandingAudience, LandingCopy> = {
     canonicalPath: '/for-teams',
     heroTitle: 'Turn Competitor App Reviews Into Your Team’s Competitive Intelligence',
     heroSubtitle: 'Track what users love and hate about competing apps — sentiment trends, feature-request themes, and SWOT comparisons your product and ASO team can act on every sprint.',
-    heroGhostCta: { label: 'Book a Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true },
-    heroTextLink: { label: 'Try for $1', href: '#pricing' },
+    heroPrimaryCta: { label: 'Book a Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true },
+    heroSecondaryCta: { label: 'Try for $1', href: '#pricing' },
     featuresSectionTitle: 'See what your competitors’ users are really saying — before your roadmap meeting.',
     startSectionTitle: 'Start Competitive Analysis',
     startSectionSubtitle: 'Benchmark your app against competitors in minutes, not analyst-days',
@@ -178,11 +175,10 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             </p>
             <div className="mt-4 flex justify-center gap-6 text-sm">
               <a
-                href={copy.heroTextLink.href}
-                {...(copy.heroTextLink.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                href="/shared-app-report/7638c1a348c0b7764829ce0a76e69807"
                 className="text-blue-300 hover:text-blue-200 font-medium"
               >
-                {copy.heroTextLink.label} →
+                See Live Demo →
               </a>
               <a href="/app-insights" className="text-blue-300 hover:text-blue-200 font-medium">
                 Browse sample reports →
@@ -190,11 +186,11 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             </div>
             <div className="mt-6">
               <a
-                href={copy.heroGhostCta.href}
-                {...(copy.heroGhostCta.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                href={copy.heroPrimaryCta.href}
+                {...(copy.heroPrimaryCta.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 className="inline-block bg-white/10 border border-white/30 text-white px-8 py-3 rounded-lg font-semibold transition duration-300 hover:bg-white/20"
               >
-                {copy.heroGhostCta.label}
+                {copy.heroPrimaryCta.label}
               </a>
             </div>
             {/* Product preview — real report screenshot */}

@@ -258,9 +258,9 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { name: 'Forest', hook: '26% of bad reviews say the app blocker doesn\'t block', reviews: 100, path: '/app-insights' },
-              { name: 'MyFitnessPal', hook: '37% of negative reviews are about the paywall', reviews: 100, path: '/app-insights' },
-              { name: 'Sunnyside', hook: 'What mindful-drinking users actually complain about', reviews: 96, path: '/app-insights' },
+              { name: 'Forest', hook: '26% of bad reviews say the app blocker doesn\'t block', reviews: 100, path: '/shared-app-report/7638c1a348c0b7764829ce0a76e69807' },
+              { name: 'MyFitnessPal', hook: '37% of negative reviews are about the paywall', reviews: 100, path: '/shared-app-report/c5da665a825b5a533a49a618a1590501' },
+              { name: 'Sunnyside', hook: 'What mindful-drinking users actually complain about', reviews: 96, path: '/shared-app-report/dab624595429f41ab856312d3c429b41' },
             ].map((s) => (
               <a
                 key={s.name}

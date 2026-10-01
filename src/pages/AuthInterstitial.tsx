@@ -1,11 +1,20 @@
 import React from 'react';
 
+/**
+ * Branded login middle page. Google OAuth starts at same-origin /auth/google
+ * (Netlify proxies to Render), so the Google consent screen shows insightly.top
+ * — never the onrender.com backend host.
+ */
 const AuthInterstitial: React.FC = () => {
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-white rounded-2xl shadow-xl border border-gray-200 p-8 md:p-10">
         {/* Left: value + sample thumbnail */}
         <div>
+          <a href="/" className="inline-flex items-center mb-4">
+            <img src="/logo-small.png" alt="Insightly" className="w-6 h-6 mr-2" />
+            <span className="text-xl font-bold text-gray-900">insightly</span>
+          </a>
           <div className="rounded-xl overflow-hidden shadow-lg ring-1 ring-gray-200">
             <img
               src="/report-preview.webp"
@@ -15,10 +24,10 @@ const AuthInterstitial: React.FC = () => {
             />
           </div>
           <p className="mt-4 text-gray-600">
-            Turn competitors' 1-star reviews into your next product idea.
+            Turn competitors&apos; 1-star reviews into your next product idea.
           </p>
         </div>
-        {/* Right: auth actions */}
+        {/* Right: auth actions — dual path */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Continue to Insightly</h1>
           <p className="mt-2 text-gray-600 text-sm">
@@ -35,6 +44,12 @@ const AuthInterstitial: React.FC = () => {
             className="mt-4 block text-center text-blue-600 hover:text-blue-700 font-medium text-sm"
           >
             or browse free sample reports first →
+          </a>
+          <a
+            href="/"
+            className="mt-3 block text-center text-gray-500 hover:text-gray-700 text-sm"
+          >
+            ← Back to free lookup on home
           </a>
         </div>
       </div>

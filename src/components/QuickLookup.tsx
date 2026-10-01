@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Loader2, Star, ExternalLink, AlertCircle } from 'lucide-react';
 import { useAuth } from './AuthContext';
 

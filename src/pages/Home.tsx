@@ -185,6 +185,20 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               </a>
             </div>
             <QuickLookup />
+            {/* Product preview — real report screenshot */}
+            <div className="mt-12 max-w-4xl mx-auto">
+              <div className="rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/20">
+                <img
+                  src="/report-preview.png"
+                  alt="Sample Insightly AI review analysis report"
+                  className="w-full"
+                  loading="lazy"
+                />
+              </div>
+              <p className="mt-3 text-sm text-gray-300">
+                Real report: Forest app — 100 reviews analyzed, free to browse
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -272,7 +286,10 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Starter Pack Card */}
-            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
+            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center border-2 border-indigo-600 relative">
+              <div className="absolute top-0 right-0 bg-indigo-600 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
+                Most Popular
+              </div>
               <h3 className="text-2xl font-bold mb-2 text-blue-700">🚀 Starter Pack</h3>
               <div className="text-4xl font-extrabold text-gray-900 mb-2">$1</div>
               <div className="text-gray-500 mb-4 text-sm">One-time, no subscription</div>
@@ -293,10 +310,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               </p>
             </div>
             {/* Pro Plan Card */}
-            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center border-2 border-indigo-600 relative">
-              <div className="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
-                Most Popular
-              </div>
+            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
               <h3 className="text-2xl font-bold mb-2 text-indigo-700">🏆 Pro Plan</h3>
               <div className="text-4xl font-extrabold text-gray-900">$11.99</div>
               <div className="text-gray-500 mb-4 text-sm">per month</div>
@@ -309,10 +323,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               <p className="text-gray-500 text-sm mt-6 text-center">Ideal for frequent analysis and faster insights.</p>
             </div>
             {/* Unlimited Plan Card */}
-            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center border-2 border-indigo-600 relative">
-              <div className="absolute top-0 right-0 bg-red-500 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
-                Limited Time Offer
-              </div>
+            <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
               <h3 className="text-2xl font-bold mb-2 text-indigo-700">💎 Unlimited</h3>
               <div className="flex items-baseline justify-center mb-2">
                 <span className="text-4xl font-extrabold text-gray-900">$39</span>

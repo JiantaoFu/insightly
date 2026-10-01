@@ -156,10 +156,10 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
 
       {/* Hero Section */}
       <div
-        className="relative bg-cover bg-center text-white min-h-screen flex items-center justify-center"
-        style={{ backgroundImage: "url('/hero-banner.webp')" }}
+        className="relative text-white min-h-screen flex items-center justify-center"
+        style={{ background: "linear-gradient(135deg, #0F1B2D 0%, #1E3A5F 100%)" }}
       >
-        <div className="absolute inset-0 bg-black/30"></div> {/* Subtle overlay for text readability */}
+        <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "linear-gradient(#93C5FD 1px, transparent 1px), linear-gradient(90deg, #93C5FD 1px, transparent 1px)", backgroundSize: "48px 48px" }}></div> {/* faint grid texture */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="text-center">
             <h1 className="text-5xl tracking-tight font-extrabold sm:text-6xl lg:text-7xl">
@@ -245,6 +245,43 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
         </div>
       </div>
 
+      {/* Featured sample reports — no login required */}
+      <div className="py-16 bg-slate-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-extrabold text-gray-900">
+              Featured free reports — no login required
+            </h2>
+            <p className="mt-3 text-lg text-gray-600">
+              Real reports from real apps. Browse freely.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { name: 'Forest', hook: '26% of bad reviews say the app blocker doesn\'t block', reviews: 100, path: '/app-insights' },
+              { name: 'MyFitnessPal', hook: '37% of negative reviews are about the paywall', reviews: 100, path: '/app-insights' },
+              { name: 'Sunnyside', hook: 'What mindful-drinking users actually complain about', reviews: 96, path: '/app-insights' },
+            ].map((s) => (
+              <a
+                key={s.name}
+                href={s.path}
+                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-blue-300 transition-all"
+              >
+                <div className="font-bold text-lg text-gray-900">{s.name}</div>
+                <p className="mt-2 text-gray-600">{s.hook}</p>
+                <div className="mt-4 text-sm text-gray-500">{s.reviews} reviews analyzed</div>
+                <div className="mt-3 text-blue-600 font-medium text-sm">Open report →</div>
+              </a>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <a href="/app-insights" className="text-blue-600 hover:text-blue-700 font-medium">
+              Browse all sample reports →
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Start Analyzing Section */}
       <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 bg-white">
         <div className="text-center">
@@ -292,7 +329,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               <div className="absolute top-0 right-0 bg-indigo-600 text-white px-3 py-1 rounded-bl-xl text-xs font-semibold">
                 Most Popular
               </div>
-              <h3 className="text-2xl font-bold mb-2 text-blue-700">🚀 Starter Pack</h3>
+              <h3 className="text-2xl font-bold mb-2 text-blue-700">Starter Pack</h3>
               <div className="text-4xl font-extrabold text-gray-900 mb-2">$1</div>
               <div className="text-gray-500 mb-4 text-sm">One-time, no subscription</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
@@ -303,7 +340,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               </ul>
               <div className="mb-4">
                 <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
-                  🎁 Beta pricing — help shape the product
+                  Beta pricing — help shape the product
                 </span>
               </div>
               <StarterPackCheckout />
@@ -316,7 +353,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             </div>
             {/* Pro Plan Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
-              <h3 className="text-2xl font-bold mb-2 text-indigo-700">🏆 Pro Plan</h3>
+              <h3 className="text-2xl font-bold mb-2 text-indigo-700">Pro Plan</h3>
               <div className="text-4xl font-extrabold text-gray-900">$11.99</div>
               <div className="text-gray-500 mb-4 text-sm">per month</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
@@ -332,7 +369,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             </div>
             {/* Unlimited Plan Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
-              <h3 className="text-2xl font-bold mb-2 text-indigo-700">💎 Unlimited</h3>
+              <h3 className="text-2xl font-bold mb-2 text-indigo-700">Unlimited</h3>
               <div className="flex items-baseline justify-center mb-2">
                 <span className="text-4xl font-extrabold text-gray-900">$39</span>
               </div>

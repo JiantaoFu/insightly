@@ -204,6 +204,8 @@ export const CompetitorAnalysis: React.FC = () => {
   const startCheckout = useStarterPackCheckout();
   const [maxReviews, setMaxReviews] = useState<number | undefined>(100);
   const [months, setMonths] = useState<number | undefined>(3);
+  const [yourAppName, setYourAppName] = useState<string>('');
+  const [yourAppDescription, setYourAppDescription] = useState<string>('');
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCustomComparisonPrompt(e.target.value);
@@ -327,7 +329,11 @@ export const CompetitorAnalysis: React.FC = () => {
            model: currentModel,
            customComparisonPrompt,
            mathChallenge: mathChallenge,
-           force: force
+           force: force,
+           yourApp: (yourAppName.trim() || yourAppDescription.trim()) ? {
+             name: yourAppName.trim(),
+             description: yourAppDescription.trim()
+           } : null
         })
       });
 
@@ -634,6 +640,34 @@ export const CompetitorAnalysis: React.FC = () => {
                      <StyledComparisonCard key={index} competitor={competitor} />
                   ))}
                 </div>
+
+                {/* Your App (optional) — for personalized positioning advice */}
+                {competitors.length >= 2 && (
+                  <div className="mt-6 bg-white/90 backdrop-blur-sm rounded-xl shadow-md border border-gray-100 p-4 sm:p-6">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-1">
+                      Your App <span className="text-sm font-normal text-gray-500">(optional)</span>
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Tell us about your app to get personalized positioning advice — which competitor weakness to attack, what to build first.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4">
+                      <input
+                        type="text"
+                        value={yourAppName}
+                        onChange={(e) => setYourAppName(e.target.value)}
+                        placeholder="Your app name (e.g. Lomorage)"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
+                      <textarea
+                        value={yourAppDescription}
+                        onChange={(e) => setYourAppDescription(e.target.value)}
+                        placeholder="What does your app do? Who is it for? Key features… (e.g. Self-hosted photo backup for families. One-time $1.99, no subscription, photos stay on your own NAS.)"
+                        rows={3}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-y"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Comparison Button */}
                 {competitors.length >= 2 && (

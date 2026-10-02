@@ -67,41 +67,48 @@ Based on the app reviews provided, generate a structured markdown report that in
      - **Overall Sentiment**: Positive, Neutral, Negative
      - **Key Positive Themes** (Top 2-3)
      - **Key Negative Themes** (Top 2-3)
-     - **SWOT Summary** (Brief points for Strengths, Weaknesses, Opportunities, and Threats)
 
    **Table Formatting Guidelines:**
    - Keep **columns minimal** to ensure readability.
    - Avoid excessive text within table cells—**use concise bullet points**.
-   - If needed, split details across multiple rows rather than cramming too many columns in one row.
 
 ---
 
-### 2. **Overall Sentiment Analysis**
-   - Determine **overall sentiment** for each app: Positive, Neutral, or Negative.
-   - Provide a **percentage breakdown** of sentiment categories.
-   - Explain your **methodology** for sentiment classification (e.g., lexicon-based, ML-based).
+### 2. **Cross-App Pain Point Clustering**
+   Group ALL negative themes from ALL apps into clusters. This is the most important section.
+   - **Tier 1 — Market-wide pain points** (appears in 3+ apps): these are category-level gaps no one has solved well. For each, list which apps suffer from it and the approximate % of their 1-2 star reviews mentioning it.
+   - **Tier 2 — App-specific pain points** (dominant in only 1-2 apps): these are differentiation opportunities — what one competitor gets uniquely wrong.
+   - For each cluster include 1-2 illustrative review quotes.
 
 ---
 
-### 3. **Feature-Specific Analysis**
+### 3. **Opportunity Scoring & Ranking**
+   Score every pain point cluster from Section 2 using this transparent formula:
+
+   **Opportunity Score = Frequency × Severity × Coverage**
+
+   - **Frequency** (1-10): % of negative reviews mentioning this theme, scaled to 1-10 (e.g. 40% → 8)
+   - **Severity** (1-10): how angry are users? 9-10 = churn language ("deleted", "switching to", "cancelled"); 6-8 = strong frustration ("unusable", "dealbreaker"); 3-5 = annoyance; 1-2 = minor gripe
+   - **Coverage** (1-10): how many compared apps suffer from it, scaled (all apps = 10, single app = 3)
+
+   Present a **ranked table** with columns: Rank | Pain Point | Frequency | Severity | Coverage | Score (max 1000) | Affected Apps
+   Show the math for each row so the score is transparent, not magic.
+   Then write 2-3 sentences on what the top 3 opportunities mean for someone entering or competing in this market.
+
+---
+
+### 4. **Feature-Specific Analysis**
    - Analyze user reviews based on key features relevant to the app category:
      - **User Interface (UI) & UX**
      - **Performance & Stability**
      - **Functionality & Features**
      - **Pricing & Value**
      - **Customer Support**
-     - **[Category-Specific Feature]** (e.g., Filters for a photo app)
+     - **[Category-Specific Feature]**
 
    **For Each Feature, Provide:**
    - **Key Themes** (Recurring feedback, both positive and negative)
-   - **Sentiment Distribution** (% positive, % negative)
-   - **Example Review Snippets** (Illustrative quotes from user reviews)
-
----
-
-### 4. **Thematic Analysis (Beyond Features)**
-   - Identify **5-10 additional themes** not covered under feature analysis.
-   - Provide **brief summaries** of each theme with **example review snippets**.
+   - **Which apps** lead / lag on this feature
 
 ---
 
@@ -112,30 +119,24 @@ Based on the app reviews provided, generate a structured markdown report that in
      - **Opportunities**: Unmet user needs or gaps in the market.
      - **Threats**: Competitive risks or external challenges.
 
-   **Table Formatting Guidelines:**
-   - Use a **two-column format** to maintain clarity:
-     - Column 1: **SWOT Category**
-     - Column 2: **Summary (Concise Bullet Points)**
+---
+
+### 6. **What This Means for YOU**
+   If a "Your App" description was provided, generate personalized battle-plan recommendations:
+   - **Which competitor weakness to attack first** in marketing (cite the specific pain point %, e.g. "40% of [App X]'s 1-star reviews complain about forced permissions — lead your landing page with 'no full access required'")
+   - **Top 3 features/positioning angles** to build or emphasize, drawn from the ranked opportunities in Section 3
+   - **Suggested App Store description angles** or headline copy grounded in real competitor complaints
+   - **What NOT to copy** from competitors (their most-hated patterns)
+
+   If no "Your App" was provided, write generic market-entry recommendations instead:
+   - The single biggest gap in this market and who is most vulnerable
+   - 3 concrete positioning angles a new entrant could own, each backed by review evidence
 
 ---
 
-### 6. **Competitive Differentiation**
-   - Highlight **key differentiators** for each app:
-     - What gives it a competitive edge?
-     - Where is it vulnerable compared to competitors?
-
----
-
-### 7. **Actionable Insights & Recommendations**
-   - **Product Improvements**: Features to add, modify, or remove (**prioritized**).
-   - **Marketing Strategies**: Ways to leverage strengths and mitigate weaknesses.
-   - **Competitive Positioning**: Recommendations for better market differentiation.
-
----
-
-### 8. **Conclusion**
-   - Summarize key findings.
-   - Provide high-level recommendations for **product strategy**.
+### 7. **Conclusion**
+   - Summarize the top 3 market opportunities in one paragraph each.
+   - One-sentence verdict: where is this market most vulnerable to a new entrant?
 `
 
 export const promptConfig = {

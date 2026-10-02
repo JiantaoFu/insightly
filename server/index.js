@@ -928,11 +928,14 @@ app.post('/api/compare-competitors',
   async (req, res) => {
 
   try {
-    const { competitors, provider, model, customComparisonPrompt, force = false } = req.body;
+    const { competitors, provider, model, customComparisonPrompt, force = false, yourApp = null } = req.body;
 
-    // Generate a cache key based on sorted URLs
+    // Generate a cache key based on sorted URLs (+ yourApp so personalized reports don't collide)
     const sortedUrls = competitors.map(c => c.url).sort();
-    const cacheKey = createComparisonCacheKey(sortedUrls);
+    const yourAppKey = yourApp && (yourApp.name || yourApp.description)
+      ? `|yourapp:${yourApp.name || ''}:${(yourApp.description || '').slice(0, 100)}`
+      : '';
+    const cacheKey = createComparisonCacheKey(sortedUrls.concat(yourAppKey ? [yourAppKey] : []));
 
     // Check if report is in cache
     const cachedReport = comparisonCache.get(cacheKey);
@@ -1017,6 +1020,13 @@ Total Reviews: ${comp.appData?.reviews?.totalReviews || 0}
 ${customComparisonPrompt || promptConfig.appComparison}
 
 ${promptConfig.format}
+
+${yourApp && (yourApp.name || yourApp.description) ? `
+## Your App (for personalized positioning advice in Section 6)
+App Name: ${yourApp.name || 'N/A'}
+Description: ${yourApp.description || 'N/A'}
+Key Features: ${yourApp.features || 'N/A'}
+` : ''}
 
 Perform a comprehensive comparative analysis of the following competitor apps:
 

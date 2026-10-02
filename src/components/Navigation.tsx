@@ -213,59 +213,63 @@ const Navigation: React.FC = () => {
         </div>
 
         {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden py-2 space-y-1 bg-white border-t border-gray-100 shadow-lg">
-            {[...mainLinks, ...filteredToolsLinks].map((link) => {
-              const linkClassName = `flex items-center px-3 py-2 rounded-lg w-full ${
-                link.primary
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
-              }`;
-              const linkContent = (
-                <>
-                  <link.icon className="w-5 h-5 mr-2" />
-                  <span className="font-medium">{link.label}</span>
-                </>
-              );
-              return link.to.startsWith('http') ? (
-                <a
-                  key={link.to}
-                  href={link.to}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setIsMenuOpen(false)}
-                  className={linkClassName}
-                >
-                  {linkContent}
-                </a>
-              ) : (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  onClick={() => setIsMenuOpen(false)}
-                  className={linkClassName}
-                >
-                  {linkContent}
-                </Link>
-              );
-            })}
-            <button
-              onClick={() => {
-                setShowFeedback(true);
-                setIsMenuOpen(false);
-              }}
-              className="flex items-center px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full"
-            >
-              <MessageSquare className="w-5 h-5 mr-2" />
-              <span className="font-medium">Feedback</span>
-            </button>
-            <div className="px-3 py-2">
-              <UserMenu />
-            </div>
-          </div>
-        )}
       </div>
     </nav>
+
+    {/* Mobile Drawer - full-screen opaque panel outside the translucent nav */}
+    {isMenuOpen && (
+      <div className="md:hidden fixed inset-0 z-40 bg-white pt-16 overflow-y-auto">
+        <div className="py-2 space-y-1 px-4">
+          {[...mainLinks, ...filteredToolsLinks].map((link) => {
+            const linkClassName = `flex items-center px-3 py-2 rounded-lg w-full ${
+              link.primary
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+            }`;
+            const linkContent = (
+              <>
+                <link.icon className="w-5 h-5 mr-2" />
+                <span className="font-medium">{link.label}</span>
+              </>
+            );
+            return link.to.startsWith('http') ? (
+              <a
+                key={link.to}
+                href={link.to}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+                className={linkClassName}
+              >
+                {linkContent}
+              </a>
+            ) : (
+              <Link
+                key={link.to}
+                to={link.to}
+                onClick={() => setIsMenuOpen(false)}
+                className={linkClassName}
+              >
+                {linkContent}
+              </Link>
+            );
+          })}
+          <button
+            onClick={() => {
+              setShowFeedback(true);
+              setIsMenuOpen(false);
+            }}
+            className="flex items-center px-3 py-2 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 w-full"
+          >
+            <MessageSquare className="w-5 h-5 mr-2" />
+            <span className="font-medium">Feedback</span>
+          </button>
+          <div className="px-3 py-2">
+            <UserMenu />
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Feedback Modal */}
     {showFeedback && (

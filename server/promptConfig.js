@@ -58,7 +58,20 @@ ${formatPrompt}
 `;
 
 export const appComparisonPrompt = `
-Based on the app reviews provided, generate a structured markdown report that includes the following sections:
+Based on the app reviews provided, generate a structured markdown report.
+
+CRITICAL: You MUST use EXACTLY the following 8 section headings, in this order, with these exact titles. Do NOT use any other section titles (e.g. do NOT write "Thematic Analysis", "Competitive Differentiation", or "Actionable Insights" — those are from an old template and are FORBIDDEN):
+
+1. Summary Table (Concise Overview)
+2. Cross-App Pain Point Clustering
+3. Opportunity Scoring & Ranking
+4. Overall Sentiment Analysis
+5. Feature-Specific Analysis
+6. What This Means for YOU
+7. Competitive SWOT Analysis
+8. Conclusion
+
+Each section is defined below. Follow them precisely.
 
 ---
 
@@ -97,7 +110,12 @@ Based on the app reviews provided, generate a structured markdown report that in
 
 ---
 
-### 4. **Feature-Specific Analysis**
+### 4. **Overall Sentiment Analysis**
+   - For each app: overall sentiment (Positive / Neutral / Negative) with 1-2 sentence justification citing review evidence.
+
+---
+
+### 5. **Feature-Specific Analysis**
    - Analyze user reviews based on key features relevant to the app category:
      - **User Interface (UI) & UX**
      - **Performance & Stability**
@@ -109,15 +127,6 @@ Based on the app reviews provided, generate a structured markdown report that in
    **For Each Feature, Provide:**
    - **Key Themes** (Recurring feedback, both positive and negative)
    - **Which apps** lead / lag on this feature
-
----
-
-### 5. **Competitive SWOT Analysis**
-   - Conduct a **SWOT Analysis** for each app **relative to its competitors**:
-     - **Strengths**: Features users love.
-     - **Weaknesses**: Key areas of dissatisfaction.
-     - **Opportunities**: Unmet user needs or gaps in the market.
-     - **Threats**: Competitive risks or external challenges.
 
 ---
 
@@ -134,7 +143,16 @@ Based on the app reviews provided, generate a structured markdown report that in
 
 ---
 
-### 7. **Conclusion**
+### 7. **Competitive SWOT Analysis**
+   - Conduct a **SWOT Analysis** for each app **relative to its competitors**:
+     - **Strengths**: Features users love.
+     - **Weaknesses**: Key areas of dissatisfaction.
+     - **Opportunities**: Unmet user needs or gaps in the market.
+     - **Threats**: Competitive risks or external challenges.
+
+---
+
+### 8. **Conclusion**
    - Summarize the top 3 market opportunities in one paragraph each.
    - One-sentence verdict: where is this market most vulnerable to a new entrant?
 `

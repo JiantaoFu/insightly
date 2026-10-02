@@ -214,7 +214,7 @@ const Navigation: React.FC = () => {
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="md:hidden py-2 space-y-1">
+          <div className="md:hidden py-2 space-y-1 bg-white border-t border-gray-100 shadow-lg">
             {[...mainLinks, ...filteredToolsLinks].map((link) => {
               const linkClassName = `flex items-center px-3 py-2 rounded-lg w-full ${
                 link.primary

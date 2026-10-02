@@ -193,7 +193,7 @@ export const CompetitorAnalysis: React.FC = () => {
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [showChallenge, setShowChallenge] = useState(false);
   const { provider, model } = useProviderModel();
-  const [customComparisonPrompt, setCustomComparisonPrompt] = useState<string>(DEFAULT_APP_COMPARE_PROMPT);
+  const [customComparisonPrompt, setCustomComparisonPrompt] = useState<string>('');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
   const [isRefresh, setIsRefresh] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

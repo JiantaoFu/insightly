@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import TextareaAutosize from 'react-textarea-autosize'
-import { Menu, X } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { SERVER_URL } from './Constants';
 
 // Add new interfaces for status
@@ -35,28 +35,15 @@ interface ChatResponse {
   citations?: Citation[]
 }
 
-interface Prompt {
-  id: string
-  label: string
-  description: string
-  value: string
-}
-
-interface ChatHistory {
-  id: string;
-  prompt?: string;
-  messages: Message[];
-  timestamp: number;
-}
-
 interface DrawerState {
   prompts: boolean;
   history: boolean;
 }
 
 export function ChatBox() {
+  const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState<string>('')
+  const [input, setInput] = useState<string>(searchParams.get('prompt') || '')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -97,6 +84,7 @@ export function ChatBox() {
 
   const toggleDrawer = (drawer: keyof DrawerState) => {
     setDrawerOpen(prev => ({
+      ...prev,
       history: false,
       [drawer]: !prev[drawer]
     }));
@@ -133,7 +121,6 @@ export function ChatBox() {
       if (!reader) throw new Error('Failed to get response reader')
 
       const decoder = new TextDecoder()
-      let assistantResponse = ''
       let citations: Citation[] = []
 
       while (true) {
@@ -156,7 +143,6 @@ export function ChatBox() {
             citations = parsed.citations // Update citations when received
           }
           if (parsed.chunk) {
-            assistantResponse += parsed.chunk
             setMessages(prev => {
               const newMessages = [...prev]
               const lastMessage = newMessages[newMessages.length - 1]
@@ -258,7 +244,7 @@ export function ChatBox() {
 
             {/* Centered title */}
             <h1 className="text-lg font-semibold text-gray-800 absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-              Chat Assistant
+              Ask Your Market
             </h1>
 
             <button className="md:hidden" onClick={() => toggleDrawer('history')}>
@@ -333,9 +319,9 @@ export function ChatBox() {
                               {children}
                             </blockquote>
                           ),
-                          code({ node, inline, className, children, ...props }) {
+                          code({ className, children, ...props }) {
                             const match = /language-(\w+)/.exec(className || '');
-                            return !inline ? (
+                            return match ? (
                               <div className="relative">
                                 <pre className="rounded-md bg-gray-800 p-4 overflow-x-auto">
                                   <code
@@ -461,7 +447,7 @@ export function ChatBox() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Type your message... (Press Enter to send, Shift + Enter for new line)"
+              placeholder="Ask what changed, which complaints are emerging, or where competitors have feature gaps..."
               minRows={1}
               maxRows={4}
               className="flex-1 p-2 border rounded-lg resize-none focus:outline-none focus:ring focus:ring-blue-300"

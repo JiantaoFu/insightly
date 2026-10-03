@@ -15,6 +15,7 @@ import BlogPostPage from './pages/BlogPostPage';
 import Home from './pages/Home';
 import TeamsLandingPage from './pages/TeamsLandingPage';
 import AppInsightsPage from './pages/AppInsightsPage';
+import MarketDashboard from './pages/MarketDashboard';
 import PrivacyPage from './pages/PrivacyPage';
 import AuthInterstitial from './pages/AuthInterstitial';
 import ExtensionPage from './pages/ExtensionPage';
@@ -74,6 +75,11 @@ const App: React.FC = () => {
               <Route path="/app" element={
                 <ProtectedRoute>
                   <MainAnalysis />
+                </ProtectedRoute>
+              } />
+              <Route path="/market" element={
+                <ProtectedRoute>
+                  <MarketDashboard />
                 </ProtectedRoute>
               } />
               <Route path="/shared-app-report/:shareId" element={<AppReportView/>} />

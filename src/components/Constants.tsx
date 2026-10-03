@@ -126,6 +126,7 @@ export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3
 // Protected routes configuration
 export const PROTECTED_ROUTES = {
   ANALYZE: '/app',
+  MARKET: '/market',
   COMPETITORS: '/competitor-insights',
   CHAT: '/chat',
 };

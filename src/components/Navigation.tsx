@@ -12,7 +12,8 @@ import {
   MessageCircle as MessageCircleIcon,
   MessageSquare,
   ChevronDown,
-  FileText
+  FileText,
+  Radar
 } from 'lucide-react';
 import FeedbackForm from './FeedbackForm';
 import UserMenu from './UserMenu';
@@ -66,10 +67,10 @@ const Navigation: React.FC = () => {
       label: 'Home',
     },
     {
-      to: PROTECTED_ROUTES.ANALYZE,
-      icon: RocketIcon,
-      label: 'Analyze my app ($1)',
-      primary: false,
+      to: PROTECTED_ROUTES.MARKET,
+      icon: Radar,
+      label: 'Track Market',
+      primary: true,
     },
     {
       to: '/app-insights',
@@ -84,6 +85,11 @@ const Navigation: React.FC = () => {
   ];
 
   const toolsLinks: NavLink[] = [
+    {
+      to: PROTECTED_ROUTES.ANALYZE,
+      icon: RocketIcon,
+      label: 'Single Report',
+    },
     {
       to: PROTECTED_ROUTES.COMPETITORS,
       icon: Scale,

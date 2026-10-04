@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/utils/marketIntelligence.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
-const { splitReviewWindows, calculateTopicTrends, buildMarketSignals, mergeMarketReviews } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const { splitReviewWindows, calculateTopicTrends, buildMarketSignals, mergeMarketReviews, observeReviewSync, appendSyncObservation, normalizeResearchContext, buildResearchBrief, researchBriefMarkdown } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
 test('windows exclude stale, undated and future evidence', () => {
   const now = new Date('2026-10-03T00:00:00Z');
@@ -74,4 +74,80 @@ test('legacy date reviews merge with timestamp reviews and keep distinct IDs', (
   const changed = { ...incoming, text: 'Updated review' };
   assert.equal(mergeMarketReviews([incoming], [changed])[0].text, 'Updated review');
   assert.equal(mergeMarketReviews([incoming], [{ ...incoming, id: 'two' }]).length, 2);
+});
+
+const syncOptions = { startedAt: '2026-10-02T23:59:50Z', finishedAt: now.toISOString(), url: 'https://apps.apple.com/us/app/test/id123', kind: 'refresh', country: 'us', source: 'review-feed' };
+
+test('sync observation separates discovered, updated and published dates', () => {
+  const original = { id: 'old', text: 'Sync broken', score: 2, date: '2024-01-01', firstSeenAt: '2026-09-01T00:00:00Z' };
+  const result = observeReviewSync([original], [
+    { ...original, text: 'Sync fixed', score: 4 },
+    { id: 'new', text: 'Old historical review', date: '2023-01-01' },
+    { id: 'unknown', text: 'Undated' },
+    { id: 'future', text: 'Future', date: '2027-01-01' },
+  ], syncOptions);
+  assert.equal(result.observation.discovered, 3);
+  assert.equal(result.observation.updated, 1);
+  assert.equal(result.observation.undated, 1);
+  assert.equal(result.observation.futureDated, 1);
+  assert.equal(result.observation.oldestDate, '2023-01-01T00:00:00.000Z');
+  assert.equal(result.reviews.find(review => review.id === 'old').firstSeenAt, original.firstSeenAt);
+  assert.equal(result.reviews.find(review => review.id === 'new').firstSeenAt, now.toISOString());
+  assert.equal(splitReviewWindows(result.reviews, 30, now).current.length, 0);
+  const repeated = observeReviewSync(result.reviews, result.reviews, syncOptions);
+  assert.equal(repeated.observation.discovered, 0);
+  assert.equal(repeated.observation.updated, 0);
+});
+
+test('sync counts distinct IDs while upgrading legacy signatures without a false discovery', () => {
+  const legacy = { text: 'Same text', userName: 'User', date: '2026-10-02' };
+  const first = { ...legacy, id: 'first' };
+  const migrated = observeReviewSync([legacy], [first], syncOptions);
+  assert.equal(migrated.observation.discovered, 0);
+  assert.equal(migrated.reviews[0].firstSeenAt, undefined);
+  const distinct = observeReviewSync([first], [{ ...first, id: 'second' }], syncOptions);
+  assert.equal(distinct.observation.discovered, 1);
+  assert.equal(distinct.reviews.length, 2);
+});
+
+test('retention cap does not erase the count of first discoveries', () => {
+  const existing = Array.from({ length: 2000 }, (_, index) => ({ id: `old-${index}`, text: 'Old', date: '2024-01-01' }));
+  const result = observeReviewSync(existing, [{ id: 'new', text: 'New', date: '2026-10-02' }], syncOptions);
+  assert.equal(result.reviews.length, 2000);
+  assert.equal(result.observation.discovered, 1);
+});
+
+test('latest failed sync and region mismatch withhold comparisons after reload', () => {
+  const reviews = [...windowReviews(10, 8, '2026-10-02', 'current'), ...windowReviews(10, 1, '2026-08-20', 'previous')];
+  for (const candidate of [app('failed', reviews, { syncHistory: [{ status: 'failed' }] }), app('fallback', reviews, { url: syncOptions.url, reviewCountry: 'gb' })]) {
+    assert.equal(buildMarketSignals([candidate], 30, now)[0].comparable, false);
+  }
+  const history = Array.from({ length: 25 }, (_, index) => ({ status: 'success', index }));
+  assert.equal(appendSyncObservation(history, { status: 'failed' }).length, 20);
+});
+
+test('research question validation handles malformed storage and bounds input', () => {
+  assert.deepEqual(normalizeResearchContext(null), { product: '', question: '', focusTopic: 'all' });
+  const normalized = normalizeResearchContext({ product: 'x'.repeat(900), question: ' question ', focusTopic: 'Invented topic' });
+  assert.equal(normalized.product.length, 600);
+  assert.equal(normalized.question, 'question');
+  assert.equal(normalized.focusTopic, 'all');
+});
+
+test('research brief respects app, date and explicit topic scope without inventing answers', () => {
+  const candidate = app('A', [{ text: 'Please add export', date: '2026-10-02' }, { text: 'Sync broken', date: '2026-10-02' }], { sample: true });
+  const context = { product: 'My product', question: 'Should we implement export?', focusTopic: 'Feature requests' };
+  const brief = buildResearchBrief([candidate], context, 7, now);
+  assert.equal(brief.findings.length, 1);
+  assert.equal(brief.findings[0].appId, 'A');
+  assert.equal(brief.findings[0].topic, 'Feature requests');
+  assert.equal(brief.findings[0].comparable, false);
+  const exported = researchBriefMarkdown(brief);
+  assert.match(exported, /ILLUSTRATIVE SAMPLE DATA/);
+  assert.match(exported, /Should we implement export/);
+  assert.match(exported, /Please add export/);
+  assert.doesNotMatch(exported, /Sync broken/);
+  assert.match(exported, /Comparison withheld/);
+  assert.equal(buildResearchBrief([candidate], { ...context, focusTopic: 'Advertising' }, 7, now).findings.length, 0);
+  assert.equal(buildResearchBrief([candidate], context, 7, new Date('2027-01-01')).findings.length, 0);
 });

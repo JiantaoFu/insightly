@@ -49,10 +49,12 @@ export async function getAppReviews(appId, countryCode = 'us', options = {}) {
     let allReviews = [];
     let nextPaginationToken = null;
     let loopCount = 0;
+    let paginationLimitReached = false;
 
     while (allReviews.length < maxReviews) {
       loopCount++;
       if (loopCount > 10) {
+        paginationLimitReached = true;
         console.warn(`[getAppReviews] Breaking loop for ${appId} after 10 iterations to prevent infinite loop. allReviews.length=${allReviews.length}`);
         break;
       }
@@ -62,7 +64,7 @@ export async function getAppReviews(appId, countryCode = 'us', options = {}) {
         num: batchSize,
         sort: gplay.sort.NEWEST,
         country: countryCode,
-        lang: options.lang || countryCode,
+        lang: options.lang || 'en',
         paginate: true,
         nextPaginationToken
       };
@@ -97,6 +99,8 @@ export async function getAppReviews(appId, countryCode = 'us', options = {}) {
       .slice(0, maxReviews)
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .map(review => ({
+        id: review.id,
+        url: review.url,
         text: review.text || '',
         score: review.score || 0,
         timestamp: review.date,
@@ -105,6 +109,13 @@ export async function getAppReviews(appId, countryCode = 'us', options = {}) {
 
     return {
       total: filteredReviews.length,
+      source: 'review-feed',
+      country: countryCode,
+      language: options.lang || 'en',
+      partial: paginationLimitReached,
+      requestedLimit: Number.isFinite(maxReviews) ? maxReviews : null,
+      limitReached: filteredReviews.length >= maxReviews,
+      pagesFetched: Math.min(loopCount, 10),
       reviews: filteredReviews,
       averageRating: calculateAverageRating(filteredReviews),
       scoreDistribution: calculateScoreDistribution(filteredReviews)

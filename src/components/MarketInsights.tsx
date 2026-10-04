@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ArrowUpRight, RefreshCw, Trash2, ExternalLink, Smartphone } from 'lucide-react';
-import { buildMarketSignals, getAppCoverage, summarizeReviewDelta, MarketSignal, WatchApp } from '../utils/marketIntelligence';
+import { buildMarketSignals, buildResearchBrief, getAppCoverage, requestedCountry, summarizeReviewDelta, MarketSignal, ResearchContext, WatchApp } from '../utils/marketIntelligence';
+import { ResearchBriefPanel } from './MarketResearch';
+import MarketCoverage from './MarketCoverage';
 
 interface Props {
   apps: WatchApp[];
+  research: ResearchContext;
   busy: boolean;
   syncingId: string | null;
   syncErrors: Record<string, string>;
@@ -43,14 +46,15 @@ const SignalRow = ({ signal, days, action = false }: { signal: MarketSignal; day
   </article>
 );
 
-const MarketInsights = ({ apps, busy, syncingId, syncErrors, onSync, onSyncAll, onRemove, onRoleChange }: Props) => {
-  const [view, setView] = useState<'overview' | 'weekly' | 'ask' | 'watchlist'>('overview');
+const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, onSyncAll, onRemove, onRoleChange }: Props) => {
+  const [view, setView] = useState<'overview' | 'brief' | 'weekly' | 'ask' | 'watchlist'>('overview');
   const [days, setDays] = useState(30);
   const [appId, setAppId] = useState('all');
   const [question, setQuestion] = useState('changes');
   const selected = useMemo(() => apps.filter(app => appId === 'all' || app.id === appId || !apps.some(item => item.id === appId)).sort((a, b) => Number(b.role === 'my-app') - Number(a.role === 'my-app')), [apps, appId]);
   const signals = useMemo(() => buildMarketSignals(selected, days), [selected, days]);
   const weekly = useMemo(() => buildMarketSignals(selected, 7), [selected]);
+  const brief = useMemo(() => buildResearchBrief(selected, research, days), [selected, research, days]);
   const coverages = selected.map(app => ({ app, coverage: getAppCoverage(app, days) }));
   const comparable = coverages.filter(item => item.coverage.comparable).length;
   const currentCount = coverages.reduce((sum, item) => sum + item.coverage.current.length, 0);
@@ -64,7 +68,7 @@ const MarketInsights = ({ apps, busy, syncingId, syncErrors, onSync, onSyncAll, 
     <div className="mt-7">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200">
         <div role="tablist" aria-label="Market views" className="flex flex-wrap gap-5">
-          {(['overview', 'weekly', 'ask', 'watchlist'] as const).map(tab => <button key={tab} id={`market-tab-${tab}`} role="tab" aria-selected={view === tab} aria-controls="market-panel" onClick={() => setView(tab)} className={`py-3 text-sm font-medium border-b-2 ${view === tab ? 'border-teal-700 text-teal-900' : 'border-transparent text-gray-500 hover:text-gray-900'}`}>{({ overview: 'Overview', weekly: 'Weekly brief', ask: 'Ask market', watchlist: 'Watchlist' })[tab]}</button>)}
+          {(['overview', 'brief', 'weekly', 'ask', 'watchlist'] as const).map(tab => <button key={tab} id={`market-tab-${tab}`} role="tab" aria-selected={view === tab} aria-controls="market-panel" onClick={() => setView(tab)} className={`py-3 text-sm font-medium border-b-2 ${view === tab ? 'border-teal-700 text-teal-900' : 'border-transparent text-gray-500 hover:text-gray-900'}`}>{({ overview: 'Overview', brief: 'Research brief', weekly: 'Weekly brief', ask: 'Ask market', watchlist: 'Watchlist' })[tab]}</button>)}
         </div>
         <div className="flex gap-3 items-center pb-2 flex-wrap">
           {view !== 'watchlist' && <select aria-label="Filter by app" value={appId} onChange={event => setAppId(event.target.value)} className="border border-gray-300 rounded p-2 text-sm max-w-52"><option value="all">All apps</option>{apps.map(app => <option value={app.id} key={app.id}>{app.name}</option>)}</select>}
@@ -92,6 +96,7 @@ const MarketInsights = ({ apps, busy, syncingId, syncErrors, onSync, onSyncAll, 
             </tbody></table></div>
           </section>
         </>}
+        {view === 'brief' && <ResearchBriefPanel brief={brief}>{brief.findings.map(signal => <SignalRow key={signal.key} signal={signal} days={days} action />)}</ResearchBriefPanel>}
         {view === 'weekly' && <section className="py-5">
           <div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-lg font-semibold">Weekly product brief</h2><p className="mt-1 text-sm text-gray-500">Last 7 days versus the preceding 7 days · internal preview · delivery not scheduled</p></div><button className="text-sm text-teal-800 inline-flex items-center gap-1" onClick={() => setView('watchlist')}>Review coverage <ArrowUpRight className="w-4 h-4" /></button></div>
           {weekly.length === 0 && <p className="mt-5 text-gray-500 text-sm">Not enough dated review evidence to generate a brief for this week.</p>}
@@ -109,7 +114,8 @@ const MarketInsights = ({ apps, busy, syncingId, syncErrors, onSync, onSyncAll, 
           {!apps.length && <p className="text-sm text-gray-500">No watched apps yet.</p>}
           {apps.map(app => <div key={app.id} className="grid grid-cols-[36px_minmax(0,1fr)] md:grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 py-4 border-b border-gray-200">
             <div className="w-9 h-9">{app.icon ? <img src={app.icon} alt="" className="w-9 h-9 rounded" /> : <Smartphone className="w-5 h-5 text-gray-400 m-2" />}</div>
-            <div className="flex-1 min-w-0"><p className="font-medium text-sm break-words">{app.name}</p><p className="text-xs text-gray-500 mt-1">{app.platform === 'ios' ? 'App Store' : 'Google Play'} · {app.reviews.length} saved · last fetch {app.lastFetchedCount ?? 'unknown'} · newly saved {app.lastAddedCount ?? 'unknown'}</p><p className="mt-1 text-xs text-gray-500">Last sync: {new Date(app.syncedAt).toLocaleString()} · {app.sample ? 'Illustrative data' : app.reviewSource === 'store-page-sample' ? 'Limited webpage sample' : app.reviewSource === 'review-feed' ? 'Review feed sample' : 'Unverified source'}</p>
+            <div className="flex-1 min-w-0"><p className="font-medium text-sm break-words">{app.name}</p><p className="text-xs text-gray-500 mt-1">{app.platform === 'ios' ? 'App Store' : 'Google Play'} · {app.reviews.length} saved · last fetch {app.lastFetchedCount ?? 'unknown'} · first discoveries {app.lastAddedCount ?? 'unknown'}</p><p className="mt-1 text-xs text-gray-500">Last successful sync: {new Date(app.syncedAt).toLocaleString()} · {app.sample ? 'Illustrative data' : app.reviewSource === 'store-page-sample' ? 'Limited webpage sample' : app.reviewSource === 'review-feed' ? 'Review feed sample' : 'Unverified source'}</p>
+              {!app.sample && <p className="mt-1 text-xs text-gray-500">Requested region: {requestedCountry(app.url).toUpperCase()} · review region: {app.reviewCountry?.toUpperCase() || 'Unverified'}</p>}
               {app.reviewSource === 'store-page-sample' && <p className="mt-1 text-xs text-amber-800">Sample only; trend comparisons are withheld.</p>}
               {!app.reviews.length && <p className="mt-1 text-xs text-amber-800">No review data returned; not evidence of zero market feedback.</p>}
               {syncErrors[app.id] && <p role="alert" className="mt-1 text-xs text-red-700">{syncErrors[app.id]} Previous reviews retained.</p>}
@@ -119,6 +125,7 @@ const MarketInsights = ({ apps, busy, syncingId, syncErrors, onSync, onSyncAll, 
             <button title={`Sync ${app.name}`} aria-label={`Sync ${app.name}`} disabled={busy || app.sample} onClick={() => onSync(app)} className="p-2 hover:bg-gray-100 rounded disabled:opacity-40"><RefreshCw className={`w-4 h-4 ${syncingId === app.id ? 'animate-spin' : ''}`} /></button>
             <button title={`Remove ${app.name}`} aria-label={`Remove ${app.name}`} disabled={busy} onClick={() => { if (appId === app.id) setAppId('all'); onRemove(app.id); }} className="p-2 text-gray-500 hover:text-red-700 disabled:opacity-40"><Trash2 className="w-4 h-4" /></button></div>
           </div>)}
+          <MarketCoverage apps={apps} />
         </section>}
       </div>
     </div>

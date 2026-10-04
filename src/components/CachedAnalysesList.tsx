@@ -43,14 +43,15 @@ const CachedAnalysesList: React.FC<CachedAnalysesListProps> = ({
         const response = await fetch(`${SERVER_URL}/api/cached-analyses`);
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error('Recent reports are currently unavailable.');
         }
 
         const data = await response.json();
         setCachedAnalyses(data);
         setIsLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        console.error('Could not load recent reports:', err);
+        setError('Recent reports are currently unavailable.');
         setIsLoading(false);
       }
     };

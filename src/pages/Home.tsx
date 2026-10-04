@@ -1,13 +1,9 @@
 import React, { useEffect } from 'react';
 import {
-  BarChart2,
-  Shield,
   TrendingUp,
   Search,
-  Layers,
   Radar,
-  Bell,
-  Bot
+  Bell
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
@@ -56,84 +52,82 @@ interface LandingCopy {
 
 const COPY: Record<LandingAudience, LandingCopy> = {
   founders: {
-    pageTitle: 'Insightly: AI Competitive Intelligence for Mobile Product Teams',
-    pageDescription: 'Track competitor reviews, monitor emerging user complaints, and turn market feedback into weekly product intelligence.',
+    pageTitle: 'Insightly: Competitor Feedback Intelligence for Mobile Apps',
+    pageDescription: 'Research competitor app feedback with a watchlist, dated review evidence and product research briefs for small mobile teams.',
     canonicalPath: '/',
-    heroTitle: 'Track What Competitor Users Complain About Every Week',
-    heroSubtitle: 'Insightly continuously monitors App Store and Google Play reviews so mobile product teams can spot emerging complaints, feature gaps, and roadmap opportunities before the next planning meeting.',
+    heroTitle: 'Competitor Feedback Intelligence',
+    heroSubtitle: 'For independent developers and small teams with an app already in market. Investigate competitor feedback and bring review evidence to your next product decision.',
     heroPrimaryCta: { label: 'Track Your Market', href: '/market' },
     // No-login demo path: /app-insights is a public archive of real reports.
     // Visitors must be able to try the product before any Google login.
     heroSecondaryCta: { label: 'See Live Demo', href: '/app-insights' },
-    featuresSectionTitle: 'Continuous product intelligence from real market feedback.',
-    startSectionTitle: 'Start Monitoring Your Market',
-    startSectionSubtitle: 'Add your app, add competitors, and let Insightly surface what changed',
+    featuresSectionTitle: 'Evidence for your next product decision.',
+    startSectionTitle: 'Research Your Market',
+    startSectionSubtitle: 'Your product question. Your direct competitors. Traceable review evidence.',
     features: [
       {
         icon: Radar,
         title: 'Competitor Watchlists',
-        description: 'Track your app beside direct competitors across iOS and Android reviews.'
+        description: 'Your app and direct competitors, with manually refreshed review samples.'
       },
       {
         icon: TrendingUp,
-        title: 'Review Delta Detection',
-        description: 'See which complaints, requests, and sentiment shifts are new or accelerating.'
+        title: 'Dated Review Evidence',
+        description: 'Topic observations and sample comparisons, with coverage limits kept visible.'
       },
       {
         icon: Bell,
-        title: 'Weekly Intelligence',
-        description: 'Preview a product digest for roadmap, support, and growth conversations.'
-      },
-      {
-        icon: Bot,
-        title: 'Ask Your Market',
-        description: 'Query the existing review knowledge base for changes, gaps, and emerging themes.'
-      }
-    ],
-    ctaTitle: 'Ready to Turn Reviews Into a Weekly Product Signal?',
-    ctaSubtitle: 'Start with a market watchlist, keep public reports for research, and upgrade when monitoring becomes part of your workflow.',
-    // Honest pricing: the minimum spend is the $1 Starter Pack, not "Free".
-    ctaPrimary: { label: 'Start for $1', href: '#pricing' },
-    ctaSecondary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true }
-  },
-  teams: {
-    pageTitle: 'Insightly for Teams: Competitive Intelligence from App Reviews',
-    pageDescription: 'Give your product and ASO team sentiment trends, feature-gap analysis, and SWOT comparisons built from real competitor app reviews.',
-    canonicalPath: '/for-teams',
-    heroTitle: 'Turn Competitor App Reviews Into Your Team’s Competitive Intelligence',
-    heroSubtitle: 'Track what users love and hate about competing apps — sentiment trends, feature-request themes, and SWOT comparisons your product and ASO team can act on every sprint.',
-    heroPrimaryCta: { label: 'Track Your Market', href: '/market' },
-    heroSecondaryCta: { label: 'Book a Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true },
-    featuresSectionTitle: 'See what your competitors’ users are really saying — before your roadmap meeting.',
-    startSectionTitle: 'Start Competitive Analysis',
-    startSectionSubtitle: 'Benchmark your app against competitors in minutes, not analyst-days',
-    features: [
-      {
-        icon: Layers,
-        title: 'Competitive Benchmarking',
-        description: 'SWOT-style comparisons across competitor apps, built from real user reviews.'
-      },
-      {
-        icon: BarChart2,
-        title: 'Sentiment & Trend Tracking',
-        description: 'Monitor how competitor sentiment shifts release over release.'
+        title: 'Research Briefs',
+        description: 'A product question, selected feedback themes, and evidence worth investigating.'
       },
       {
         icon: Search,
-        title: 'Feature Gap Analysis',
-        description: 'Surface the features users beg competitors for — feed it straight into your roadmap.'
-      },
-      {
-        icon: Shield,
-        title: 'Save Analyst Hours',
-        description: 'Skip the manual review-reading. Get a shareable report your whole team can act on.'
+        title: 'Focused Questions',
+        description: 'Changes, low-rated feedback and feature requests from your watched apps.'
       }
     ],
-    ctaTitle: 'Ready to Bring Competitive Intelligence Into Your Roadmap?',
-    ctaSubtitle: 'See a live walkthrough, or start a self-serve analysis today.',
-    ctaPrimary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo' },
-    // Honest pricing: the minimum spend is the $1 Starter Pack, not "Free".
-    ctaSecondary: { label: 'Start for $1', href: '#pricing' }
+    ctaTitle: 'Bring Evidence to Your Next Product Decision',
+    ctaSubtitle: 'Start with the research preview. Public reports remain available for one-time analysis.',
+    ctaPrimary: { label: 'Track Your Market', href: '/market' },
+    ctaSecondary: { label: 'Book Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true }
+  },
+  teams: {
+    pageTitle: 'Insightly for Teams: Competitor Feedback Research',
+    pageDescription: 'Bring dated competitor review evidence to product planning, with sample coverage and research briefs for mobile teams.',
+    canonicalPath: '/for-teams',
+    heroTitle: 'Competitor Feedback for Product Teams',
+    heroSubtitle: 'Investigate the feedback behind your next product decision, with a focused competitor watchlist and dated review evidence. Manual research preview available now.',
+    heroPrimaryCta: { label: 'Track Your Market', href: '/market' },
+    heroSecondaryCta: { label: 'Book a Demo', href: 'https://calendly.com/jeromyfu-/insightly-top-demo', external: true },
+    featuresSectionTitle: 'Review evidence for your next planning meeting.',
+    startSectionTitle: 'Research Your Market',
+    startSectionSubtitle: 'A focused question and a small set of direct competitors.',
+    features: [
+      {
+        icon: Radar,
+        title: 'Competitor Watchlists',
+        description: 'Your own app beside direct competitors, with dated feedback samples.'
+      },
+      {
+        icon: TrendingUp,
+        title: 'Sample Comparisons',
+        description: 'Topic share comparisons only when the available samples support them.'
+      },
+      {
+        icon: Search,
+        title: 'Feature Request Evidence',
+        description: 'Requested capabilities to validate with users, not automatic roadmap commitments.'
+      },
+      {
+        icon: Bell,
+        title: 'Brief Previews',
+        description: 'Research and weekly previews with source evidence and coverage notes.'
+      }
+    ],
+    ctaTitle: 'Bring Evidence to Your Next Planning Meeting',
+    ctaSubtitle: 'Explore a watched market or browse existing public reports.',
+    ctaPrimary: { label: 'Track Your Market', href: '/market' },
+    ctaSecondary: { label: 'Browse Reports', href: '/app-insights' }
   }
 };
 
@@ -161,7 +155,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
         <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "linear-gradient(#93C5FD 1px, transparent 1px), linear-gradient(90deg, #93C5FD 1px, transparent 1px)", backgroundSize: "48px 48px" }}></div> {/* faint grid texture */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="text-center">
-            <h1 className="text-5xl tracking-tight font-extrabold sm:text-6xl lg:text-7xl">
+            <h1 className="text-4xl font-extrabold sm:text-5xl lg:text-6xl">
               {copy.heroTitle}
             </h1>
             <p className="mt-5 max-w-md mx-auto text-xl text-gray-200 sm:text-2xl md:mt-8 md:max-w-3xl">
@@ -183,7 +177,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               </a>
             </div>
             <p className="mt-4 text-sm text-gray-300">
-              Monitor competitors · Detect review deltas · Preview weekly intelligence
+              Manual research preview · Browser storage · No automatic delivery
             </p>
             <div className="mt-4 flex justify-center gap-6 text-sm">
               <a
@@ -209,7 +203,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
                 />
               </div>
               <p className="mt-3 text-sm text-gray-300">
-                Public reports remain available for acquisition and SEO; monitoring is now the main workflow.
+                A public review analysis report from the existing archive.
               </p>
             </div>
           </div>
@@ -220,16 +214,16 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
           <div>
-            <div className="text-3xl font-extrabold text-indigo-600">2,800+</div>
-            <div className="mt-1 text-gray-500">free reports published</div>
+            <div className="text-xl font-semibold text-gray-900">App Store</div>
+            <div className="mt-1 text-gray-500">public review samples</div>
           </div>
           <div>
-            <div className="text-3xl font-extrabold text-indigo-600">100+</div>
-            <div className="mt-1 text-gray-500">reviews mined per report</div>
+            <div className="text-xl font-semibold text-gray-900">Google Play</div>
+            <div className="mt-1 text-gray-500">public review samples</div>
           </div>
           <div>
-            <div className="text-3xl font-extrabold text-indigo-600">weekly</div>
-            <div className="mt-1 text-gray-500">market intelligence preview</div>
+            <div className="text-xl font-semibold text-gray-900">Public Reports</div>
+            <div className="mt-1 text-gray-500">one-time research archive</div>
           </div>
         </div>
       </div>
@@ -291,10 +285,10 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4">
-              Pricing Built Around Ongoing Monitoring
+              Research Preview and Reports
             </h2>
             <p className="text-xl text-gray-700 max-w-2xl mx-auto mb-4">
-              Keep the $1 starter report for evaluation, then move product teams into recurring competitive intelligence.
+              Research preview without a subscription. One-time AI reports use existing credits.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -327,14 +321,14 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             </div>
             {/* Pro Plan Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
-              <h3 className="text-2xl font-bold mb-2 text-indigo-700">Market Monitor</h3>
-              <div className="text-4xl font-extrabold text-gray-900">$19</div>
-              <div className="text-gray-500 mb-4 text-sm">planned monthly price · preview available now</div>
+              <h3 className="text-2xl font-bold mb-2 text-indigo-700">Market Research</h3>
+              <div className="text-4xl font-extrabold text-gray-900">Free</div>
+              <div className="text-gray-500 mb-4 text-sm">Manual research preview</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
-                <li>✔ Watch 1 market</li>
-                <li>✔ Track your app + 5 competitors</li>
-                <li>✔ Review delta and topic trends</li>
-                <li>✔ Weekly intelligence preview</li>
+                <li>✔ Competitor watchlist</li>
+                <li>✔ Manually refreshed review samples</li>
+                <li>✔ Research brief and source evidence</li>
+                <li>✔ Saved in this browser</li>
               </ul>
               <Link to="/market" className="px-5 py-3 bg-blue-600 text-white rounded-lg">Try market preview</Link>
               <a href="/app-insights" className="text-blue-600 hover:text-blue-700 text-sm mt-3 inline-block">
@@ -344,27 +338,27 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             </div>
             {/* Unlimited Plan Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
-              <h3 className="text-2xl font-bold mb-2 text-indigo-700">Product Intelligence</h3>
+              <h3 className="text-2xl font-bold mb-2 text-indigo-700">Continuous Monitoring</h3>
               <div className="flex items-baseline justify-center mb-2">
-                <span className="text-4xl font-extrabold text-gray-900">$39</span>
+                <span className="text-2xl font-semibold text-gray-900">Planned</span>
               </div>
-              <div className="text-gray-500 mb-4 text-sm">planned monthly price · preview available now</div>
+              <div className="text-gray-500 mb-4 text-sm">Not yet available for purchase</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
-                <li>✔ Unlimited reports and comparisons</li>
-                <li>✔ Larger competitor watchlists</li>
-                <li>✔ Ask Your Market with RAG</li>
-                <li>✔ Priority roadmap support</li>
+                <li>Account-based watchlists</li>
+                <li>Background review collection</li>
+                <li>Scheduled brief generation</li>
+                <li>Watchlist-scoped AI questions</li>
               </ul>
               {/*
                 IMPORTANT: Replace 'price_...' with your actual Stripe Price ID for the Unlimited plan.
                 You can find this in your Stripe Dashboard under Products.
               */}
-              <Link to="/market" className="px-5 py-3 bg-blue-600 text-white rounded-lg">Explore intelligence preview</Link>
+              <Link to="/market" className="px-5 py-3 bg-blue-600 text-white rounded-lg">Try current research preview</Link>
               <a href="/app-insights" className="text-blue-600 hover:text-blue-700 text-sm mt-3 inline-block">
                 or browse a free sample first →
               </a>
               <p className="text-gray-500 text-sm mt-6 text-center">
-                Cancel anytime. Perfect for power users & teams.
+                Subscription pricing will follow pilot validation.
               </p>
             </div>
           </div>

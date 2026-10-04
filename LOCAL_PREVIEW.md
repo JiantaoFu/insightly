@@ -27,8 +27,9 @@ without an AI key. The separate AI research link requires the configured backend
 
 This preview has manual sync, browser persistence, keyword topics and an internal
 weekly digest. Automatic jobs, account persistence, report delivery and new
-subscription activation are not included. New plan prices are proposals and
-their preview buttons do not initiate payment.
+subscription activation are not included. The homepage distinguishes the free
+manual research preview from planned continuous monitoring, which cannot be
+purchased. Existing one-time report checkout is unchanged.
 
 Validation: `npm test`, `npm run build`, and targeted ESLint for the changed files.
 Existing scraper integration suites remain under server/tests and require network
@@ -54,3 +55,25 @@ Watchlist supports role reassignment and sequential Sync all. Failed apps retain
 their saved reviews and do not prevent subsequent apps from syncing. Review IDs
 and normalized dates deduplicate older saved data as well as incoming reviews.
 The existing browser storage key is retained so this upgrade preserves watchlists.
+
+## Research validation preview (P0)
+
+Save a product description, current question and explicit focus topic under
+Product question. Research brief respects the selected apps, period and saved
+topic and exports a Markdown brief with review evidence and coverage notes.
+It uses English keyword matches, not freeform AI reasoning about the question;
+product context is preserved for human interpretation, not used to invent a gap.
+Illustrative data remains labeled in the exported brief.
+
+Watchlist includes a Data quality log and metadata-only JSON export. The last
+20 manual attempts per app are retained, including failures after page reload.
+Each successful attempt records source, actual region when returned, date range,
+collection limits, first discoveries, updated reviews and missing/future dates.
+First discovery is not publication date; legacy sync history is not reconstructed.
+No unattended multi-day benchmark has been completed by this feature.
+
+Google review IDs and links are retained. Review region fallbacks are reported,
+and a refresh cannot silently merge returned reviews from a different region.
+Latest failed attempts prevent trend comparison until a successful refresh.
+The browser retains up to 2,000 saved reviews per app, independently of each
+request's maximum of 500. Neither limit guarantees full store coverage.

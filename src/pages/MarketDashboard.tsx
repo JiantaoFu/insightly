@@ -3,11 +3,18 @@ import { Loader2, Plus, Radar, Search } from 'lucide-react';
 
 import Navigation from '../components/Navigation';
 import { SERVER_URL } from '../components/Constants';
-import { mergeMarketReviews, MarketReview, WatchApp } from '../utils/marketIntelligence';
+import { appendSyncObservation, observeReviewSync, requestedCountry, normalizeResearchContext, ResearchContext, MarketReview, WatchApp } from '../utils/marketIntelligence';
 import MarketInsights from '../components/MarketInsights';
+import { ResearchQuestionEditor } from '../components/MarketResearch';
 
 
 const STORAGE_KEY = 'insightly_market_watchlist_v1';
+const RESEARCH_KEY = 'insightly_market_research_v1';
+
+const loadResearch = () => {
+  try { return normalizeResearchContext(JSON.parse(localStorage.getItem(RESEARCH_KEY) || '{}')); }
+  catch { return normalizeResearchContext(null); }
+};
 
 const loadWatchlist = (): WatchApp[] => {
   try {
@@ -42,6 +49,7 @@ const processAppUrl = async (url: string) => {
 const MarketDashboard: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchApp[]>(loadWatchlist);
   const watchlistRef = useRef(watchlist);
+  const [research, setResearch] = useState<ResearchContext>(loadResearch);
   const [syncingAll, setSyncingAll] = useState(false);
   const [url, setUrl] = useState('');
   const [role, setRole] = useState<WatchApp['role']>(watchlist.some(app => app.role === 'my-app') ? 'competitor' : 'my-app');
@@ -111,26 +119,44 @@ const MarketDashboard: React.FC = () => {
   };
 
   const refreshApp = async (app: WatchApp) => {
+    const startedAt = new Date().toISOString();
+    let returnedCountry: string | undefined;
     setSyncingId(app.id);
     setError(null);
     setSyncErrors(previous => ({ ...previous, [app.id]: '' }));
     try {
       const data = await processAppUrl(app.url);
+      returnedCountry = data.reviews.country;
       const incoming: MarketReview[] = data.reviews?.reviews || [];
       const current = watchlistRef.current.find(item => item.id === app.id) || app;
-      const merged = mergeMarketReviews(current.reviews, incoming);
-      const added = Math.max(0, merged.length - current.reviews.length);
+      if (data.reviews.country && data.reviews.country !== (current.reviewCountry || requestedCountry(app.url))) {
+        throw new Error(`Review region changed to ${data.reviews.country.toUpperCase()}. Existing region data retained; use a separate regional watchlist entry.`);
+      }
+      const source = data.reviews.source || (app.platform === 'android' ? 'review-feed' : undefined);
+      const { reviews, observation } = observeReviewSync(current.reviews, incoming, {
+        startedAt, finishedAt: new Date().toISOString(), url: app.url, kind: 'refresh',
+        country: data.reviews.country, source, partial: data.reviews.partial, limitReached: data.reviews.limitReached,
+      });
       persistWatchlist(watchlistRef.current.map(item => item.id === app.id ? {
-        ...item, reviews: merged, syncedAt: new Date().toISOString(),
-        reviewSource: data.reviews?.source || (app.platform === 'android' ? 'review-feed' : undefined),
-        lastFetchedCount: incoming.length, lastAddedCount: added, partial: !!data.reviews?.partial,
+        ...item, reviews, syncedAt: observation.finishedAt,
+        reviewSource: source, reviewCountry: data.reviews.country || item.reviewCountry,
+        lastFetchedCount: incoming.length, lastAddedCount: observation.discovered, partial: !!data.reviews?.partial,
+        syncHistory: appendSyncObservation(item.syncHistory, observation),
       } : item));
-      setNotice(app.name + ': ' + incoming.length + ' fetched, ' + added + ' newly saved. ' + (data.reviews?.source === 'store-page-sample' ? 'Limited sample; trend comparison withheld.' : 'Previously saved reviews retained.'));
+      setNotice(app.name + ': ' + incoming.length + ' fetched, ' + observation.discovered + ' first discovered, ' + observation.updated + ' updated. ' + (source === 'store-page-sample' ? 'Limited sample; trend comparison withheld.' : 'Previously saved reviews retained.'));
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sync failed.';
       setError(app.name + ': ' + message);
       setSyncErrors(previous => ({ ...previous, [app.id]: message }));
+      persistWatchlist(watchlistRef.current.map(item => item.id === app.id ? {
+        ...item, syncHistory: appendSyncObservation(item.syncHistory, {
+          startedAt, finishedAt: new Date().toISOString(), kind: 'refresh', status: 'failed',
+          requestedCountry: requestedCountry(app.url), country: returnedCountry, fetched: 0, discovered: 0, updated: 0,
+          undated: 0, futureDated: 0, oldestDate: null, newestDate: null,
+          partial: false, limitReached: false, error: message,
+        }),
+      } : item));
       return false;
     } finally {
       setSyncingId(null);
@@ -183,10 +209,16 @@ const MarketDashboard: React.FC = () => {
     }
 
     try {
+      const startedAt = new Date().toISOString();
       setIsAdding(true);
       setError(null);
       setNotice(null);
       const data = await processAppUrl(url.trim());
+      const source = data.reviews.source || (parsed.hostname === 'play.google.com' ? 'review-feed' : undefined);
+      const observed = observeReviewSync([], data.reviews.reviews, {
+        startedAt, finishedAt: new Date().toISOString(), url: url.trim(), kind: 'baseline',
+        country: data.reviews.country, source, partial: data.reviews.partial, limitReached: data.reviews.limitReached,
+      });
       const nextApp: WatchApp = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         role,
@@ -195,12 +227,14 @@ const MarketDashboard: React.FC = () => {
         icon: data.details?.icon,
         developer: data.details?.developer,
         platform: url.includes('apps.apple.com') ? 'ios' : 'android',
-        reviews: data.reviews?.reviews || [],
-        reviewSource: data.reviews?.source || (parsed.hostname === 'play.google.com' ? 'review-feed' : undefined),
+        reviews: observed.reviews,
+        reviewSource: source,
+        reviewCountry: data.reviews.country,
+        syncHistory: [observed.observation],
         lastFetchedCount: data.reviews?.reviews?.length || 0,
         lastAddedCount: 0,
         partial: !!data.reviews?.partial,
-        syncedAt: new Date().toISOString(),
+        syncedAt: observed.observation.finishedAt,
       };
       persistWatchlist([...watchlistRef.current, nextApp]);
       setRole('competitor');
@@ -287,7 +321,12 @@ const MarketDashboard: React.FC = () => {
           {isAdding && <p role="status" className="mt-3 text-sm text-gray-500">Fetching app details and recent reviews...</p>}
         </section>
 
-        <MarketInsights apps={watchlist} busy={busy} syncingId={syncingId} syncErrors={syncErrors}
+        <ResearchQuestionEditor context={research} onSave={next => {
+          setResearch(next);
+          try { localStorage.setItem(RESEARCH_KEY, JSON.stringify(next)); setNotice('Research question saved in this browser.'); }
+          catch { setError('Research question could not be saved in this browser. It remains available until this page closes.'); }
+        }} />
+        <MarketInsights apps={watchlist} research={research} busy={busy} syncingId={syncingId} syncErrors={syncErrors}
           onSync={refreshApp} onSyncAll={syncAll}
           onRemove={id => persistWatchlist(watchlistRef.current.filter(app => app.id !== id))}
           onRoleChange={(id, nextRole) => persistWatchlist(watchlistRef.current.map(app => ({

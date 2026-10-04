@@ -34,3 +34,23 @@ Validation: `npm test`, `npm run build`, and targeted ESLint for the changed fil
 Existing scraper integration suites remain under server/tests and require network
 access; run those separately with Mocha. Full-repository lint/type checks have
 existing failures in legacy components.
+
+## Product workspace
+
+Overview attributes findings to individual apps and provides expandable review
+evidence. Filter by app and 7/30-day periods. The comparison table shows sample
+ratings rather than the store's aggregate rating. Weekly brief uses a fixed
+7-day comparison; Ask market answers three supported questions from the selected
+apps' evidence, without making a freeform AI request.
+
+Trend comparisons are withheld for webpage samples, incomplete syncs, unverified
+sources, zero-result syncs, stale syncs (over 48 hours), or fewer than five dated
+reviews in either period. Eligible comparisons show the change in topic share
+within sampled reviews, in percentage points. This threshold is a conservative
+product heuristic, not a statistical significance test or proof of complete coverage.
+Pricing mentions are labeled neutrally. Advertising keywords use word boundaries.
+
+Watchlist supports role reassignment and sequential Sync all. Failed apps retain
+their saved reviews and do not prevent subsequent apps from syncing. Review IDs
+and normalized dates deduplicate older saved data as well as incoming reviews.
+The existing browser storage key is retained so this upgrade preserves watchlists.

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/utils/marketIntelligence.ts', import.meta.url), 'utf8');
-const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
-const { splitReviewWindows, calculateTopicTrends } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
+const { splitReviewWindows, calculateTopicTrends, buildMarketSignals, mergeMarketReviews } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
 test('windows exclude stale, undated and future evidence', () => {
   const now = new Date('2026-10-03T00:00:00Z');
@@ -22,8 +22,56 @@ test('windows exclude stale, undated and future evidence', () => {
 });
 test('emerging performance complaints retain evidence', () => {
   const trends = calculateTopicTrends([{ text: 'App crashes and is slow', score: 1, date: new Date().toISOString() }]);
-  const performance = trends.find(trend => trend.topic === 'Performance issues');
+  const performance = trends.find(trend => trend.topic === 'Stability and performance');
   assert.equal(performance.delta, 1);
   assert.equal(performance.sentiment, 'negative');
   assert.equal(performance.example, 'App crashes and is slow');
+});
+
+test('advertising matches complete words, not add or loading', () => {
+  const date = new Date().toISOString();
+  assert.equal(calculateTopicTrends([{ text: 'Please add export. Loading is slow.', date }]).some(trend => trend.topic === 'Advertising'), false);
+  assert.equal(calculateTopicTrends([{ text: 'Too many ads', date }]).some(trend => trend.topic === 'Advertising'), true);
+});
+
+const now = new Date('2026-10-03T00:00:00Z');
+const app = (id, reviews, extra = {}) => ({ id, name: id, role: 'competitor', url: '', platform: 'ios', syncedAt: now.toISOString(), reviewSource: 'review-feed', reviews, ...extra });
+const windowReviews = (count, crashes, date, prefix) => Array.from({ length: count }, (_, index) => ({ id: `${prefix}-${index}`, text: index < crashes ? 'App crashes' : 'Useful app', score: 2, date }));
+
+test('traffic increase alone does not imply higher topic share; evidence stays attributed', () => {
+  const reviews = [...windowReviews(10, 2, '2026-10-02', 'current'), ...windowReviews(5, 1, '2026-08-20', 'previous')];
+  const signals = buildMarketSignals([app('A', reviews), app('B', [{ text: 'Please add export', date: '2026-10-02' }])], 30, now);
+  const signal = signals.find(item => item.appId === 'A');
+  assert.equal(signal.delta, 1);
+  assert.equal(signal.changePp, 0);
+  assert.equal(signal.evidence.length, 3);
+  assert.ok(signal.evidence.every(item => item.review.text === 'App crashes'));
+});
+
+test('webpage samples, partial syncs and sparse baselines cannot claim a trend', () => {
+  const reviews = [...windowReviews(10, 8, '2026-10-02', 'current'), ...windowReviews(10, 1, '2026-08-20', 'previous')];
+  for (const candidate of [app('sample', reviews, { reviewSource: 'store-page-sample' }), app('partial', reviews, { partial: true }), app('sparse', reviews.slice(0, 2)), app('unknown', reviews, { reviewSource: undefined }), app('empty-sync', reviews, { lastFetchedCount: 0 }), app('stale', reviews, { syncedAt: '2026-09-20T00:00:00Z' })]) {
+    const signal = buildMarketSignals([candidate], 30, now)[0];
+    assert.equal(signal.changePp, null);
+    assert.equal(signal.comparable, false);
+    assert.ok(signal.comparisonReason);
+  }
+});
+
+test('weekly and monthly evidence respect their own periods', () => {
+  const reviews = [{ text: 'App crashes', date: '2026-09-20' }];
+  const weekly = buildMarketSignals([app('A', reviews)], 7, now)[0];
+  const monthly = buildMarketSignals([app('A', reviews)], 30, now)[0];
+  assert.equal(weekly.currentMentions, 0);
+  assert.equal(weekly.previousMentions, 1);
+  assert.equal(monthly.currentMentions, 1);
+});
+
+test('legacy date reviews merge with timestamp reviews and keep distinct IDs', () => {
+  const old = { text: 'Review', userName: 'User', date: '2026-10-02T00:00:00Z' };
+  const incoming = { id: 'one', text: 'Review', userName: 'User', timestamp: '2026-10-02T00:00:00.000Z' };
+  assert.equal(mergeMarketReviews([old], [incoming]).length, 1);
+  const changed = { ...incoming, text: 'Updated review' };
+  assert.equal(mergeMarketReviews([incoming], [changed])[0].text, 'Updated review');
+  assert.equal(mergeMarketReviews([incoming], [{ ...incoming, id: 'two' }]).length, 2);
 });

@@ -37,7 +37,8 @@ const processAppUrl = async (url: string) => {
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, maxReviews: 100, months: 6 }),
+    body: JSON.stringify({ url, maxReviews: 100, months: 0 }),
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!response.ok) {
@@ -74,6 +75,7 @@ const MarketDashboard: React.FC = () => {
   const [role, setRole] = useState<WatchApp['role']>('competitor');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
   const [isAdding, setIsAdding] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [question, setQuestion] = useState('What changed?');
@@ -136,6 +138,7 @@ const MarketDashboard: React.FC = () => {
     setSyncingId(app.id);
     setError(null);
     setNotice(null);
+    setSyncErrors(previous => ({ ...previous, [app.id]: '' }));
     try {
       const data = await processAppUrl(app.url);
       const incoming: MarketReview[] = data.reviews?.reviews || [];
@@ -145,9 +148,11 @@ const MarketDashboard: React.FC = () => {
       persistWatchlist(watchlist.map(item => item.id === app.id ? {
         ...item, reviews: [...merged.values()].slice(-2000), syncedAt: new Date().toISOString(),
       } : item));
-      setNotice(incoming.length ? `${app.name}: synced ${incoming.length} reviews.` : `${app.name}: sync completed, but no reviews were returned for this store region in the last 6 months.`);
+      setNotice(incoming.length ? `${app.name}: synced ${incoming.length} reviews. Recent dated reviews power trends; older reviews remain in your watchlist.` : `${app.name}: the public store feed returned no reviews. This does not mean the app has no ratings or reviews.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sync failed.');
+      const message = err instanceof Error ? err.message : 'Sync failed.';
+      setError(`${app.name}: ${message}`);
+      setSyncErrors(previous => ({ ...previous, [app.id]: message }));
     } finally {
       setSyncingId(null);
     }
@@ -199,7 +204,7 @@ const MarketDashboard: React.FC = () => {
         syncedAt: new Date().toISOString(),
       };
       persistWatchlist([...watchlist, nextApp]);
-      setNotice(nextApp.reviews.length ? `${nextApp.name} added with ${nextApp.reviews.length} reviews. Your market results are below.` : `${nextApp.name} added successfully. No reviews were returned for this store region in the last 6 months. Add a competitor with reviews to see market insights.`);
+      setNotice(nextApp.reviews.length ? `${nextApp.name} added with ${nextApp.reviews.length} reviews. Your market results are below.` : `${nextApp.name} added, but its public store feed returned no reviews. Try another store region or platform.`);
       setUrl('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add app.');
@@ -336,7 +341,9 @@ const MarketDashboard: React.FC = () => {
                       <div className="text-sm text-gray-500 truncate">
                         {app.role === 'my-app' ? 'My App' : 'Competitor'} · {app.reviews.length} reviews · synced {new Date(app.syncedAt).toLocaleDateString()}
                       </div>
-                      {app.reviews.length === 0 && <p className="mt-1 text-sm text-amber-700">Tracked · no reviews returned for this region in the last 6 months</p>}
+                      {app.reviews.length === 0 && <p className="mt-1 text-sm text-amber-700">Public review feed returned no data · retry sync or another region</p>}
+                      {app.reviews.length > 0 && summarizeReviewDelta(app.reviews).currentReviews === 0 && <p className="mt-1 text-sm text-amber-700">Historical reviews available · none dated in the last 30 days</p>}
+                      {syncErrors[app.id] && <p role="alert" className="mt-1 text-sm text-red-600">Sync failed: {syncErrors[app.id]} Previous data retained.</p>}
                     </div>
                   </div>
                   <button

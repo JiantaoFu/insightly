@@ -34,7 +34,7 @@ for (const [path, host, processUrl] of [
       if (url.protocol !== 'https:' || url.hostname !== host) {
         return res.status(400).json({ error: 'Use an HTTPS store URL.' });
       }
-      res.json(await processUrl(url.href, { maxReviews: 100, months: 6 }));
+      res.json(await processUrl(url.href, { maxReviews: 100, months: req.body.months === 0 ? 0 : 6 }));
     } catch (error) {
       res.status(400).json({ error: error.message || 'Could not sync app.' });
     }

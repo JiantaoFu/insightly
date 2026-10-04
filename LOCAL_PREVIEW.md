@@ -9,7 +9,8 @@ VITE_SERVER_URL at http://localhost:3000.
 Choose **Explore a sample market** to try the dashboard without store requests.
 Sample reviews are labeled and do not represent real apps. Remove the sample
 apps before adding your own store URLs. Use the refresh icon to sync real apps.
-Reviews are deduplicated on refresh and saved in this browser. Topic trends use
+Reviews are deduplicated on refresh and saved in this browser. Historical reviews
+are retained when available, even if outside the trend windows. Topic trends use
 30-day windows; the weekly digest compares 7-day windows. Both use review dates
 and ignore undated reviews.
 

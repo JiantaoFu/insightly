@@ -72,6 +72,8 @@ export async function getAppReviews(appId, country, options = {}) {
   try {
     const allReviews = [];
     let page = 1;
+    let successfulPages = 0;
+    let failedPages = 0;
     let cutoff = null;
     if (months && Number.isFinite(months)) {
       const now = new Date();
@@ -85,23 +87,34 @@ export async function getAppReviews(appId, country, options = {}) {
         let reviews = [];
         const maxAttempts = page === 1 ? 3 : 1;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          reviews = await store.reviews({
+          let primaryError;
+          try { reviews = await store.reviews({
             id: appId,
             page: page,
-            country: country
-          });
-          if (reviews.length === 0 && page === 1) {
-            const fallback = await axios.get(
-              `https://itunes.apple.com/${country}/rss/customerreviews/id=${appId}/sortBy=mostRecent/json`,
-              { timeout: 15000 }
-            );
-            reviews = parseAppleReviewFeed(fallback.data);
+            country: country,
+            requestOptions: { timeout: 15000 }
+          }); } catch (error) { primaryError = error; }
+          let fallbackSucceeded = false;
+          if (reviews.length === 0) {
+            const paths = page === 1
+              ? [`id=${appId}/sortby=mostrecent/json`, `id=${appId}/json`, `id=${appId}/sortBy=mostRecent/json`]
+              : [`page=${page}/id=${appId}/sortBy=mostRecent/json`];
+            for (const path of paths) {
+              try {
+                const fallback = await axios.get(`https://itunes.apple.com/${country}/rss/customerreviews/${path}`, { timeout: 10000 });
+                fallbackSucceeded = true;
+                reviews = parseAppleReviewFeed(fallback.data);
+                if (reviews.length) break;
+              } catch { /* Try another official feed path. */ }
+            }
           }
+          if (primaryError && !fallbackSucceeded) throw primaryError;
           if (reviews.length > 0 || attempt === maxAttempts) break;
           console.log(`[getAppReviews] page ${page} empty, retry ${attempt}/${maxAttempts - 1} after ${(attempt * 2)}s`);
           await new Promise(r => setTimeout(r, attempt * 2000));
         }
 
+        successfulPages++;
         if (reviews.length === 0) {
           break;
         }
@@ -130,11 +143,14 @@ export async function getAppReviews(appId, country, options = {}) {
 
         page++;
       } catch (pageError) {
+        failedPages++;
         console.error(`Error fetching reviews for page ${page}:`, pageError);
+        if (page === 1) throw pageError;
         page++;
         continue;
       }
     }
+    if (!successfulPages && failedPages) throw new Error('Apple review feeds could not be reached. Please retry.');
 
     const filteredReviews = [...new Map(allReviews.map(review => [review.id, review])).values()].slice(0, maxReviews);
     // Remove redundant slice, filtering is already handled in the loop
@@ -143,6 +159,7 @@ export async function getAppReviews(appId, country, options = {}) {
 
     return {
       total: filteredReviews.length,
+      partial: failedPages > 0,
       reviews: filteredReviews,
       averageRating: calculateAverageRating(filteredReviews),
       scoreDistribution: calculateScoreDistribution(filteredReviews)

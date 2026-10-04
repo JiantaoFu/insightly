@@ -73,6 +73,7 @@ const MarketDashboard: React.FC = () => {
   const [url, setUrl] = useState('');
   const [role, setRole] = useState<WatchApp['role']>('competitor');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [question, setQuestion] = useState('What changed?');
@@ -134,6 +135,7 @@ const MarketDashboard: React.FC = () => {
   const refreshApp = async (app: WatchApp) => {
     setSyncingId(app.id);
     setError(null);
+    setNotice(null);
     try {
       const data = await processAppUrl(app.url);
       const incoming: MarketReview[] = data.reviews?.reviews || [];
@@ -143,6 +145,7 @@ const MarketDashboard: React.FC = () => {
       persistWatchlist(watchlist.map(item => item.id === app.id ? {
         ...item, reviews: [...merged.values()].slice(-2000), syncedAt: new Date().toISOString(),
       } : item));
+      setNotice(incoming.length ? `${app.name}: synced ${incoming.length} reviews.` : `${app.name}: sync completed, but no reviews were returned for this store region in the last 6 months.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed.');
     } finally {
@@ -182,6 +185,7 @@ const MarketDashboard: React.FC = () => {
     try {
       setIsAdding(true);
       setError(null);
+      setNotice(null);
       const data = await processAppUrl(url.trim());
       const nextApp: WatchApp = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -195,6 +199,7 @@ const MarketDashboard: React.FC = () => {
         syncedAt: new Date().toISOString(),
       };
       persistWatchlist([...watchlist, nextApp]);
+      setNotice(nextApp.reviews.length ? `${nextApp.name} added with ${nextApp.reviews.length} reviews. Your market results are below.` : `${nextApp.name} added successfully. No reviews were returned for this store region in the last 6 months. Add a competitor with reviews to see market insights.`);
       setUrl('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add app.');
@@ -287,10 +292,12 @@ const MarketDashboard: React.FC = () => {
               className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60"
             >
               {isAdding ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-              Track app
+              {isAdding ? 'Syncing reviews...' : 'Track app'}
             </button>
           </div>
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+          {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
+          {isAdding && <p role="status" className="mt-3 text-sm text-gray-500">Fetching app details and recent reviews...</p>}
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
@@ -329,6 +336,7 @@ const MarketDashboard: React.FC = () => {
                       <div className="text-sm text-gray-500 truncate">
                         {app.role === 'my-app' ? 'My App' : 'Competitor'} · {app.reviews.length} reviews · synced {new Date(app.syncedAt).toLocaleDateString()}
                       </div>
+                      {app.reviews.length === 0 && <p className="mt-1 text-sm text-amber-700">Tracked · no reviews returned for this region in the last 6 months</p>}
                     </div>
                   </div>
                   <button
@@ -354,7 +362,7 @@ const MarketDashboard: React.FC = () => {
           <div className="bg-white border border-gray-200 rounded-lg p-5">
             <h2 className="text-xl font-bold text-gray-950 mb-4">Topic Trends</h2>
             <div className="space-y-3">
-              {trends.length === 0 && <p className="text-gray-500">Sync reviews to see emerging complaints and feature gaps.</p>}
+              {trends.length === 0 && <p className="text-gray-500">{watchlist.length === 0 ? 'Add an app to see trends.' : allReviews.length === 0 ? 'Your apps are tracked, but no reviews were returned. Add a competitor with reviews or try another store region.' : 'No matching topics in reviews from the last 60 days. Older reviews do not produce current trends.'}</p>}
               {trends.map(trend => (
                 <div key={trend.topic} className="border border-gray-100 rounded-lg p-3">
                   <div className="flex items-center justify-between gap-3">

@@ -1,5 +1,6 @@
 import store from 'app-store-scraper';
 import axios from 'axios';
+import { parseAppleReviewFeed } from './reviewFeed.js';
 import { calculateAverageRating, calculateScoreDistribution } from './utils.js';
 
 // Function to extract App Store app ID from a URL
@@ -89,6 +90,13 @@ export async function getAppReviews(appId, country, options = {}) {
             page: page,
             country: country
           });
+          if (reviews.length === 0 && page === 1) {
+            const fallback = await axios.get(
+              `https://itunes.apple.com/${country}/rss/customerreviews/id=${appId}/sortBy=mostRecent/json`,
+              { timeout: 15000 }
+            );
+            reviews = parseAppleReviewFeed(fallback.data);
+          }
           if (reviews.length > 0 || attempt === maxAttempts) break;
           console.log(`[getAppReviews] page ${page} empty, retry ${attempt}/${maxAttempts - 1} after ${(attempt * 2)}s`);
           await new Promise(r => setTimeout(r, attempt * 2000));
@@ -128,7 +136,7 @@ export async function getAppReviews(appId, country, options = {}) {
       }
     }
 
-    let filteredReviews = allReviews;
+    const filteredReviews = [...new Map(allReviews.map(review => [review.id, review])).values()].slice(0, maxReviews);
     // Remove redundant slice, filtering is already handled in the loop
 
     filteredReviews.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));

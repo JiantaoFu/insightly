@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, BarChart3, Bell, Bot, CalendarDays, Loader2, Plus, Radar, Search, Trash2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
@@ -76,6 +76,45 @@ const MarketDashboard: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [question, setQuestion] = useState('What changed?');
+  const [suggestions, setSuggestions] = useState<{ title: string; appUrl: string; icon?: string; developer?: string; platform: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+
+  useEffect(() => {
+    const query = url.trim();
+    setSuggestions([]);
+    setActiveSuggestion(-1);
+    setSearchError('');
+    setSearching(false);
+    if (query.length < 2 || /^https?:\/\//i.test(query)) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await fetch(`${SERVER_URL}/api/search-apps?query=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('Search unavailable. Paste a store URL or try again.');
+        const data = await response.json();
+        if (!controller.signal.aborted) {
+          setSuggestions(data.results || []);
+          setSearchError(data.results?.length ? '' : 'No matching apps found.');
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) setSearchError(err instanceof Error ? err.message : 'Search unavailable.');
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    }, 350);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [url]);
+
+  const pickSuggestion = (appUrl: string) => {
+    setUrl(appUrl);
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setError(null);
+  };
 
   const loadSample = () => {
     const date = (days: number) => new Date(Date.now() - days * 86400000).toISOString();
@@ -206,14 +245,41 @@ const MarketDashboard: React.FC = () => {
               <option value="my-app">My App</option>
               <option value="competitor">Competitor</option>
             </select>
-            <div className="relative">
+            <div className="relative" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setShowSuggestions(false); }}>
               <Search className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
               <input
                 value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="Paste App Store or Google Play URL to monitor..."
+                onChange={(event) => { setUrl(event.target.value); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                role="combobox"
+                aria-label="Search apps or paste a store URL"
+                aria-expanded={showSuggestions && (searching || suggestions.length > 0 || !!searchError)}
+                aria-controls="market-app-suggestions"
+                aria-autocomplete="list"
+                aria-activedescendant={activeSuggestion >= 0 ? `market-suggestion-${activeSuggestion}` : undefined}
+                onKeyDown={event => {
+                  if (event.key === 'Escape') setShowSuggestions(false);
+                  if (event.key === 'ArrowDown' && suggestions.length) { event.preventDefault(); setShowSuggestions(true); setActiveSuggestion(index => Math.min(index + 1, suggestions.length - 1)); }
+                  if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSuggestion(index => Math.max(index - 1, 0)); }
+                  if (event.key === 'Enter' && showSuggestions && activeSuggestion >= 0 && suggestions[activeSuggestion]) { event.preventDefault(); pickSuggestion(suggestions[activeSuggestion].appUrl); }
+                }}
+                placeholder="Search an app name or paste a store URL..."
                 className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {showSuggestions && (searching || suggestions.length > 0 || searchError) && (
+                <div id="market-app-suggestions" role="listbox" className="absolute z-50 mt-1 w-full max-h-72 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                  {searching && <p role="status" className="p-3 text-sm text-gray-500">Searching...</p>}
+                  {!searching && searchError && <p role="status" className="p-3 text-sm text-gray-500">{searchError}</p>}
+                  {!searching && suggestions.map((app, index) => (
+                    <button key={`${app.platform}-${app.appUrl}`} id={`market-suggestion-${index}`} role="option" aria-selected={activeSuggestion === index} type="button"
+                      onMouseDown={event => event.preventDefault()} onClick={() => pickSuggestion(app.appUrl)}
+                      className={`flex items-center gap-3 w-full text-left p-3 hover:bg-blue-50 ${activeSuggestion === index ? 'bg-blue-50' : ''}`}>
+                      {app.icon && <img src={app.icon} alt="" className="w-9 h-9 rounded shrink-0" />}
+                      <span className="min-w-0"><span className="block truncate font-medium">{app.title}</span><span className="block text-xs text-gray-500 truncate">{app.developer} · {app.platform === 'app-store' ? 'App Store' : 'Google Play'}</span></span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <button
               onClick={handleAdd}

@@ -1,13 +1,29 @@
 import express from 'express';
 import cors from 'cors';
-import { processAppStoreUrl } from './appStoreScraper.js';
+import { processAppStoreUrl, searchApps } from './appStoreScraper.js';
 import { processGooglePlayUrl } from './googlePlayScraper.js';
+import gplay from 'google-play-scraper';
 
 // Account-free local entry point; production continues to use index.js.
 const app = express();
 app.use(cors({ origin: /^http:\/\/(localhost|127\.0\.0\.1):\d+$/ }));
 app.use(express.json({ limit: '64kb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', mode: 'local-market' }));
+app.get('/api/search-apps', async (req, res) => {
+  const query = String(req.query.query || '').trim().slice(0, 100);
+  if (query.length < 2) return res.json({ results: [] });
+  const searches = await Promise.allSettled([
+    searchApps(query, { num: 5, country: 'us' }),
+    gplay.search({ term: query, num: 5, country: 'us', lang: 'en' }),
+  ]);
+  if (searches.every(search => search.status === 'rejected')) {
+    return res.status(502).json({ error: 'App search unavailable. Try a store URL.' });
+  }
+  const results = searches.flatMap((search, index) => search.status === 'fulfilled'
+    ? search.value.slice(0, 5).map(app => ({ title: app.title, appUrl: app.url,
+      icon: app.icon, developer: app.developer, platform: index === 0 ? 'app-store' : 'google-play' })) : []);
+  res.json({ results });
+});
 for (const [path, host, processUrl] of [
   ['/app-store/process-url', 'apps.apple.com', processAppStoreUrl],
   ['/google-play/process-url', 'play.google.com', processGooglePlayUrl],

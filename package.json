@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"node server/index.js\"",
+    "dev:local": "concurrently \"vite --host 127.0.0.1 --port 5173\" \"node server/local.js\"",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "mocha",
+    "test": "node --test tests/*.test.mjs",
     "test:watch": "mocha --watch",
     "test:google-play:id": "mocha server/googlePlayScraper.test.js -g 'extractGooglePlayId'",
     "test:google-play:details": "mocha server/googlePlayScraper.test.js -g 'fetchAppDetails'",

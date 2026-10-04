@@ -2,6 +2,7 @@ export interface MarketReview {
   text: string;
   score?: number;
   date?: string;
+  timestamp?: string;
   userName?: string;
 }
 
@@ -43,7 +44,7 @@ const getSentiment = (reviews: MarketReview[]): TopicTrend['sentiment'] => {
   let negative = 0;
 
   reviews.forEach(review => {
-    const text = review.text.toLowerCase();
+    const text = (review.text || '').toLowerCase();
     if (typeof review.score === 'number') {
       if (review.score <= 2) negative += 2;
       if (review.score >= 4) positive += 2;
@@ -57,9 +58,9 @@ const getSentiment = (reviews: MarketReview[]): TopicTrend['sentiment'] => {
   return 'mixed';
 };
 
-export const splitReviewWindows = (reviews: MarketReview[], days = 30) => {
+export const splitReviewWindows = (reviews: MarketReview[], days = 30, now = new Date()) => {
   const datedReviews = reviews
-    .map(review => ({ review, parsedDate: normalizeDate(review.date) }))
+    .map(review => ({ review, parsedDate: normalizeDate(review.date || review.timestamp) }))
     .filter(item => item.parsedDate);
 
   const latestDate = datedReviews.reduce<Date | null>((latest, item) => {
@@ -68,21 +69,20 @@ export const splitReviewWindows = (reviews: MarketReview[], days = 30) => {
   }, null);
 
   if (!latestDate) {
-    const midpoint = Math.ceil(reviews.length / 2);
     return {
-      current: reviews.slice(0, midpoint),
-      previous: reviews.slice(midpoint),
+      current: [],
+      previous: [],
       latestDate: null,
     };
   }
 
-  const cutoff = new Date(latestDate);
+  const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - days);
   const previousCutoff = new Date(cutoff);
   previousCutoff.setDate(previousCutoff.getDate() - days);
 
   return {
-    current: datedReviews.filter(item => item.parsedDate && item.parsedDate >= cutoff).map(item => item.review),
+    current: datedReviews.filter(item => item.parsedDate && item.parsedDate >= cutoff && item.parsedDate <= now).map(item => item.review),
     previous: datedReviews.filter(item => item.parsedDate && item.parsedDate < cutoff && item.parsedDate >= previousCutoff).map(item => item.review),
     latestDate,
   };

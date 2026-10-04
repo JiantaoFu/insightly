@@ -14,7 +14,6 @@ import Navigation from '../components/Navigation';
 import CachedAnalysesList from '../components/CachedAnalysesList';
 import StarterPackCheckout from '../components/StarterPackCheckout';
 import Footer from '../components/Footer';
-import SubscriptionCheckoutButton from '../components/SubscriptionCheckoutButton';
 import { updateMetadata } from '../utils/metadata';
 
 // Feature Card Component
@@ -310,12 +309,12 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
                 <li>✔ One-time AI review report</li>
                 <li>✔ Explore public report quality</li>
-                <li>✔ Good for founder/SEO acquisition</li>
+                <li>✔ Evaluate insights for your product</li>
                 <li>✔ Analyze up to <b>5 datasets</b></li>
               </ul>
               <div className="mb-4">
                 <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
-                Evaluation path, not the core plan
+                One-time evaluation
                 </span>
               </div>
               <StarterPackCheckout />
@@ -330,18 +329,18 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
               <h3 className="text-2xl font-bold mb-2 text-indigo-700">Market Monitor</h3>
               <div className="text-4xl font-extrabold text-gray-900">$19</div>
-              <div className="text-gray-500 mb-4 text-sm">per month</div>
+              <div className="text-gray-500 mb-4 text-sm">planned monthly price · preview available now</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
                 <li>✔ Watch 1 market</li>
                 <li>✔ Track your app + 5 competitors</li>
                 <li>✔ Review delta and topic trends</li>
                 <li>✔ Weekly intelligence preview</li>
               </ul>
-              <SubscriptionCheckoutButton priceId={import.meta.env.VITE_STRIPE_PRO_PRICE_ID || "price_1PqHqULBIjw2TCwN1234abcd"} />
+              <Link to="/market" className="px-5 py-3 bg-blue-600 text-white rounded-lg">Try market preview</Link>
               <a href="/app-insights" className="text-blue-600 hover:text-blue-700 text-sm mt-3 inline-block">
                 or browse a free sample first →
               </a>
-              <p className="text-gray-500 text-sm mt-6 text-center">Uses the existing Pro Stripe price until new Stripe products are confirmed.</p>
+              <p className="text-gray-500 text-sm mt-6 text-center">No subscription charge during preview.</p>
             </div>
             {/* Unlimited Plan Card */}
             <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
@@ -349,7 +348,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
               <div className="flex items-baseline justify-center mb-2">
                 <span className="text-4xl font-extrabold text-gray-900">$39</span>
               </div>
-              <div className="text-gray-500 mb-4 text-sm">per month</div>
+              <div className="text-gray-500 mb-4 text-sm">planned monthly price · preview available now</div>
               <ul className="text-lg text-gray-700 mb-6 space-y-2 text-left">
                 <li>✔ Unlimited reports and comparisons</li>
                 <li>✔ Larger competitor watchlists</li>
@@ -360,7 +359,7 @@ const Home: React.FC<HomeProps> = ({ audience = 'founders' }) => {
                 IMPORTANT: Replace 'price_...' with your actual Stripe Price ID for the Unlimited plan.
                 You can find this in your Stripe Dashboard under Products.
               */}
-              <SubscriptionCheckoutButton priceId={import.meta.env.VITE_STRIPE_UNLIMITED_PRICE_ID || "price_1RpKtULBIjw2TCwNvyahls62"} />
+              <Link to="/market" className="px-5 py-3 bg-blue-600 text-white rounded-lg">Explore intelligence preview</Link>
               <a href="/app-insights" className="text-blue-600 hover:text-blue-700 text-sm mt-3 inline-block">
                 or browse a free sample first →
               </a>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Activity, BarChart3, Bell, Bot, CalendarDays, Loader2, Plus, Radar, Search, Trash2 } from 'lucide-react';
+import { Activity, BarChart3, Bell, Bot, CalendarDays, Loader2, Plus, Radar, Search, Trash2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import { SERVER_URL } from '../components/Constants';
@@ -15,13 +15,15 @@ interface WatchApp {
   platform: 'ios' | 'android';
   reviews: MarketReview[];
   syncedAt: string;
+  sample?: boolean;
 }
 
 const STORAGE_KEY = 'insightly_market_watchlist_v1';
 
 const loadWatchlist = (): WatchApp[] => {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return Array.isArray(value) ? value.filter(app => app && Array.isArray(app.reviews) && typeof app.name === 'string') : [];
   } catch {
     return [];
   }
@@ -39,7 +41,7 @@ const processAppUrl = async (url: string) => {
   });
 
   if (!response.ok) {
-    throw new Error('Could not sync this app. Please check the store URL.');
+    throw new Error('Could not sync this app. Check the store URL and API connection.');
   }
 
   return response.json();
@@ -47,7 +49,7 @@ const processAppUrl = async (url: string) => {
 
 const buildWeeklyPreview = (apps: WatchApp[]) => {
   const allReviews = apps.flatMap(app => app.reviews.map(review => ({ ...review, appName: app.name })));
-  const trends = calculateTopicTrends(allReviews).slice(0, 5);
+  const trends = calculateTopicTrends(allReviews, 7).slice(0, 5);
   const negativeEmerging = trends.filter(trend => trend.delta > 0 && trend.sentiment !== 'positive').slice(0, 3);
 
   return {
@@ -72,10 +74,50 @@ const MarketDashboard: React.FC = () => {
   const [role, setRole] = useState<WatchApp['role']>('competitor');
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [question, setQuestion] = useState('What changed?');
+
+  const loadSample = () => {
+    const date = (days: number) => new Date(Date.now() - days * 86400000).toISOString();
+    persistWatchlist(['Focus Notes', 'Quick Notes', 'Team Notes'].map((name, index) => ({
+      id: `sample-${index}`, name, role: index === 0 ? 'my-app' : 'competitor',
+      url: '', platform: 'ios', syncedAt: date(0), sample: true,
+      reviews: [
+        { text: 'The subscription is expensive and the paywall blocks export.', score: 1, date: date(1) },
+        { text: 'Please add offline sync. Data is lost after login.', score: 2, date: date(2) },
+        { text: 'App crashes when loading a large notebook.', score: 1, date: date(4) },
+        { text: 'Great design, easy to use.', score: 5, date: date(10) },
+        { text: 'Helpful support response.', score: 4, date: date(40) },
+      ],
+    })));
+  };
+
+  const refreshApp = async (app: WatchApp) => {
+    setSyncingId(app.id);
+    setError(null);
+    try {
+      const data = await processAppUrl(app.url);
+      const incoming: MarketReview[] = data.reviews?.reviews || [];
+      const merged = new Map([...app.reviews, ...incoming].map(review => [
+        `${review.userName || ''}|${review.date || review.timestamp || ''}|${review.text}`, review,
+      ]));
+      persistWatchlist(watchlist.map(item => item.id === app.id ? {
+        ...item, reviews: [...merged.values()].slice(-2000), syncedAt: new Date().toISOString(),
+      } : item));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sync failed.');
+    } finally {
+      setSyncingId(null);
+    }
+  };
 
   const persistWatchlist = (next: WatchApp[]) => {
     setWatchlist(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      setError('Browser storage is full or unavailable. Changes are available until you close this page.');
+    }
   };
 
   const handleAdd = async () => {
@@ -83,12 +125,18 @@ const MarketDashboard: React.FC = () => {
       setError('Paste an App Store or Google Play URL first.');
       return;
     }
-    if (!url.includes('apps.apple.com') && !url.includes('play.google.com')) {
+    let parsed: URL;
+    try { parsed = new URL(url.trim()); } catch { setError('Use a valid store URL.'); return; }
+    if (parsed.protocol !== 'https:' || !['apps.apple.com', 'play.google.com'].includes(parsed.hostname)) {
       setError('Use a valid App Store or Google Play URL.');
       return;
     }
     if (watchlist.some(app => app.url === url.trim())) {
       setError('This app is already in your market watchlist.');
+      return;
+    }
+    if (role === 'my-app' && watchlist.some(app => app.role === 'my-app')) {
+      setError('Remove your current app before assigning a new My App.');
       return;
     }
 
@@ -131,11 +179,11 @@ const MarketDashboard: React.FC = () => {
               <Radar className="w-5 h-5" />
               Market monitoring
             </div>
-            <h1 className="text-4xl font-extrabold text-gray-950 tracking-tight">
-              Track your app and competitors in one market dashboard.
+            <h1 className="text-3xl font-bold text-gray-950">
+              Your market
             </h1>
             <p className="mt-4 text-lg text-gray-600 max-w-3xl">
-              Define your watched market, sync recent reviews, spot topic deltas, and preview the weekly intelligence digest your product team can act on.
+              {watchlist.some(app => app.sample) ? 'Sample market · illustrative reviews' : 'Market preview · manual sync · saved in this browser'}
             </p>
           </div>
           <Link
@@ -148,6 +196,7 @@ const MarketDashboard: React.FC = () => {
         </div>
 
         <section className="mt-8 bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+          {watchlist.length === 0 && <button onClick={loadSample} className="mb-4 text-blue-700 font-semibold">Explore a sample market</button>}
           <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_auto] gap-3">
             <select
               value={role}
@@ -168,7 +217,7 @@ const MarketDashboard: React.FC = () => {
             </div>
             <button
               onClick={handleAdd}
-              disabled={isAdding}
+              disabled={isAdding || syncingId !== null}
               className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60"
             >
               {isAdding ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
@@ -217,7 +266,15 @@ const MarketDashboard: React.FC = () => {
                     </div>
                   </div>
                   <button
+                    title={app.sample ? 'Sample data' : 'Sync reviews'}
+                    aria-label={`Sync ${app.name}`}
+                    disabled={app.sample || syncingId !== null || isAdding}
+                    onClick={() => refreshApp(app)}
+                    className="p-2 text-gray-500 hover:text-blue-600 disabled:opacity-40"
+                  ><RefreshCw className={`w-5 h-5 ${syncingId === app.id ? 'animate-spin' : ''}`} /></button>
+                  <button
                     aria-label={`Remove ${app.name}`}
+                    disabled={isAdding || syncingId !== null}
                     onClick={() => persistWatchlist(watchlist.filter(item => item.id !== app.id))}
                     className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                   >
@@ -262,9 +319,20 @@ const MarketDashboard: React.FC = () => {
               {weeklyPreview.highlights.map(highlight => <li key={highlight}>- {highlight}</li>)}
             </ul>
           </div>
-          <p className="mt-3 text-sm text-gray-500">
-            Email and Slack delivery are intentionally not enabled yet. This preview uses the same review delta and topic trend logic that can power the scheduled digest.
-          </p>
+          <p className="mt-3 text-sm text-gray-500">Last 7 days compared with the preceding 7 days. Based on sampled reviews.</p>
+        </section>
+        <section className="mt-6 border-t border-gray-200 pt-5">
+          <h2 className="text-xl font-bold mb-3">Ask Your Market</h2>
+          <select aria-label="Market question" value={question} onChange={event => setQuestion(event.target.value)} className="border border-gray-300 rounded-lg p-3 mb-4 max-w-full">
+            <option>What changed?</option><option>Emerging complaints</option><option>Feature gaps</option>
+          </select>
+          <div className="space-y-3">
+            {(question === 'Feature gaps' ? trends.filter(trend => trend.topic === 'Feature requests') : question === 'Emerging complaints' ? trends.filter(trend => trend.delta > 0 && trend.sentiment !== 'positive') : trends).slice(0, 3).map(trend => (
+              <div key={trend.topic}><p className="font-semibold">{trend.topic}: {trend.currentMentions} mentions, {trend.delta > 0 ? '+' : ''}{trend.delta} vs previous 30 days</p><p className="text-gray-600">{trend.example}</p></div>
+            ))}
+            {!trends.length && <p className="text-gray-500">No review evidence yet.</p>}
+          </div>
+          <Link className="inline-flex mt-4 text-blue-700" to={`/chat?prompt=${encodeURIComponent(`${question} Focus on these apps: ${watchlist.map(app => app.name).join(', ')}. Use cited review evidence.`)}`}>Open AI research</Link>
         </section>
       </main>
     </div>

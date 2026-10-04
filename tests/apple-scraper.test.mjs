@@ -27,7 +27,8 @@ test('all feeds failing rejects rather than returning successful zero reviews', 
 });
 
 test('empty RSS feeds return labeled webpage sample without pretending it is complete', async t => {
-  t.mock.method(store, 'reviews', async () => []);
+  const primary = t.mock.method(store, 'reviews', async () => []);
+  t.mock.method(globalThis, 'setTimeout', callback => { queueMicrotask(callback); });
   const review = { id: 'web-1', reviewerName: 'User', contents: 'Missing features', rating: 2, date: '2026-10-02T14:03:19.000Z' };
   const payload = { data: [{ data: { shelfMapping: { allProductReviews: { items: [{ review }] } } } }] };
   t.mock.method(axios, 'get', async url => ({ data: url.startsWith('https://apps.apple.com/')
@@ -38,10 +39,12 @@ test('empty RSS feeds return labeled webpage sample without pretending it is com
   assert.equal(result.source, 'store-page-sample');
   assert.equal(result.partial, true);
   assert.equal(result.reviews[0].timestamp, review.date);
+  assert.equal(primary.mock.callCount(), 3);
 });
 
 test('product and all-reviews pages merge by review ID', async t => {
   t.mock.method(store, 'reviews', async () => []);
+  t.mock.method(globalThis, 'setTimeout', callback => { queueMicrotask(callback); });
   t.mock.method(axios, 'get', async url => {
     if (!url.startsWith('https://apps.apple.com/')) return { data: { feed: {} } };
     const ids = url.includes('see-all=reviews') ? ['shared', 'additional'] : ['shared', 'product'];

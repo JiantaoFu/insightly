@@ -1,4 +1,5 @@
 export interface MarketReview {
+  id?: string;
   text: string;
   score?: number;
   date?: string;

@@ -17,6 +17,7 @@ interface WatchApp {
   syncedAt: string;
   sample?: boolean;
   reviewSource?: string;
+  lastFetchedCount?: number;
 }
 
 const STORAGE_KEY = 'insightly_market_watchlist_v1';
@@ -144,12 +145,12 @@ const MarketDashboard: React.FC = () => {
       const data = await processAppUrl(app.url);
       const incoming: MarketReview[] = data.reviews?.reviews || [];
       const merged = new Map([...app.reviews, ...incoming].map(review => [
-        `${review.userName || ''}|${review.date || review.timestamp || ''}|${review.text}`, review,
+        review.id || `${review.userName || ''}|${review.date || review.timestamp || ''}|${review.text}`, review,
       ]));
       persistWatchlist(watchlist.map(item => item.id === app.id ? {
-        ...item, reviews: [...merged.values()].slice(-2000), syncedAt: new Date().toISOString(), reviewSource: data.reviews?.source,
+        ...item, reviews: [...merged.values()].slice(-2000), syncedAt: new Date().toISOString(), reviewSource: data.reviews?.source, lastFetchedCount: incoming.length,
       } : item));
-      setNotice(incoming.length ? `${app.name}: synced ${incoming.length} reviews. Recent dated reviews power trends; older reviews remain in your watchlist.` : `${app.name}: the public store feed returned no reviews. This does not mean the app has no ratings or reviews.`);
+      setNotice(incoming.length ? `${app.name}: fetched ${incoming.length} reviews this time${data.reviews?.source === 'store-page-sample' ? ' from a limited webpage sample because Apple review feeds returned no reviews' : ' from the review feed'}. Previously saved reviews are retained.` : `${app.name}: the public store feed returned no reviews. This does not mean the app has no ratings or reviews.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sync failed.';
       setError(`${app.name}: ${message}`);
@@ -203,6 +204,7 @@ const MarketDashboard: React.FC = () => {
         platform: url.includes('apps.apple.com') ? 'ios' : 'android',
         reviews: data.reviews?.reviews || [],
         reviewSource: data.reviews?.source,
+        lastFetchedCount: data.reviews?.reviews?.length || 0,
         syncedAt: new Date().toISOString(),
       };
       persistWatchlist([...watchlist, nextApp]);
@@ -340,11 +342,13 @@ const MarketDashboard: React.FC = () => {
                     {app.icon && <img src={app.icon} alt="" className="w-10 h-10 rounded-lg" />}
                     <div className="min-w-0">
                       <div className="font-semibold text-gray-900 truncate">{app.name}</div>
-                      <div className="text-sm text-gray-500 truncate">
-                        {app.role === 'my-app' ? 'My App' : 'Competitor'} · {app.reviews.length} reviews · synced {new Date(app.syncedAt).toLocaleDateString()}
+                      <div className="text-sm text-gray-500">
+                        {app.role === 'my-app' ? 'My App' : 'Competitor'} · {app.reviews.length} saved reviews · synced {new Date(app.syncedAt).toLocaleString()}
                       </div>
+                      {syncingId === app.id && <p role="status" className="mt-1 text-sm text-blue-700">Syncing reviews...</p>}
+                      {app.lastFetchedCount !== undefined && <p className="mt-1 text-xs text-gray-500">Last fetch: {app.lastFetchedCount} reviews · {app.reviewSource === 'store-page-sample' ? 'webpage sample' : 'review feed'}</p>}
                       {app.reviews.length === 0 && <p className="mt-1 text-sm text-amber-700">Public review feed returned no data · retry sync or another region</p>}
-                      {app.reviewSource === 'store-page-sample' && <p className="mt-1 text-sm text-amber-700">Limited store-page sample · may not represent all recent reviews</p>}
+                      {app.reviewSource === 'store-page-sample' && <p className="mt-1 text-sm text-amber-700">Apple review feeds returned no data · limited webpage sample, not complete coverage</p>}
                       {app.reviews.length > 0 && summarizeReviewDelta(app.reviews).currentReviews === 0 && <p className="mt-1 text-sm text-amber-700">Historical reviews available · none dated in the last 30 days</p>}
                       {syncErrors[app.id] && <p role="alert" className="mt-1 text-sm text-red-600">Sync failed: {syncErrors[app.id]} Previous data retained.</p>}
                     </div>

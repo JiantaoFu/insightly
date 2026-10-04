@@ -109,7 +109,7 @@ export async function getAppReviews(appId, country, options = {}) {
               } catch { /* Try another official feed path. */ }
             }
           }
-          if (reviews.length === 0 && page === 1) {
+          if (reviews.length === 0 && page === 1 && attempt === maxAttempts) {
             const webpages = await Promise.allSettled([
               `https://apps.apple.com/${country}/app/id${appId}`,
               `https://apps.apple.com/${country}/app/${appId}?see-all=reviews&platform=iphone`,
@@ -175,6 +175,7 @@ export async function getAppReviews(appId, country, options = {}) {
       total: filteredReviews.length,
       partial: failedPages > 0 || webpageSample,
       source: webpageSample ? 'store-page-sample' : 'review-feed',
+      feedStatus: webpageSample ? 'empty-feed-webpage-fallback' : 'feed-response',
       reviews: filteredReviews,
       averageRating: calculateAverageRating(filteredReviews),
       scoreDistribution: calculateScoreDistribution(filteredReviews)

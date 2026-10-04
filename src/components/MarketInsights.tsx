@@ -18,10 +18,10 @@ interface Props {
 
 const Evidence = ({ signal, days }: { signal: MarketSignal; days: number }) => (
   <details className="mt-3">
-    <summary className="cursor-pointer text-sm font-medium text-teal-800">Review evidence ({signal.evidence.length})</summary>
+    <summary className="cursor-pointer text-sm font-medium text-teal-800">Review evidence ({new Set(signal.evidence.map(item => item.review)).size} reviews · {signal.evidence.length} aspects)</summary>
     <div className="mt-3 max-h-80 overflow-auto space-y-4 pr-2">
       {signal.evidence.map(({ review, period, label }, index) => (
-        <blockquote key={`${review.id || index}-${period}`} className="border-l-2 border-gray-200 pl-3 text-sm">
+        <blockquote key={`${review.id || index}-${period}-${index}`} className="border-l-2 border-gray-200 pl-3 text-sm">
           <p className="text-xs text-gray-500 mb-1">{signal.appName} · {review.userName || 'Anonymous'} · {review.score || 'Unrated'} / 5 · {new Date(review.date || review.timestamp || '').toLocaleDateString()} · {period === 'current' ? `Last ${days} days` : `Previous ${days} days`}</p>
           <p className="font-medium text-gray-800 mb-1">{label.issue}</p><p className="text-xs text-gray-500 mb-2">Model judgment: {label.polarity} · {label.intent}</p>
           <p className="text-teal-800 mb-2 whitespace-pre-wrap break-words">“{label.evidence}”</p>

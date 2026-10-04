@@ -101,13 +101,15 @@ export const getReviewAnalysis = (review: MarketReview, allowIllustrative = fals
     || (analysis.source !== 'model' && !(allowIllustrative && analysis.source === 'illustrative'))
     || !analysis.provider || !analysis.model || !Array.isArray(analysis.labels) || analysis.labels.length > 4) return null;
   const boundedText = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
-  const ids = new Set<string>();
+  const aspects = new Set<string>();
   for (const label of analysis.labels) {
-    if (!label?.topic || !/^topic-[a-f0-9]{16}$/.test(label.topic.id) || !boundedText(label.topic.name, 100) || !boundedText(label.topic.description, 300) || ids.has(label.topic.id)
+    if (!label?.topic || !/^topic-[a-f0-9]{16}$/.test(label.topic.id) || !boundedText(label.topic.name, 100) || !boundedText(label.topic.description, 300)
       || !['positive', 'negative', 'mixed', 'neutral'].includes(label.polarity)
       || !['complaint', 'request', 'praise', 'observation'].includes(label.intent)
       || !boundedText(label.issue, 240) || !boundedText(label.evidence, 1000) || !review.text.includes(label.evidence)) return null;
-    ids.add(label.topic.id);
+    const aspect = JSON.stringify([label.topic.id, label.polarity, label.intent, label.evidence]);
+    if (aspects.has(aspect)) return null;
+    aspects.add(aspect);
   }
   return analysis;
 };
@@ -171,20 +173,20 @@ export const calculateTopicTrends = (reviews: MarketReview[], days = 30, now = n
   const classifiedPrevious = previous.filter(review => getReviewAnalysis(review, allowIllustrative));
   const topics = new Map([...classifiedCurrent, ...classifiedPrevious].flatMap(review => getReviewAnalysis(review, allowIllustrative)!.labels.map(label => [label.topic.id, label.topic] as const)));
   return [...topics.values()].map(topic => {
-    const evidenceFor = (items: MarketReview[], period: 'current' | 'previous') => items.flatMap(review => {
-      const label = getReviewAnalysis(review, allowIllustrative)!.labels.find(item => item.topic.id === topic.id);
-      return label ? [{ review, period, label }] : [];
-    });
+    const evidenceFor = (items: MarketReview[], period: 'current' | 'previous') => items.flatMap(review =>
+      getReviewAnalysis(review, allowIllustrative)!.labels.filter(item => item.topic.id === topic.id).map(label => ({ review, period, label })));
     const currentMatches = evidenceFor(classifiedCurrent, 'current');
     const previousMatches = evidenceFor(classifiedPrevious, 'previous');
+    const currentMentions = new Set(currentMatches.map(item => item.review)).size;
+    const previousMentions = new Set(previousMatches.map(item => item.review)).size;
     return {
-      topicId: topic.id, topic: topic.name, currentMentions: currentMatches.length, previousMentions: previousMatches.length,
-      delta: currentMatches.length - previousMatches.length,
-      currentShare: classifiedCurrent.length ? currentMatches.length / classifiedCurrent.length * 100 : 0,
-      previousShare: classifiedPrevious.length ? previousMatches.length / classifiedPrevious.length * 100 : 0,
+      topicId: topic.id, topic: topic.name, currentMentions, previousMentions,
+      delta: currentMentions - previousMentions,
+      currentShare: classifiedCurrent.length ? currentMentions / classifiedCurrent.length * 100 : 0,
+      previousShare: classifiedPrevious.length ? previousMentions / classifiedPrevious.length * 100 : 0,
       sentiment: sentiment(currentMatches.map(item => item.label)), example: currentMatches[0]?.label.issue || previousMatches[0]?.label.issue,
-      requestMentions: currentMatches.filter(item => item.label.intent === 'request').length,
-      complaintMentions: currentMatches.filter(item => item.label.intent === 'complaint').length,
+      requestMentions: new Set(currentMatches.filter(item => item.label.intent === 'request').map(item => item.review)).size,
+      complaintMentions: new Set(currentMatches.filter(item => item.label.intent === 'complaint').map(item => item.review)).size,
       evidence: [...currentMatches, ...previousMatches],
     };
   }).filter(trend => trend.evidence.length > 0)

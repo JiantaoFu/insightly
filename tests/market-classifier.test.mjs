@@ -35,6 +35,21 @@ test('model input is bounded and duplicate review keys are rejected', () => {
   assert.throws(() => validateClassificationInput(long));
 });
 
+test('distinct aspects can share a theme without accepting identical duplicate assignments', () => {
+  const body = input(); body.reviews[0].text = 'Import duplicates transactions. Please add undo.';
+  const raw = output();
+  raw.newTopics[0].name = 'Statement Import';
+  raw.classifications[0].labels = [
+    { topic: 'new-restore', polarity: 'negative', intent: 'complaint', issue: 'Imported transactions are duplicated', evidence: 'Import duplicates transactions.' },
+    { topic: 'new-restore', polarity: 'neutral', intent: 'request', issue: 'Request to undo import', evidence: 'Please add undo.' },
+  ];
+  const result = validateClassificationOutput(JSON.stringify(raw), body);
+  assert.equal(result.classifications[0].labels.length, 2);
+  assert.equal(result.classifications[0].labels[0].topic.id, result.classifications[0].labels[1].topic.id);
+  raw.classifications[0].labels.push({ ...raw.classifications[0].labels[0], issue: 'A differently worded duplicate summary' });
+  assert.throws(() => validateClassificationOutput(JSON.stringify(raw), body), /identical aspect/);
+});
+
 test('classification cache is isolated by user, content, model and taxonomy', async () => {
   let calls = 0;
   const classify = createMarketClassifier(async prompt => { calls++; assert.match(prompt, /untrusted data/); return JSON.stringify(output()); });

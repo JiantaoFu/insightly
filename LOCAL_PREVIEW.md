@@ -102,7 +102,10 @@ Gemini and can incur provider charges. Syncing alone never invokes Gemini.
 
 There is no preset category taxonomy and no keyword fallback. Gemini discovers
 workflow-specific themes, reuses known theme IDs, and assigns up to four aspects
-per review: theme, issue, polarity, intent and a verbatim quote. Vague reviews
+per review: theme, issue, polarity, intent and a verbatim quote. Distinct aspects
+can share a theme, such as a complaint and a feature request. Each review counts
+once per theme and once per intent within that theme, regardless of aspect count.
+Identical duplicate aspects are rejected. Vague reviews
 may have no aspects. Output without valid review assignments or quotes is
 rejected. The backend does not ask the model to compute trends or market gaps.
 Dates, mention counts and sample shares are calculated in code.

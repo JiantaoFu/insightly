@@ -192,3 +192,22 @@ test('stored classifications reject malformed or oversized aspects', () => {
   }
   assert.equal(getReviewAnalysis({ ...review, analysis: { ...review.analysis, labels: Array(5).fill(review.analysis.labels[0]) } }), null);
 });
+
+test('multiple aspects preserve each intent while counting a review once per theme and period', () => {
+  const makeReview = date => {
+    const review = annotated({ text: 'Import duplicates transactions. Please add undo.', date }, loading);
+    review.analysis.labels[0].evidence = 'Import duplicates transactions.';
+    review.analysis.labels.push({ topic: loading, polarity: 'neutral', intent: 'request', issue: 'Request to undo import', evidence: 'Please add undo.' });
+    assert.ok(getReviewAnalysis(review));
+    return review;
+  };
+  const trend = calculateTopicTrends([makeReview('2026-10-02'), makeReview('2026-08-20')], 30, now)[0];
+  assert.equal(trend.currentMentions, 1);
+  assert.equal(trend.previousMentions, 1);
+  assert.equal(trend.delta, 0);
+  assert.equal(trend.currentShare, 100);
+  assert.equal(trend.previousShare, 100);
+  assert.equal(trend.complaintMentions, 1);
+  assert.equal(trend.requestMentions, 1);
+  assert.equal(trend.evidence.length, 4);
+});

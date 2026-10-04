@@ -36,6 +36,7 @@
     "@xenova/transformers": "^2.15.0",
     "app-store-scraper": "^0.18.0",
     "axios": "^1.6.7",
+    "cheerio": "1.0.0",
     "compression": "^1.7.5",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

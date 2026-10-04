@@ -14,6 +14,11 @@ are retained when available, even if outside the trend windows. Topic trends use
 30-day windows; the weekly digest compares 7-day windows. Both use review dates
 and ignore undated reviews.
 
+Apple scraping uses the repo's custom scraper with its browser User-Agent fix.
+If RSS feeds return no reviews, the official store page's structured review data
+is used as a fallback. That result is a limited sample, labeled in the watchlist,
+and must not be treated as the app's complete recent review volume.
+
 The local API supports store scraping and health checks only. Production login,
 AI research, billing and public reports continue to use `npm run dev` with the
 existing backend credentials. The dashboard's built-in evidence view works

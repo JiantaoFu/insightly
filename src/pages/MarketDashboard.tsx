@@ -16,6 +16,7 @@ interface WatchApp {
   reviews: MarketReview[];
   syncedAt: string;
   sample?: boolean;
+  reviewSource?: string;
 }
 
 const STORAGE_KEY = 'insightly_market_watchlist_v1';
@@ -146,7 +147,7 @@ const MarketDashboard: React.FC = () => {
         `${review.userName || ''}|${review.date || review.timestamp || ''}|${review.text}`, review,
       ]));
       persistWatchlist(watchlist.map(item => item.id === app.id ? {
-        ...item, reviews: [...merged.values()].slice(-2000), syncedAt: new Date().toISOString(),
+        ...item, reviews: [...merged.values()].slice(-2000), syncedAt: new Date().toISOString(), reviewSource: data.reviews?.source,
       } : item));
       setNotice(incoming.length ? `${app.name}: synced ${incoming.length} reviews. Recent dated reviews power trends; older reviews remain in your watchlist.` : `${app.name}: the public store feed returned no reviews. This does not mean the app has no ratings or reviews.`);
     } catch (err) {
@@ -201,6 +202,7 @@ const MarketDashboard: React.FC = () => {
         developer: data.details?.developer,
         platform: url.includes('apps.apple.com') ? 'ios' : 'android',
         reviews: data.reviews?.reviews || [],
+        reviewSource: data.reviews?.source,
         syncedAt: new Date().toISOString(),
       };
       persistWatchlist([...watchlist, nextApp]);
@@ -342,6 +344,7 @@ const MarketDashboard: React.FC = () => {
                         {app.role === 'my-app' ? 'My App' : 'Competitor'} · {app.reviews.length} reviews · synced {new Date(app.syncedAt).toLocaleDateString()}
                       </div>
                       {app.reviews.length === 0 && <p className="mt-1 text-sm text-amber-700">Public review feed returned no data · retry sync or another region</p>}
+                      {app.reviewSource === 'store-page-sample' && <p className="mt-1 text-sm text-amber-700">Limited store-page sample · may not represent all recent reviews</p>}
                       {app.reviews.length > 0 && summarizeReviewDelta(app.reviews).currentReviews === 0 && <p className="mt-1 text-sm text-amber-700">Historical reviews available · none dated in the last 30 days</p>}
                       {syncErrors[app.id] && <p role="alert" className="mt-1 text-sm text-red-600">Sync failed: {syncErrors[app.id]} Previous data retained.</p>}
                     </div>

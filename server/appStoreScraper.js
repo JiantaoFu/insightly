@@ -1,6 +1,6 @@
-import store from 'app-store-scraper';
+import store from '@jeromyfu/app-store-scraper';
 import axios from 'axios';
-import { parseAppleReviewFeed } from './reviewFeed.js';
+import { parseAppleReviewFeed, parseApplePageReviews } from './reviewFeed.js';
 import { calculateAverageRating, calculateScoreDistribution } from './utils.js';
 
 // Function to extract App Store app ID from a URL
@@ -74,6 +74,7 @@ export async function getAppReviews(appId, country, options = {}) {
     let page = 1;
     let successfulPages = 0;
     let failedPages = 0;
+    let webpageSample = false;
     let cutoff = null;
     if (months && Number.isFinite(months)) {
       const now = new Date();
@@ -108,6 +109,14 @@ export async function getAppReviews(appId, country, options = {}) {
               } catch { /* Try another official feed path. */ }
             }
           }
+          if (reviews.length === 0 && page === 1) {
+            try {
+              const webpage = await axios.get(`https://apps.apple.com/${country}/app/id${appId}`, { timeout: 15000 });
+              reviews = parseApplePageReviews(webpage.data);
+              fallbackSucceeded = true;
+              webpageSample = reviews.length > 0;
+            } catch { /* Keep feed errors available for the caller. */ }
+          }
           if (primaryError && !fallbackSucceeded) throw primaryError;
           if (reviews.length > 0 || attempt === maxAttempts) break;
           console.log(`[getAppReviews] page ${page} empty, retry ${attempt}/${maxAttempts - 1} after ${(attempt * 2)}s`);
@@ -137,7 +146,7 @@ export async function getAppReviews(appId, country, options = {}) {
         allReviews.push(...mappedReviews);
 
         // Stop if we've reached the maxReviews after filtering
-        if (allReviews.length >= maxReviews) {
+        if (allReviews.length >= maxReviews || webpageSample) {
           break;
         }
 
@@ -159,7 +168,8 @@ export async function getAppReviews(appId, country, options = {}) {
 
     return {
       total: filteredReviews.length,
-      partial: failedPages > 0,
+      partial: failedPages > 0 || webpageSample,
+      source: webpageSample ? 'store-page-sample' : 'review-feed',
       reviews: filteredReviews,
       averageRating: calculateAverageRating(filteredReviews),
       scoreDistribution: calculateScoreDistribution(filteredReviews)

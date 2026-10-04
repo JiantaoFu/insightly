@@ -64,6 +64,7 @@ CRITICAL: You MUST use EXACTLY the following 8 section headings, in this order, 
 
 1. Summary Table (Concise Overview)
 2. Cross-App Pain Point Clustering
+2b. Raw Review Spotlight
 3. Opportunity Scoring & Ranking
 4. Overall Sentiment Analysis
 5. Feature-Specific Analysis
@@ -92,6 +93,15 @@ Each section is defined below. Follow them precisely.
    - **Tier 1 — Market-wide pain points** (appears in 3+ apps): these are category-level gaps no one has solved well. For each, list which apps suffer from it and the approximate % of their 1-2 star reviews mentioning it.
    - **Tier 2 — App-specific pain points** (dominant in only 1-2 apps): these are differentiation opportunities — what one competitor gets uniquely wrong.
    - For each cluster include 1-2 illustrative review quotes.
+
+---
+
+### 2b. **Raw Review Spotlight**
+   Show the original user review data — do NOT just summarize. For each app:
+   - Pick the 3 most representative **negative reviews** (1-2 stars): quote them verbatim (trimmed to ~50 words each), with the star rating.
+   - Pick the 2 most representative **positive reviews** (4-5 stars): quote them verbatim (trimmed to ~50 words each), with the star rating.
+   - Format each as: > "review text..." — ★1, [App Name]
+   Users want to read real voices, not just your summary of them.
 
 ---
 

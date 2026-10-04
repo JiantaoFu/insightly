@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { Download, Save, Target } from 'lucide-react';
-import { MARKET_TOPICS, normalizeResearchContext, researchBriefMarkdown, ResearchBrief, ResearchContext } from '../utils/marketIntelligence';
+import { ModelTopic, normalizeResearchContext, researchBriefMarkdown, ResearchBrief, ResearchContext } from '../utils/marketIntelligence';
 import { downloadFile } from '../utils/download';
 
-export const ResearchQuestionEditor = ({ context, onSave }: { context: ResearchContext; onSave: (next: ResearchContext) => void }) => {
+export const ResearchQuestionEditor = ({ context, topics, onSave }: { context: ResearchContext; topics: ModelTopic[]; onSave: (next: ResearchContext) => void }) => {
   const [draft, setDraft] = useState(context);
   const changed = JSON.stringify(draft) !== JSON.stringify(context);
   return <section className="py-5 border-b border-gray-200">
@@ -20,7 +20,7 @@ export const ResearchQuestionEditor = ({ context, onSave }: { context: ResearchC
         </div>
         <div className="flex flex-wrap items-end justify-between gap-3 mt-4">
           <label className="block text-sm font-medium text-gray-700">Focus topic
-            <select aria-label="Focus topic" value={draft.focusTopic} onChange={event => setDraft({ ...draft, focusTopic: event.target.value })} className="block mt-2 border border-gray-300 rounded p-2 text-sm font-normal max-w-full"><option value="all">All topics</option>{MARKET_TOPICS.map(topic => <option key={topic}>{topic}</option>)}</select>
+            <select aria-label="Focus topic" value={draft.focusTopic} onChange={event => setDraft({ ...draft, focusTopic: event.target.value })} className="block mt-2 border border-gray-300 rounded p-2 text-sm font-normal max-w-full"><option value="all">All topics</option>{draft.focusTopic !== 'all' && !topics.some(topic => topic.id === draft.focusTopic) && <option value={draft.focusTopic}>Previously selected theme unavailable</option>}{topics.map(topic => <option key={topic.id} value={topic.id}>{topic.name}</option>)}</select>
           </label>
           <button type="submit" disabled={!changed} className="inline-flex items-center gap-2 px-3 py-2 bg-teal-700 text-white rounded text-sm disabled:opacity-40"><Save className="w-4 h-4" />Save question</button>
         </div>
@@ -32,7 +32,7 @@ export const ResearchQuestionEditor = ({ context, onSave }: { context: ResearchC
 
 export const ResearchBriefPanel = ({ brief, children }: { brief: ResearchBrief; children: ReactNode }) => <section className="py-5">
   <div className="flex flex-wrap justify-between items-start gap-3">
-    <div><h2 className="text-lg font-semibold">Product research brief</h2><p className="mt-1 text-sm text-gray-500">Last {brief.days} days · {brief.context.focusTopic === 'all' ? 'All topics' : brief.context.focusTopic} · manual preview</p></div>
+    <div><h2 className="text-lg font-semibold">Product research brief</h2><p className="mt-1 text-sm text-gray-500">Last {brief.days} days · {brief.context.focusTopic === 'all' ? 'All topics' : brief.focusName} · manual preview</p></div>
     <button onClick={() => downloadFile('insightly-research-brief.md', researchBriefMarkdown(brief), 'text/markdown;charset=utf-8')} className="inline-flex items-center gap-2 border border-gray-300 rounded px-3 py-2 text-sm"><Download className="w-4 h-4" />Export brief</button>
   </div>
   {brief.apps.some(app => app.sample) && <p className="mt-3 text-sm text-amber-800">Illustrative sample data, not real user feedback.</p>}
@@ -41,7 +41,7 @@ export const ResearchBriefPanel = ({ brief, children }: { brief: ResearchBrief; 
     <div><dt className="font-medium text-gray-900">Question to investigate</dt><dd className="mt-1 text-gray-600 whitespace-pre-wrap break-words">{brief.context.question || 'Not set'}</dd></div>
   </dl>
   <h3 className="font-medium text-gray-900 mt-5">Evidence to investigate</h3>
-  <p className="mt-2 text-xs text-gray-500">English keyword topic matches, not an AI answer to your question. Reviews do not establish a competitive gap, willingness to switch, or roadmap priority.</p>
+  <p className="mt-2 text-xs text-gray-500">Model-discovered themes and aspect judgments. {brief.pendingReviews} reviews awaiting classification. Reviews do not establish a competitive gap, willingness to switch, or roadmap priority.</p>
   {!brief.findings.length && <p className="mt-4 text-sm text-gray-600">No matching current-period topic evidence. This does not establish absence of user feedback.</p>}
   {children}
   <div className="pt-5 border-t border-gray-200 text-sm">

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowUpRight, RefreshCw, Trash2, ExternalLink, Smartphone } from 'lucide-react';
-import { buildMarketSignals, buildResearchBrief, getAppCoverage, requestedCountry, summarizeReviewDelta, MarketSignal, ResearchContext, WatchApp } from '../utils/marketIntelligence';
+import { buildMarketSignals, buildResearchBrief, classifiedReviewCount, getAppCoverage, requestedCountry, summarizeReviewDelta, MarketSignal, ResearchContext, WatchApp } from '../utils/marketIntelligence';
 import { ResearchBriefPanel } from './MarketResearch';
 import MarketCoverage from './MarketCoverage';
 
@@ -20,9 +20,11 @@ const Evidence = ({ signal, days }: { signal: MarketSignal; days: number }) => (
   <details className="mt-3">
     <summary className="cursor-pointer text-sm font-medium text-teal-800">Review evidence ({signal.evidence.length})</summary>
     <div className="mt-3 max-h-80 overflow-auto space-y-4 pr-2">
-      {signal.evidence.map(({ review, period }, index) => (
+      {signal.evidence.map(({ review, period, label }, index) => (
         <blockquote key={`${review.id || index}-${period}`} className="border-l-2 border-gray-200 pl-3 text-sm">
           <p className="text-xs text-gray-500 mb-1">{signal.appName} · {review.userName || 'Anonymous'} · {review.score || 'Unrated'} / 5 · {new Date(review.date || review.timestamp || '').toLocaleDateString()} · {period === 'current' ? `Last ${days} days` : `Previous ${days} days`}</p>
+          <p className="font-medium text-gray-800 mb-1">{label.issue}</p><p className="text-xs text-gray-500 mb-2">Model judgment: {label.polarity} · {label.intent}</p>
+          <p className="text-teal-800 mb-2 whitespace-pre-wrap break-words">“{label.evidence}”</p>
           <p className="whitespace-pre-wrap break-words text-gray-700">{review.text}</p>
           {(review.url || signal.appUrl) && /^https:\/\/(apps\.apple\.com|itunes\.apple\.com|play\.google\.com)\//.test(review.url || signal.appUrl) && <a href={review.url || signal.appUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-2 text-teal-800">{review.url ? 'Store review' : 'Store listing'} <ExternalLink className="w-3 h-3" /></a>}
         </blockquote>
@@ -39,7 +41,8 @@ const SignalRow = ({ signal, days, action = false }: { signal: MarketSignal; day
         {signal.changePp === null ? 'Observation only' : `${signal.changePp > 0 ? '+' : ''}${signal.changePp} pp in sample share`}
       </span>
     </div>
-    <p className="text-sm text-gray-600 mt-2">{signal.currentMentions} mentions in last {days} days · {signal.previousMentions} in preceding {days} days · {signal.sentiment} review ratings</p>
+    <p className="text-sm text-gray-600 mt-2">{signal.currentMentions} mentions in last {days} days · {signal.previousMentions} in preceding {days} days · {signal.sentiment} aspect judgments</p>
+    {signal.example && <p className="text-sm text-gray-700 mt-2 break-words">{signal.example}</p>}
     {signal.comparable ? <p className="mt-1 text-xs text-gray-500">{signal.previousShare.toFixed(1)}% to {signal.currentShare.toFixed(1)}% of sampled reviews. Sample change, not total market volume.</p> : <p className="mt-1 text-xs text-amber-800">{signal.comparisonReason}. No trend conclusion.</p>}
     {action && <p className="text-sm text-gray-700 mt-3"><span className="font-medium">Next check: </span>{signal.nextStep}</p>}
     <Evidence signal={signal} days={days} />
@@ -59,10 +62,11 @@ const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, o
   const comparable = coverages.filter(item => item.coverage.comparable).length;
   const currentCount = coverages.reduce((sum, item) => sum + item.coverage.current.length, 0);
   const savedCount = selected.reduce((sum, app) => sum + app.reviews.length, 0);
+  const pending = savedCount - classifiedReviewCount(selected);
   const weeklyCount = selected.reduce((sum, app) => sum + getAppCoverage(app, 7).current.length, 0);
   const findings = signals.filter(signal => signal.changePp === null ? signal.currentMentions > 0 : signal.changePp !== 0);
-  const asked = signals.filter(signal => question === 'features' ? signal.topic === 'Feature requests'
-    : question === 'complaints' ? signal.sentiment === 'negative' : true);
+  const asked = signals.filter(signal => question === 'features' ? signal.requestMentions > 0
+    : question === 'complaints' ? signal.complaintMentions > 0 : true);
 
   return (
     <div className="mt-7">
@@ -86,13 +90,13 @@ const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, o
         {view === 'overview' && <>
           <section className="py-5">
             <h2 className="text-lg font-semibold">Changes worth checking</h2>
-            {!findings.length && <p className="mt-3 text-sm text-gray-500">{savedCount ? 'No topic share changes to highlight in available samples. Review app comparison for coverage.' : 'Add your app or a competitor with reviews to build a market baseline.'}</p>}
+            {!findings.length && <p className="mt-3 text-sm text-gray-500">{pending ? `${pending} saved reviews await model classification. No keyword-based findings are generated.` : savedCount ? 'No topic share changes to highlight in classified samples. Review app comparison for coverage.' : 'Add your app or a competitor with reviews to build a market baseline.'}</p>}
             {findings.slice(0, 5).map(signal => <SignalRow key={signal.key} signal={signal} days={days} action />)}
           </section>
           <section className="border-t border-gray-200 py-5">
             <h2 className="text-lg font-semibold mb-4">App comparison</h2>
             <div className="overflow-x-auto"><table className="w-full text-left text-sm min-w-[620px]"><thead className="text-xs text-gray-500 border-b"><tr><th className="py-3">App</th><th>Current / previous reviews</th><th>Sample rating</th><th>Leading topic</th><th>Coverage</th></tr></thead><tbody>
-              {coverages.map(({ app, coverage }) => { const summary = summarizeReviewDelta(app.reviews, days); const top = signals.filter(signal => signal.appId === app.id).sort((a, b) => b.currentMentions - a.currentMentions)[0]; return <tr key={app.id} className="border-b border-gray-100"><td className="py-4 pr-3"><p className="font-medium">{app.name}</p><p className="text-xs text-gray-500">{app.role === 'my-app' ? 'My App' : 'Competitor'}</p></td><td>{coverage.current.length} / {coverage.previous.length}</td><td>{summary.currentAverage?.toFixed(1) || 'N/A'} / 5</td><td>{top?.topic || 'No dated evidence'}</td><td className="max-w-48 text-xs pr-2"><span className={coverage.comparable ? 'text-teal-800' : 'text-amber-800'}>{coverage.comparable ? 'Comparable samples' : coverage.reason}</span></td></tr>; })}
+              {coverages.map(({ app, coverage }) => { const summary = summarizeReviewDelta(app.reviews, days); const top = signals.filter(signal => signal.appId === app.id).sort((a, b) => b.currentMentions - a.currentMentions)[0]; return <tr key={app.id} className="border-b border-gray-100"><td className="py-4 pr-3"><p className="font-medium">{app.name}</p><p className="text-xs text-gray-500">{app.role === 'my-app' ? 'My App' : 'Competitor'}</p></td><td>{coverage.current.length} / {coverage.previous.length}</td><td>{summary.currentAverage?.toFixed(1) || 'N/A'} / 5</td><td>{top?.topic || 'No classified dated evidence'}</td><td className="max-w-48 text-xs pr-2"><span className={coverage.comparable ? 'text-teal-800' : 'text-amber-800'}>{coverage.comparable ? 'Comparable samples' : coverage.reason}</span></td></tr>; })}
             </tbody></table></div>
           </section>
         </>}
@@ -118,6 +122,8 @@ const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, o
               {!app.sample && <p className="mt-1 text-xs text-gray-500">Requested region: {requestedCountry(app.url).toUpperCase()} · review region: {app.reviewCountry?.toUpperCase() || 'Unverified'}</p>}
               {app.reviewSource === 'store-page-sample' && <p className="mt-1 text-xs text-amber-800">Sample only; trend comparisons are withheld.</p>}
               {!app.reviews.length && <p className="mt-1 text-xs text-amber-800">No review data returned; not evidence of zero market feedback.</p>}
+              <p className="mt-1 text-xs text-gray-500">{classifiedReviewCount([app])} / {app.reviews.length} classified{app.sample ? ' · illustrative judgments' : ''}</p>
+              {app.reviews.length > 0 && <details className="mt-2"><summary className="cursor-pointer text-xs text-teal-800">Saved review text ({Math.min(app.reviews.length, 20)} of {app.reviews.length})</summary><div className="mt-2 max-h-64 overflow-auto space-y-3 text-sm">{app.reviews.slice(0, 20).map((review, index) => <blockquote key={review.id || index} className="border-l-2 border-gray-200 pl-2"><p className="text-xs text-gray-500">{review.userName || 'Anonymous'} · {review.date || review.timestamp || 'Undated'} · {review.score || 'Unrated'} / 5</p><p className="mt-1 whitespace-pre-wrap break-words">{review.text}</p></blockquote>)}</div></details>}
               {syncErrors[app.id] && <p role="alert" className="mt-1 text-xs text-red-700">{syncErrors[app.id]} Previous reviews retained.</p>}
               {syncingId === app.id && <p role="status" className="mt-1 text-xs text-teal-800">Fetching reviews...</p>}
             </div>

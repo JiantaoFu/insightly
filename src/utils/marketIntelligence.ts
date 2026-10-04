@@ -1,3 +1,23 @@
+export const MODEL_CLASSIFIER_VERSION = 'market-semantic-v1';
+
+export interface ModelTopic { id: string; name: string; description: string }
+export interface ModelLabel {
+  topic: ModelTopic;
+  polarity: 'positive' | 'negative' | 'mixed' | 'neutral';
+  intent: 'complaint' | 'request' | 'praise' | 'observation';
+  issue: string;
+  evidence: string;
+}
+export interface ReviewAnalysis {
+  version: string;
+  provider: string;
+  model: string;
+  source: 'model' | 'illustrative';
+  analyzedAt: string;
+  sourceText: string;
+  labels: ModelLabel[];
+}
+
 export interface MarketReview {
   id?: string;
   text: string;
@@ -7,6 +27,7 @@ export interface MarketReview {
   userName?: string;
   url?: string;
   firstSeenAt?: string;
+  analysis?: ReviewAnalysis;
 }
 
 export interface SyncObservation {
@@ -49,15 +70,18 @@ export interface WatchApp {
 }
 
 export interface TopicTrend {
+  topicId: string;
   topic: string;
   currentMentions: number;
   previousMentions: number;
   delta: number;
   currentShare: number;
   previousShare: number;
-  sentiment: 'positive' | 'mixed' | 'negative';
+  sentiment: ModelLabel['polarity'];
+  requestMentions: number;
+  complaintMentions: number;
   example?: string;
-  evidence: { review: MarketReview; period: 'current' | 'previous' }[];
+  evidence: { review: MarketReview; period: 'current' | 'previous'; label: ModelLabel }[];
 }
 
 export interface MarketSignal extends TopicTrend {
@@ -71,17 +95,27 @@ export interface MarketSignal extends TopicTrend {
   nextStep: string;
 }
 
-const TOPICS: Record<string, { keywords: string[]; nextStep: string }> = {
-  'Pricing and subscriptions': { keywords: ['price', 'pricing', 'expensive', 'subscription', 'subscriptions', 'paywall', 'cost', 'refund', 'trial'], nextStep: 'Check whether users misunderstand the price, trial terms, or paid feature boundaries.' },
-  'Stability and performance': { keywords: ['slow', 'lag', 'crash', 'crashes', 'crashing', 'bug', 'bugs', 'freeze', 'loading', 'performance', 'stuck'], nextStep: 'Group reports by device and release, then compare them with crash and performance telemetry.' },
-  'Feature requests': { keywords: ['wish', 'please add', 'missing', 'would like', 'request', 'requests'], nextStep: 'Validate the requested capability with users before making it a roadmap commitment.' },
-  'Usability': { keywords: ['confusing', 'hard to use', 'interface', 'ui', 'ux', 'navigation', 'design'], nextStep: 'Inspect the reported workflow and test the confusing step with users.' },
-  'Support': { keywords: ['support', 'customer service', 'response', 'contact', 'ticket'], nextStep: 'Compare response delays and unresolved cases with your support queue.' },
-  'Accounts and sync': { keywords: ['sync', 'lost', 'backup', 'restore', 'login', 'account'], nextStep: 'Reproduce the account or sync workflow and check recovery behavior.' },
-  'Advertising': { keywords: ['ad', 'ads', 'advertisement', 'advertisements'], nextStep: 'Review ad placement and interruption frequency in the affected workflow.' },
+export const getReviewAnalysis = (review: MarketReview, allowIllustrative = false): ReviewAnalysis | null => {
+  const analysis = review.analysis;
+  if (!analysis || analysis.version !== MODEL_CLASSIFIER_VERSION || analysis.sourceText !== review.text
+    || (analysis.source !== 'model' && !(allowIllustrative && analysis.source === 'illustrative'))
+    || !analysis.provider || !analysis.model || !Array.isArray(analysis.labels) || analysis.labels.length > 4) return null;
+  const boundedText = (value: unknown, max: number) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
+  const ids = new Set<string>();
+  for (const label of analysis.labels) {
+    if (!label?.topic || !/^topic-[a-f0-9]{16}$/.test(label.topic.id) || !boundedText(label.topic.name, 100) || !boundedText(label.topic.description, 300) || ids.has(label.topic.id)
+      || !['positive', 'negative', 'mixed', 'neutral'].includes(label.polarity)
+      || !['complaint', 'request', 'praise', 'observation'].includes(label.intent)
+      || !boundedText(label.issue, 240) || !boundedText(label.evidence, 1000) || !review.text.includes(label.evidence)) return null;
+    ids.add(label.topic.id);
+  }
+  return analysis;
 };
 
-export const MARKET_TOPICS = Object.keys(TOPICS);
+export const getMarketTopics = (apps: WatchApp[]): ModelTopic[] => [...new Map(apps.flatMap(app => app.reviews
+  .flatMap(review => getReviewAnalysis({ ...review, text: review.analysis?.sourceText || review.text }, !!app.sample)?.labels.map(label => [label.topic.id, label.topic] as const) || []))).values()];
+
+export const classifiedReviewCount = (apps: WatchApp[]) => apps.reduce((total, app) => total + app.reviews.filter(review => getReviewAnalysis(review, !!app.sample)).length, 0);
 
 export interface ResearchContext {
   product: string;
@@ -94,7 +128,7 @@ export const normalizeResearchContext = (value: unknown): ResearchContext => {
   return {
     product: typeof candidate.product === 'string' ? candidate.product.trim().slice(0, 600) : '',
     question: typeof candidate.question === 'string' ? candidate.question.trim().slice(0, 400) : '',
-    focusTopic: typeof candidate.focusTopic === 'string' && MARKET_TOPICS.includes(candidate.focusTopic) ? candidate.focusTopic : 'all',
+    focusTopic: typeof candidate.focusTopic === 'string' && /^topic-[a-f0-9]{16}$/.test(candidate.focusTopic) ? candidate.focusTopic : 'all',
   };
 };
 
@@ -112,18 +146,12 @@ const dateOf = (review: MarketReview) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const matches = (text: string, keywords: string[]) => keywords.some(keyword =>
-  new RegExp('\\b' + keyword + '\\b', 'i').test(text)
-);
-
-const sentiment = (reviews: MarketReview[]): TopicTrend['sentiment'] => {
-  const scored = reviews.filter(review => Number.isFinite(review.score) && review.score! >= 1 && review.score! <= 5);
-  if (!scored.length) return 'mixed';
-  const negative = scored.filter(review => review.score! <= 2).length;
-  const positive = scored.filter(review => review.score! >= 4).length;
-  if (negative > scored.length / 2) return 'negative';
-  if (positive > scored.length / 2) return 'positive';
-  return 'mixed';
+const sentiment = (labels: ModelLabel[]): TopicTrend['sentiment'] => {
+  const polarities = new Set(labels.map(label => label.polarity));
+  if (polarities.has('mixed') || (polarities.has('positive') && polarities.has('negative'))) return 'mixed';
+  if (polarities.has('negative')) return 'negative';
+  if (polarities.has('positive')) return 'positive';
+  return 'neutral';
 };
 
 export const splitReviewWindows = (reviews: MarketReview[], days = 30, now = new Date()) => {
@@ -137,18 +165,27 @@ export const splitReviewWindows = (reviews: MarketReview[], days = 30, now = new
   };
 };
 
-export const calculateTopicTrends = (reviews: MarketReview[], days = 30, now = new Date()): TopicTrend[] => {
+export const calculateTopicTrends = (reviews: MarketReview[], days = 30, now = new Date(), allowIllustrative = false): TopicTrend[] => {
   const { current, previous } = splitReviewWindows(reviews, days, now);
-  return Object.entries(TOPICS).map(([topic, { keywords }]) => {
-    const currentMatches = current.filter(review => matches(review.text || '', keywords));
-    const previousMatches = previous.filter(review => matches(review.text || '', keywords));
+  const classifiedCurrent = current.filter(review => getReviewAnalysis(review, allowIllustrative));
+  const classifiedPrevious = previous.filter(review => getReviewAnalysis(review, allowIllustrative));
+  const topics = new Map([...classifiedCurrent, ...classifiedPrevious].flatMap(review => getReviewAnalysis(review, allowIllustrative)!.labels.map(label => [label.topic.id, label.topic] as const)));
+  return [...topics.values()].map(topic => {
+    const evidenceFor = (items: MarketReview[], period: 'current' | 'previous') => items.flatMap(review => {
+      const label = getReviewAnalysis(review, allowIllustrative)!.labels.find(item => item.topic.id === topic.id);
+      return label ? [{ review, period, label }] : [];
+    });
+    const currentMatches = evidenceFor(classifiedCurrent, 'current');
+    const previousMatches = evidenceFor(classifiedPrevious, 'previous');
     return {
-      topic, currentMentions: currentMatches.length, previousMentions: previousMatches.length,
+      topicId: topic.id, topic: topic.name, currentMentions: currentMatches.length, previousMentions: previousMatches.length,
       delta: currentMatches.length - previousMatches.length,
-      currentShare: current.length ? currentMatches.length / current.length * 100 : 0,
-      previousShare: previous.length ? previousMatches.length / previous.length * 100 : 0,
-      sentiment: sentiment(currentMatches), example: currentMatches[0]?.text || previousMatches[0]?.text,
-      evidence: [...currentMatches.map(review => ({ review, period: 'current' as const })), ...previousMatches.map(review => ({ review, period: 'previous' as const }))],
+      currentShare: classifiedCurrent.length ? currentMatches.length / classifiedCurrent.length * 100 : 0,
+      previousShare: classifiedPrevious.length ? previousMatches.length / classifiedPrevious.length * 100 : 0,
+      sentiment: sentiment(currentMatches.map(item => item.label)), example: currentMatches[0]?.label.issue || previousMatches[0]?.label.issue,
+      requestMentions: currentMatches.filter(item => item.label.intent === 'request').length,
+      complaintMentions: currentMatches.filter(item => item.label.intent === 'complaint').length,
+      evidence: [...currentMatches, ...previousMatches],
     };
   }).filter(trend => trend.evidence.length > 0)
     .sort((a, b) => b.currentMentions - a.currentMentions);
@@ -156,6 +193,7 @@ export const calculateTopicTrends = (reviews: MarketReview[], days = 30, now = n
 
 export const getAppCoverage = (app: WatchApp, days = 30, now = new Date()) => {
   const windows = splitReviewWindows(app.reviews, days, now);
+  const classified = [...windows.current, ...windows.previous].map(review => getReviewAnalysis(review, !!app.sample));
   let reason = '';
   if (app.syncHistory?.[app.syncHistory.length - 1]?.status === 'failed') reason = 'Latest sync failed; retained evidence only';
   else if (app.reviewCountry && app.reviewCountry !== requestedCountry(app.url)) reason = 'Reviews came from a different region';
@@ -164,6 +202,8 @@ export const getAppCoverage = (app: WatchApp, days = 30, now = new Date()) => {
   else if (!app.sample && app.lastFetchedCount === 0) reason = 'No reviews returned on last sync';
   else if (!app.sample && (!Number.isFinite(new Date(app.syncedAt).getTime()) || now.getTime() - new Date(app.syncedAt).getTime() > 48 * 3600000)) reason = 'Sync older than 48 hours';
   else if (!app.sample && app.reviewSource !== 'review-feed') reason = 'Source not verified; sync to update';
+  else if (classified.some(analysis => !analysis)) reason = 'Model classification incomplete for comparison periods';
+  else if (new Set(classified.map(analysis => analysis!.provider + ':' + analysis!.model)).size > 1) reason = 'Mixed classifier models; comparison withheld';
   else if (windows.current.length < 5 || windows.previous.length < 5) reason = 'Fewer than 5 dated reviews in one or both periods';
   return { ...windows, comparable: !reason, reason };
 };
@@ -171,11 +211,11 @@ export const getAppCoverage = (app: WatchApp, days = 30, now = new Date()) => {
 export const buildMarketSignals = (apps: WatchApp[], days = 30, now = new Date()): MarketSignal[] =>
   apps.flatMap(app => {
     const coverage = getAppCoverage(app, days, now);
-    return calculateTopicTrends(app.reviews, days, now).map(trend => ({
-      ...trend, key: app.id + ':' + trend.topic, appId: app.id, appName: app.name, appUrl: app.url,
+    return calculateTopicTrends(app.reviews, days, now, !!app.sample).map(trend => ({
+      ...trend, key: app.id + ':' + trend.topicId, appId: app.id, appName: app.name, appUrl: app.url,
       comparable: coverage.comparable, comparisonReason: coverage.reason,
       changePp: coverage.comparable ? Number((trend.currentShare - trend.previousShare).toFixed(1)) : null,
-      nextStep: trend.sentiment === 'positive' ? 'Check which aspects users value and whether they also matter to your audience.' : TOPICS[trend.topic].nextStep,
+      nextStep: trend.sentiment === 'positive' ? 'Validate whether users value this workflow in your own product.' : 'Validate the reported workflow with your users before deciding on a product change.',
     }));
   }).sort((a, b) => Number(b.comparable) - Number(a.comparable)
     || (b.changePp || 0) - (a.changePp || 0) || b.currentMentions - a.currentMentions);
@@ -241,10 +281,12 @@ export const appendSyncObservation = (history: SyncObservation[] | undefined, ob
 export const buildResearchBrief = (apps: WatchApp[], context: ResearchContext, days = 30, now = new Date()) => {
   const normalized = normalizeResearchContext(context);
   const findings = buildMarketSignals(apps, days, now)
-    .filter(signal => signal.currentMentions > 0 && (normalized.focusTopic === 'all' || signal.topic === normalized.focusTopic))
+    .filter(signal => signal.currentMentions > 0 && (normalized.focusTopic === 'all' || signal.topicId === normalized.focusTopic))
     .slice(0, 5);
   return {
     generatedAt: now.toISOString(), days, context: normalized, findings,
+    focusName: getMarketTopics(apps).find(topic => topic.id === normalized.focusTopic)?.name || 'Unavailable theme',
+    classifiedReviews: classifiedReviewCount(apps), pendingReviews: apps.reduce((sum, app) => sum + app.reviews.length, 0) - classifiedReviewCount(apps),
     apps: apps.map(app => ({ id: app.id, name: app.name, sample: !!app.sample, country: app.reviewCountry || 'Unverified', coverage: getAppCoverage(app, days, now) })),
   };
 };
@@ -254,10 +296,11 @@ export type ResearchBrief = ReturnType<typeof buildResearchBrief>;
 export const researchBriefMarkdown = (brief: ResearchBrief) => {
   const quote = (value: string) => value.split(/\r?\n/).map(line => '> ' + line).join('\n');
   const lines = ['# Competitor feedback research brief', '', `Generated: ${brief.generatedAt}`, `Period: last ${brief.days} days`,
-    'Manual research preview. English keyword topic matches, not an AI answer or a complete market census.',
+    'Model-discovered themes and aspect judgments, not a complete market census or an automatic roadmap decision.',
+    `Classified reviews: ${brief.classifiedReviews}; awaiting classification: ${brief.pendingReviews}.`,
     ...(brief.apps.some(app => app.sample) ? ['ILLUSTRATIVE SAMPLE DATA: not real user feedback.'] : []),
     '', '## Product context', quote(brief.context.product || 'Not provided'), '', '## Research question', quote(brief.context.question || 'Not provided'),
-    `Focus: ${brief.context.focusTopic === 'all' ? 'All topics' : brief.context.focusTopic}`, '', '## Coverage'];
+    `Focus: ${brief.context.focusTopic === 'all' ? 'All topics' : brief.focusName}`, '', '## Coverage'];
   for (const app of brief.apps) lines.push(`- ${app.name} (${app.country}): ${app.coverage.current.length} current / ${app.coverage.previous.length} previous dated reviews. ${app.coverage.comparable ? 'Comparable samples; completeness not established.' : app.coverage.reason}`);
   lines.push('', '## Evidence to investigate');
   if (!brief.findings.length) lines.push('No matching current-period topic evidence. This does not establish absence of user feedback.');
@@ -265,7 +308,8 @@ export const researchBriefMarkdown = (brief: ResearchBrief) => {
     lines.push('', `### ${finding.appName}: ${finding.topic}`, `Observed: ${finding.currentMentions} current-period sampled reviews mention this topic.`,
       finding.changePp === null ? `Comparison withheld: ${finding.comparisonReason}.` : `Sample share: ${finding.previousShare.toFixed(1)}% to ${finding.currentShare.toFixed(1)}% (${finding.changePp} percentage points).`,
       `Next validation: ${finding.nextStep}`, 'These reviews do not establish a competitive gap, willingness to switch, or roadmap priority.');
-    for (const { review } of finding.evidence.filter(item => item.period === 'current').slice(0, 3)) {
+    for (const { review, label } of finding.evidence.filter(item => item.period === 'current').slice(0, 3)) {
+      lines.push('', `Model interpretation: ${label.issue} | ${label.polarity} | ${label.intent}`, quote(label.evidence));
       lines.push('', `${review.userName || 'Anonymous'} | ${dateOf(review)?.toISOString() || 'Undated'} | ${review.score || 'Unrated'} / 5`, quote(review.text));
       const url = review.url || finding.appUrl;
       if (/^https:\/\/(apps\.apple\.com|itunes\.apple\.com|play\.google\.com)\//.test(url)) lines.push(`Source: ${url}`);

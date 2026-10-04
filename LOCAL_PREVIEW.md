@@ -2,7 +2,8 @@
 
 Run `npm install`, then `npm run dev:local` and open
 http://127.0.0.1:5173/market. No account keys are required for this entry point.
-Leave `.env` absent for this account-free preview. If you have an existing
+Leave `.env` absent for the sample preview, or add only the server-side Gemini
+configuration below for real classification. If you have an existing
 environment, disable protected routes only in your local environment and point
 VITE_SERVER_URL at http://localhost:3000.
 
@@ -20,12 +21,14 @@ If RSS feeds return no reviews, structured review data from the official product
 and all-reviews pages is merged by review ID. That result is a limited sample, labeled in the watchlist,
 and must not be treated as the app's complete recent review volume.
 
-The local API supports store scraping and health checks only. Production login,
+The local API supports store scraping, health checks and Gemini classification. Production login,
 AI research, billing and public reports continue to use `npm run dev` with the
 existing backend credentials. The dashboard's built-in evidence view works
-without an AI key. The separate AI research link requires the configured backend.
+without an AI key, but real reviews need Gemini classification before topic findings
+are available. Saved review text remains accessible without a model key.
+The separate AI research link requires the configured backend.
 
-This preview has manual sync, browser persistence, keyword topics and an internal
+This preview has manual sync, browser persistence, model-discovered topics and an internal
 weekly digest. Automatic jobs, account persistence, report delivery and new
 subscription activation are not included. The homepage distinguishes the free
 manual research preview from planned continuous monitoring, which cannot be
@@ -47,9 +50,12 @@ apps' evidence, without making a freeform AI request.
 Trend comparisons are withheld for webpage samples, incomplete syncs, unverified
 sources, zero-result syncs, stale syncs (over 48 hours), or fewer than five dated
 reviews in either period. Eligible comparisons show the change in topic share
-within sampled reviews, in percentage points. This threshold is a conservative
+within classified sampled reviews, in percentage points. Incomplete classification
+or mixed model versions within the comparison windows also withhold comparisons.
+This threshold is a conservative
 product heuristic, not a statistical significance test or proof of complete coverage.
-Pricing mentions are labeled neutrally. Advertising keywords use word boundaries.
+Aspect polarity and intent come from the model's reading of the quoted text, not
+the review's star rating. They remain interpretations requiring human review.
 
 Watchlist supports role reassignment and sequential Sync all. Failed apps retain
 their saved reviews and do not prevent subsequent apps from syncing. Review IDs
@@ -61,7 +67,7 @@ The existing browser storage key is retained so this upgrade preserves watchlist
 Save a product description, current question and explicit focus topic under
 Product question. Research brief respects the selected apps, period and saved
 topic and exports a Markdown brief with review evidence and coverage notes.
-It uses English keyword matches, not freeform AI reasoning about the question;
+It uses model-classified evidence, not freeform AI reasoning about the question;
 product context is preserved for human interpretation, not used to invent a gap.
 Illustrative data remains labeled in the exported brief.
 
@@ -77,3 +83,43 @@ and a refresh cannot silently merge returned reviews from a different region.
 Latest failed attempts prevent trend comparison until a successful refresh.
 The browser retains up to 2,000 saved reviews per app, independently of each
 request's maximum of 500. Neither limit guarantees full store coverage.
+
+## Gemini theme classification
+
+Put `GEMINI_API_KEY` in the repo's local `.env` file. This file is ignored by Git;
+never put a key in a `VITE_*` variable or the browser. Restart the local API after
+configuration changes, then refresh model configuration on the market page.
+`MARKET_GEMINI_MODEL` optionally overrides the existing Gemini provider's model;
+leave it blank to reuse `GEMINI_MODEL` / the provider default. A configured key
+does not prove that your account has access to that model.
+
+Click **Classify reviews** after syncing real apps. Each run processes at most
+120 pending reviews, sequentially in batches of up to 12 and 60,000 characters.
+Individual reviews are limited to 16,000 characters and are never silently
+truncated. Only app names and review text are sent, along with the current theme
+vocabulary; usernames, ratings and dates are not sent. Classification invokes
+Gemini and can incur provider charges. Syncing alone never invokes Gemini.
+
+There is no preset category taxonomy and no keyword fallback. Gemini discovers
+workflow-specific themes, reuses known theme IDs, and assigns up to four aspects
+per review: theme, issue, polarity, intent and a verbatim quote. Vague reviews
+may have no aspects. Output without valid review assignments or quotes is
+rejected. The backend does not ask the model to compute trends or market gaps.
+Dates, mention counts and sample shares are calculated in code.
+
+Completed batches are saved immediately in the existing browser watchlist.
+Retries process only remaining reviews. Changed review text invalidates its old
+classification; a selected model change makes old results pending for reanalysis.
+The backend also caches successful batches in memory for 24 hours, scoped to
+user, market, model, text and supplied theme vocabulary. Restarting clears this
+backend cache. Theme IDs are based on canonical names; synonym consolidation is
+model-assisted, not a guarantee against theme drift. The vocabulary is limited
+to 100 themes per market. Cloud storage and automatic classification are not
+included. Sample annotations are explicitly illustrative and never use the key.
+
+Production routes require the existing authenticated account and explicit
+`MARKET_CLASSIFICATION_ENABLED=true` pilot opt-in, in addition to server-side
+Gemini configuration. This does not activate new subscription entitlements or
+deduct existing report credits. Keep it disabled until pilot usage/cost limits
+are agreed. See the [Gemini generation API](https://ai.google.dev/api/generate-content)
+for structured response support.

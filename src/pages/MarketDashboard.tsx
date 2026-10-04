@@ -3,13 +3,16 @@ import { Loader2, Plus, Radar, Search } from 'lucide-react';
 
 import Navigation from '../components/Navigation';
 import { SERVER_URL } from '../components/Constants';
-import { appendSyncObservation, observeReviewSync, requestedCountry, normalizeResearchContext, ResearchContext, MarketReview, WatchApp } from '../utils/marketIntelligence';
+import { appendSyncObservation, classifiedReviewCount, getMarketTopics, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, normalizeResearchContext, ResearchContext, MarketReview, ReviewAnalysis, WatchApp } from '../utils/marketIntelligence';
 import MarketInsights from '../components/MarketInsights';
 import { ResearchQuestionEditor } from '../components/MarketResearch';
+import MarketModelControls, { ClassifierProfile } from '../components/MarketModelControls';
+import { useAuth } from '../components/AuthContext';
 
 
 const STORAGE_KEY = 'insightly_market_watchlist_v1';
 const RESEARCH_KEY = 'insightly_market_research_v1';
+const MARKET_KEY = 'insightly_market_id_v1';
 
 const loadResearch = () => {
   try { return normalizeResearchContext(JSON.parse(localStorage.getItem(RESEARCH_KEY) || '{}')); }
@@ -50,6 +53,14 @@ const MarketDashboard: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchApp[]>(loadWatchlist);
   const watchlistRef = useRef(watchlist);
   const [research, setResearch] = useState<ResearchContext>(loadResearch);
+  const { token } = useAuth();
+  const [profile, setProfile] = useState<ClassifierProfile | null>(null);
+  const [checkingModel, setCheckingModel] = useState(true);
+  const [modelCheck, setModelCheck] = useState(0);
+  const [classifying, setClassifying] = useState(false);
+  const [classificationProgress, setClassificationProgress] = useState<string | null>(null);
+  const [classificationError, setClassificationError] = useState<string | null>(null);
+  const marketIdRef = useRef('');
   const [syncingAll, setSyncingAll] = useState(false);
   const [url, setUrl] = useState('');
   const [role, setRole] = useState<WatchApp['role']>(watchlist.some(app => app.role === 'my-app') ? 'competitor' : 'my-app');
@@ -64,6 +75,73 @@ const MarketDashboard: React.FC = () => {
   const [searchError, setSearchError] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setCheckingModel(true);
+    fetch(`${SERVER_URL}/api/market/classifier`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error('Model service unavailable. Sign in if this backend requires an account.');
+        const data = await response.json();
+        if (data.version !== MODEL_CLASSIFIER_VERSION || typeof data.configured !== 'boolean' || typeof data.model !== 'string') throw new Error('Model service version is incompatible.');
+        setProfile(data);
+      }).catch(error => { if (!controller.signal.aborted) { setProfile(null); setClassificationError(error.message || 'Model service unavailable.'); } })
+      .finally(() => { if (!controller.signal.aborted) setCheckingModel(false); });
+    return () => controller.abort();
+  }, [token, modelCheck]);
+
+  const classifyReviews = async () => {
+    if (!profile?.configured || classifying) return;
+    setClassifying(true); setClassificationError(null);
+    let completed = 0;
+    try {
+      if (!marketIdRef.current) {
+        marketIdRef.current = localStorage.getItem(MARKET_KEY) || crypto.randomUUID();
+        localStorage.setItem(MARKET_KEY, marketIdRef.current);
+      }
+      const pending = watchlistRef.current.filter(app => !app.sample).flatMap(app => app.reviews
+        .filter(review => { const analysis = getReviewAnalysis(review); return !analysis || analysis.provider !== profile.provider || analysis.model !== profile.model; })
+        .map(review => ({ appId: app.id, appName: app.name, review }))).slice(0, 120);
+      while (completed < pending.length) {
+        const batch: typeof pending = [];
+        let characters = 0;
+        for (const item of pending.slice(completed, completed + 12)) {
+          if (typeof item.review.text !== 'string' || !item.review.text.trim() || item.review.text.length > 16000) {
+            if (batch.length) break;
+            throw new Error('A review is empty or exceeds the 16,000-character classification limit. Original text is retained.');
+          }
+          if (characters + item.review.text.length > 60000) break;
+          batch.push(item);
+          characters += item.review.text.length;
+        }
+        setClassificationProgress(`${completed} / ${pending.length} reviews classified this run`);
+        const response = await fetch(`${SERVER_URL}/api/market/classify`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ marketId: marketIdRef.current, topics: getMarketTopics(watchlistRef.current.filter(app => !app.sample)),
+            reviews: batch.map(({ review, appName }, index) => ({ key: 'r' + index, text: review.text, appName })) }),
+          signal: AbortSignal.timeout(100000),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Model classification unavailable.');
+        if (result.version !== MODEL_CLASSIFIER_VERSION || result.provider !== 'gemini' || result.model !== profile.model
+          || !Array.isArray(result.classifications) || result.classifications.length !== batch.length) throw new Error('Model service returned an incompatible or incomplete batch.');
+        const analyses = new Map<MarketReview, ReviewAnalysis>();
+        for (const [index, item] of batch.entries()) {
+          const rows = result.classifications.filter((row: { key: string }) => row.key === 'r' + index);
+          if (rows.length !== 1) throw new Error('Model service returned duplicate or missing review assignments.');
+          const analysis: ReviewAnalysis = { version: result.version, provider: result.provider, model: result.model,
+            source: 'model', sourceText: item.review.text, analyzedAt: result.analyzedAt, labels: rows[0].labels };
+          if (!getReviewAnalysis({ ...item.review, analysis })) throw new Error('Model service returned unverifiable review evidence.');
+          analyses.set(item.review, analysis);
+        }
+        persistWatchlist(watchlistRef.current.map(app => ({ ...app, reviews: app.reviews.map(review => analyses.has(review) ? { ...review, analysis: analyses.get(review) } : review) })));
+        completed += batch.length;
+      }
+      setNotice(`${completed} reviews classified by Gemini. Remaining unclassified reviews are kept for the next run.`);
+    } catch (error) {
+      setClassificationError(`${error instanceof Error ? error.message : 'Classification failed.'} ${completed} completed reviews retained. No keyword fallback.`);
+    } finally { setClassifying(false); setClassificationProgress(null); }
+  };
 
   useEffect(() => {
     const query = url.trim();
@@ -113,6 +191,16 @@ const MarketDashboard: React.FC = () => {
           : 'Great design and helpful support.',
         score: index < 9 ? 2 : 5,
         date: date((period === 0 ? 1 : period === 1 ? 8 : 31) + index % 6),
+        analysis: {
+          version: MODEL_CLASSIFIER_VERSION, provider: 'sample', model: 'illustrative', source: 'illustrative', analyzedAt: date(0),
+          sourceText: index < (period === 0 ? 7 - appIndex : 2) ? 'App crashes while loading my notebook.' : index < 9 ? 'Please add offline export. This feature is missing.' : 'Great design and helpful support.',
+          labels: [{ topic: { id: 'topic-' + (index < (period === 0 ? 7 - appIndex : 2) ? '0000000000000001' : index < 9 ? '0000000000000002' : '0000000000000003'),
+            name: index < (period === 0 ? 7 - appIndex : 2) ? 'Notebook loading reliability' : index < 9 ? 'Offline export' : 'Support experience',
+            description: 'Illustrative theme for the sample market' },
+            polarity: index < 9 ? 'negative' : 'positive', intent: index < (period === 0 ? 7 - appIndex : 2) ? 'complaint' : index < 9 ? 'request' : 'praise',
+            issue: index < (period === 0 ? 7 - appIndex : 2) ? 'Notebook crashes during loading' : index < 9 ? 'Offline export requested' : 'Helpful support',
+            evidence: index < (period === 0 ? 7 - appIndex : 2) ? 'App crashes while loading my notebook.' : index < 9 ? 'Please add offline export.' : 'helpful support' }],
+        },
       }))),
     })));
     setRole('competitor');
@@ -247,7 +335,11 @@ const MarketDashboard: React.FC = () => {
     }
   };
 
-  const busy = isAdding || syncingId !== null || syncingAll;
+  const busy = isAdding || syncingId !== null || syncingAll || classifying;
+  const realApps = watchlist.filter(app => !app.sample);
+  const currentModelCount = profile?.configured ? realApps.reduce((sum, app) => sum + app.reviews.filter(review => {
+    const analysis = getReviewAnalysis(review); return analysis?.provider === profile.provider && analysis.model === profile.model;
+  }).length, 0) : classifiedReviewCount(realApps);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -321,7 +413,10 @@ const MarketDashboard: React.FC = () => {
           {isAdding && <p role="status" className="mt-3 text-sm text-gray-500">Fetching app details and recent reviews...</p>}
         </section>
 
-        <ResearchQuestionEditor context={research} onSave={next => {
+        <MarketModelControls profile={profile} checking={checkingModel} busy={busy} progress={classificationProgress}
+          classified={currentModelCount} total={realApps.reduce((total, app) => total + app.reviews.length, 0)}
+          error={classificationError} onCheck={() => { setClassificationError(null); setModelCheck(value => value + 1); }} onClassify={classifyReviews} />
+        <ResearchQuestionEditor context={research} topics={getMarketTopics(watchlist)} onSave={next => {
           setResearch(next);
           try { localStorage.setItem(RESEARCH_KEY, JSON.stringify(next)); setNotice('Research question saved in this browser.'); }
           catch { setError('Research question could not be saved in this browser. It remains available until this page closes.'); }

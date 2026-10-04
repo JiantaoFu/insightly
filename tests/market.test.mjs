@@ -5,7 +5,13 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/utils/marketIntelligence.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
-const { splitReviewWindows, calculateTopicTrends, buildMarketSignals, mergeMarketReviews, observeReviewSync, appendSyncObservation, normalizeResearchContext, buildResearchBrief, researchBriefMarkdown } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const { splitReviewWindows, calculateTopicTrends, buildMarketSignals, mergeMarketReviews, observeReviewSync, appendSyncObservation, normalizeResearchContext, buildResearchBrief, researchBriefMarkdown, getReviewAnalysis, getMarketTopics } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+
+const loading = { id: 'topic-0000000000000001', name: 'Loading reliability', description: 'Loading workflow reliability' };
+const exporting = { id: 'topic-0000000000000002', name: 'Offline export', description: 'Exporting without an internet connection' };
+const annotated = (review, topic = loading, polarity = 'negative', intent = 'complaint') => ({ ...review,
+  analysis: { version: 'market-semantic-v1', provider: 'gemini', model: 'test-model', source: 'model', sourceText: review.text, analyzedAt: '2026-10-03',
+    labels: topic ? [{ topic, polarity, intent, issue: review.text, evidence: review.text }] : [] } });
 
 test('windows exclude stale, undated and future evidence', () => {
   const now = new Date('2026-10-03T00:00:00Z');
@@ -20,27 +26,27 @@ test('windows exclude stale, undated and future evidence', () => {
   assert.equal(result.previous.length, 1);
   assert.equal(splitReviewWindows([{ text: 'undated' }]).current.length, 0);
 });
-test('emerging performance complaints retain evidence', () => {
-  const trends = calculateTopicTrends([{ text: 'App crashes and is slow', score: 1, date: new Date().toISOString() }]);
-  const performance = trends.find(trend => trend.topic === 'Stability and performance');
+test('model aspect judgments retain evidence and are independent of star ratings', () => {
+  const trends = calculateTopicTrends([annotated({ text: 'App crashes and is slow', score: 5, date: new Date().toISOString() })]);
+  const performance = trends.find(trend => trend.topic === 'Loading reliability');
   assert.equal(performance.delta, 1);
   assert.equal(performance.sentiment, 'negative');
   assert.equal(performance.example, 'App crashes and is slow');
 });
 
-test('advertising matches complete words, not add or loading', () => {
+test('unclassified reviews do not produce keyword topics or star-based sentiment', () => {
   const date = new Date().toISOString();
   assert.equal(calculateTopicTrends([{ text: 'Please add export. Loading is slow.', date }]).some(trend => trend.topic === 'Advertising'), false);
-  assert.equal(calculateTopicTrends([{ text: 'Too many ads', date }]).some(trend => trend.topic === 'Advertising'), true);
+  assert.equal(calculateTopicTrends([{ text: 'Too many ads', date }]).length, 0);
 });
 
 const now = new Date('2026-10-03T00:00:00Z');
 const app = (id, reviews, extra = {}) => ({ id, name: id, role: 'competitor', url: '', platform: 'ios', syncedAt: now.toISOString(), reviewSource: 'review-feed', reviews, ...extra });
-const windowReviews = (count, crashes, date, prefix) => Array.from({ length: count }, (_, index) => ({ id: `${prefix}-${index}`, text: index < crashes ? 'App crashes' : 'Useful app', score: 2, date }));
+const windowReviews = (count, crashes, date, prefix) => Array.from({ length: count }, (_, index) => annotated({ id: `${prefix}-${index}`, text: index < crashes ? 'App crashes' : 'Useful app', score: 2, date }, index < crashes ? loading : null));
 
 test('traffic increase alone does not imply higher topic share; evidence stays attributed', () => {
   const reviews = [...windowReviews(10, 2, '2026-10-02', 'current'), ...windowReviews(5, 1, '2026-08-20', 'previous')];
-  const signals = buildMarketSignals([app('A', reviews), app('B', [{ text: 'Please add export', date: '2026-10-02' }])], 30, now);
+  const signals = buildMarketSignals([app('A', reviews), app('B', [annotated({ text: 'Please add export', date: '2026-10-02' }, exporting, 'neutral', 'request')])], 30, now);
   const signal = signals.find(item => item.appId === 'A');
   assert.equal(signal.delta, 1);
   assert.equal(signal.changePp, 0);
@@ -59,7 +65,7 @@ test('webpage samples, partial syncs and sparse baselines cannot claim a trend',
 });
 
 test('weekly and monthly evidence respect their own periods', () => {
-  const reviews = [{ text: 'App crashes', date: '2026-09-20' }];
+  const reviews = [annotated({ text: 'App crashes', date: '2026-09-20' })];
   const weekly = buildMarketSignals([app('A', reviews)], 7, now)[0];
   const monthly = buildMarketSignals([app('A', reviews)], 30, now)[0];
   assert.equal(weekly.currentMentions, 0);
@@ -135,12 +141,12 @@ test('research question validation handles malformed storage and bounds input', 
 });
 
 test('research brief respects app, date and explicit topic scope without inventing answers', () => {
-  const candidate = app('A', [{ text: 'Please add export', date: '2026-10-02' }, { text: 'Sync broken', date: '2026-10-02' }], { sample: true });
-  const context = { product: 'My product', question: 'Should we implement export?', focusTopic: 'Feature requests' };
+  const candidate = app('A', [annotated({ text: 'Please add export', date: '2026-10-02' }, exporting, 'neutral', 'request'), annotated({ text: 'Sync broken', date: '2026-10-02' })], { sample: true });
+  const context = { product: 'My product', question: 'Should we implement export?', focusTopic: exporting.id };
   const brief = buildResearchBrief([candidate], context, 7, now);
   assert.equal(brief.findings.length, 1);
   assert.equal(brief.findings[0].appId, 'A');
-  assert.equal(brief.findings[0].topic, 'Feature requests');
+  assert.equal(brief.findings[0].topic, 'Offline export');
   assert.equal(brief.findings[0].comparable, false);
   const exported = researchBriefMarkdown(brief);
   assert.match(exported, /ILLUSTRATIVE SAMPLE DATA/);
@@ -148,6 +154,41 @@ test('research brief respects app, date and explicit topic scope without inventi
   assert.match(exported, /Please add export/);
   assert.doesNotMatch(exported, /Sync broken/);
   assert.match(exported, /Comparison withheld/);
-  assert.equal(buildResearchBrief([candidate], { ...context, focusTopic: 'Advertising' }, 7, now).findings.length, 0);
+  assert.equal(buildResearchBrief([candidate], { ...context, focusTopic: 'topic-0000000000000009' }, 7, now).findings.length, 0);
   assert.equal(buildResearchBrief([candidate], context, 7, new Date('2027-01-01')).findings.length, 0);
+});
+
+test('updated review text invalidates classification but retains known theme vocabulary', () => {
+  const original = annotated({ id: 'one', text: 'Loading fails', date: '2026-10-02' });
+  const changed = mergeMarketReviews([original], [{ id: 'one', text: 'Loading now works', date: '2026-10-02' }]);
+  assert.equal(getReviewAnalysis(changed[0]), null);
+  assert.equal(calculateTopicTrends(changed, 30, now).length, 0);
+  assert.equal(getMarketTopics([app('A', changed)])[0].id, loading.id);
+});
+
+test('incomplete or mixed-model classification cannot claim a sample trend', () => {
+  const reviews = [...windowReviews(5, 2, '2026-10-02', 'current'), ...windowReviews(5, 1, '2026-08-20', 'previous')];
+  const unclassified = reviews.map((review, index) => index === 0 ? { ...review, analysis: undefined } : review);
+  assert.equal(buildMarketSignals([app('A', unclassified)], 30, now)[0].comparable, false);
+  const changedModel = reviews.map((review, index) => index === 0 ? { ...review, analysis: { ...review.analysis, model: 'other-model' } } : review);
+  assert.equal(buildMarketSignals([app('A', changedModel)], 30, now)[0].comparable, false);
+});
+
+test('different domains and multiple aspects do not require preset category names', () => {
+  const restore = { id: 'topic-0000000000000003', name: 'Restored photo ordering', description: 'Photo ordering after recovery' };
+  const review = annotated({ text: 'Backup is great but restore scrambles order', date: '2026-10-02', score: 5 }, loading, 'positive', 'praise');
+  review.analysis.labels.push({ topic: restore, polarity: 'negative', intent: 'complaint', issue: 'Restore scrambles ordering', evidence: 'restore scrambles order' });
+  const trends = calculateTopicTrends([review], 30, now);
+  assert.equal(trends.find(item => item.topicId === loading.id).sentiment, 'positive');
+  assert.equal(trends.find(item => item.topicId === restore.id).sentiment, 'negative');
+  const banking = { id: 'topic-0000000000000004', name: 'Duplicate bank transactions', description: 'Duplicate transaction import' };
+  assert.equal(calculateTopicTrends([annotated({ text: 'Transaction duplicated', date: '2026-10-02' }, banking)], 30, now)[0].topic, banking.name);
+});
+
+test('stored classifications reject malformed or oversized aspects', () => {
+  const review = annotated({ text: 'Loading fails', date: '2026-10-02' });
+  for (const topic of [{ ...loading, id: 'arbitrary' }, { ...loading, name: 5 }, { ...loading, description: 'x'.repeat(301) }]) {
+    assert.equal(getReviewAnalysis({ ...review, analysis: { ...review.analysis, labels: [{ ...review.analysis.labels[0], topic }] } }), null);
+  }
+  assert.equal(getReviewAnalysis({ ...review, analysis: { ...review.analysis, labels: Array(5).fill(review.analysis.labels[0]) } }), null);
 });

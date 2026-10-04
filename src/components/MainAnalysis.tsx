@@ -30,6 +30,7 @@ const MainAnalysis: React.FC = () => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<string | null>(null);
+  const [cacheMeta, setCacheMeta] = useState<{ cached: boolean; generatedAt: number; reviewCountAtGeneration: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appData, setAppData] = useState<any>(null);
   const [customPrompt, setCustomPrompt] = useState<string>(DEFAULT_APP_ANALYZE_PROMPT);
@@ -126,6 +127,7 @@ const MainAnalysis: React.FC = () => {
     setLoading(true);
     setError('');
     setReport('');
+    setCacheMeta(null);
     setShowChallenge(false);
 
     try {
@@ -238,6 +240,9 @@ const MainAnalysis: React.FC = () => {
             if (parsedChunk.report) {
               fullReport += parsedChunk.report;
               setReport(fullReport);
+            }
+            if (parsedChunk.cacheMeta) {
+              setCacheMeta(parsedChunk.cacheMeta);
             }
           } catch (parseError) {
             console.error('Error parsing chunk:', parseError, 'Raw line:', line);
@@ -636,6 +641,18 @@ const MainAnalysis: React.FC = () => {
 
           {report && (
             <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+              {cacheMeta?.cached && (
+                <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                  <span className="font-semibold">Cached report</span>
+                  {' '}— generated on {new Date(cacheMeta.generatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  {cacheMeta.reviewCountAtGeneration > 0 && ` based on ${cacheMeta.reviewCountAtGeneration} reviews`}
+                  {(appData?.reviews?.reviews?.length || 0) === 0 && cacheMeta.reviewCountAtGeneration > 0 && (
+                    <span className="block mt-1 text-amber-700">
+                      ⚠️ Fresh review fetch returned 0 reviews (data source issue). Showing the last good report. Try Refresh later.
+                    </span>
+                  )}
+                </div>
+              )}
               {!loading && (
               <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
                 <button
@@ -645,7 +662,7 @@ const MainAnalysis: React.FC = () => {
                   <Download className="w-4 h-4 mr-2" />
                   Download Report
                 </button>
-                {appData?.reviews?.reviews && (
+                {appData?.reviews?.reviews && appData.reviews.reviews.length > 0 && (
                   <button
                     onClick={downloadReviews}
                     className="w-full sm:w-auto bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center justify-center"

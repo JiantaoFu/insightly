@@ -750,6 +750,16 @@ app.post('/api/analyze',
   if (!force && cachedReport && !isRecordEntryExpired(cachedReport)) {
     console.log('Report found in cache:', url);
 
+    // Send cache metadata first so frontend can show staleness warning
+    const reviewCount = cachedReport.appDetails?.reviews?.length || 0;
+    res.write(JSON.stringify({
+      cacheMeta: {
+        cached: true,
+        generatedAt: cachedReport.timestamp,
+        reviewCountAtGeneration: reviewCount
+      }
+    }) + '\n');
+
     // If cached, stream the report
     const chunks = cachedReport.finalReport.match(/[^\n]*\n?/g).filter(chunk => chunk !== '');
     chunks.forEach((chunk, index) => {

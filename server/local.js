@@ -3,12 +3,16 @@ import cors from 'cors';
 import { processAppStoreUrl, searchApps } from './appStoreScraper.js';
 import { processGooglePlayUrl } from './googlePlayScraper.js';
 import gplay from 'google-play-scraper';
+import rateLimit from 'express-rate-limit';
+import { classifierProfile, marketClassificationHandler } from './marketClassifier.js';
 
 // Account-free local entry point; production continues to use index.js.
 const app = express();
 app.use(cors({ origin: /^http:\/\/(localhost|127\.0\.0\.1):\d+$/ }));
-app.use(express.json({ limit: '64kb' }));
+app.use(express.json({ limit: '512kb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', mode: 'local-market' }));
+app.get('/api/market/classifier', (_req, res) => res.json(classifierProfile(true)));
+app.post('/api/market/classify', rateLimit({ windowMs: 15 * 60000, max: 120, standardHeaders: true, legacyHeaders: false }), marketClassificationHandler(true));
 app.get('/api/search-apps', async (req, res) => {
   const query = String(req.query.query || '').trim().slice(0, 100);
   if (query.length < 2) return res.json({ results: [] });

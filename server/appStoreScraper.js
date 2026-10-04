@@ -81,7 +81,7 @@ export async function getAppReviews(appId, country, options = {}) {
       cutoff = new Date(now.setMonth(now.getMonth() - months));
     }
 
-    while (allReviews.length < maxReviews && page < 10) {
+    while (allReviews.length < maxReviews && page <= 10) {
       try {
         // Apple review RSS is flaky (2026-10-01): sometimes returns an empty
         // feed even when reviews exist. Retry empty page-1 a few times.
@@ -110,12 +110,17 @@ export async function getAppReviews(appId, country, options = {}) {
             }
           }
           if (reviews.length === 0 && page === 1) {
-            try {
-              const webpage = await axios.get(`https://apps.apple.com/${country}/app/id${appId}`, { timeout: 15000 });
-              reviews = parseApplePageReviews(webpage.data);
-              fallbackSucceeded = true;
-              webpageSample = reviews.length > 0;
-            } catch { /* Keep feed errors available for the caller. */ }
+            const webpages = await Promise.allSettled([
+              `https://apps.apple.com/${country}/app/id${appId}`,
+              `https://apps.apple.com/${country}/app/${appId}?see-all=reviews&platform=iphone`,
+            ].map(async url => {
+              const response = await axios.get(url, { timeout: 15000 });
+              return parseApplePageReviews(response.data);
+            }));
+            fallbackSucceeded ||= webpages.some(result => result.status === 'fulfilled');
+            reviews = [...new Map(webpages.flatMap(result => result.status === 'fulfilled' ? result.value : [])
+              .map(review => [review.id, review])).values()];
+            webpageSample = reviews.length > 0;
           }
           if (primaryError && !fallbackSucceeded) throw primaryError;
           if (reviews.length > 0 || attempt === maxAttempts) break;

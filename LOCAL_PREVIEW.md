@@ -15,8 +15,9 @@ are retained when available, even if outside the trend windows. Topic trends use
 and ignore undated reviews.
 
 Apple scraping uses the repo's custom scraper with its browser User-Agent fix.
-If RSS feeds return no reviews, the official store page's structured review data
-is used as a fallback. That result is a limited sample, labeled in the watchlist,
+The market requests up to 500 reviews; Apple RSS pagination covers pages 1-10.
+If RSS feeds return no reviews, structured review data from the official product
+and all-reviews pages is merged by review ID. That result is a limited sample, labeled in the watchlist,
 and must not be treated as the app's complete recent review volume.
 
 The local API supports store scraping and health checks only. Production login,

@@ -34,7 +34,12 @@ for (const [path, host, processUrl] of [
       if (url.protocol !== 'https:' || url.hostname !== host) {
         return res.status(400).json({ error: 'Use an HTTPS store URL.' });
       }
-      res.json(await processUrl(url.href, { maxReviews: 100, months: req.body.months === 0 ? 0 : 6 }));
+      const maxReviews = req.body.maxReviews === undefined ? 100 : Number(req.body.maxReviews);
+      const months = req.body.months === undefined ? 3 : Number(req.body.months);
+      if (!Number.isInteger(maxReviews) || maxReviews < 1 || maxReviews > 500 || !Number.isFinite(months) || months < 0 || months > 120) {
+        return res.status(400).json({ error: 'Use 1-500 reviews and 0-120 months (0 includes all dates).' });
+      }
+      res.json(await processUrl(url.href, { maxReviews, months }));
     } catch (error) {
       res.status(400).json({ error: error.message || 'Could not sync app.' });
     }

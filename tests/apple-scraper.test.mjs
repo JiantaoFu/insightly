@@ -39,3 +39,29 @@ test('empty RSS feeds return labeled webpage sample without pretending it is com
   assert.equal(result.partial, true);
   assert.equal(result.reviews[0].timestamp, review.date);
 });
+
+test('product and all-reviews pages merge by review ID', async t => {
+  t.mock.method(store, 'reviews', async () => []);
+  t.mock.method(axios, 'get', async url => {
+    if (!url.startsWith('https://apps.apple.com/')) return { data: { feed: {} } };
+    const ids = url.includes('see-all=reviews') ? ['shared', 'additional'] : ['shared', 'product'];
+    const items = ids.map(id => ({ review: { id, contents: 'Review text', rating: 3, date: '2026-10-02T14:03:19.000Z' } }));
+    const payload = { data: [{ data: { shelfMapping: { allProductReviews: { items } } } }] };
+    return { data: `<script id="serialized-server-data" type="application/json">${JSON.stringify(payload)}</script>` };
+  });
+  const result = await getAppReviews('123', 'us', { maxReviews: 100, months: 0 });
+  assert.equal(result.total, 3);
+  assert.deepEqual(new Set(result.reviews.map(review => review.id)), new Set(['shared', 'additional', 'product']));
+});
+
+test('RSS pagination includes page ten and honors the requested limit', async t => {
+  const pages = [];
+  t.mock.method(store, 'reviews', async ({ page }) => {
+    pages.push(page);
+    return [{ id: `review-${page}`, score: 3, text: 'Review', updated: '2026-10-02T14:03:19.000Z' }];
+  });
+  const result = await getAppReviews('123', 'us', { maxReviews: 10, months: 0 });
+  assert.equal(result.total, 10);
+  assert.equal(pages.at(-1), 10);
+  assert.equal(result.source, 'review-feed');
+});

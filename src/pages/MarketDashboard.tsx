@@ -38,7 +38,7 @@ const processAppUrl = async (url: string) => {
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, maxReviews: 100, months: 0 }),
+    body: JSON.stringify({ url, maxReviews: 500, months: 0 }),
     signal: AbortSignal.timeout(90000),
   });
 

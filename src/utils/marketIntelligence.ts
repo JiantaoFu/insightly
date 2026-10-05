@@ -120,6 +120,7 @@ export const getMarketTopics = (apps: WatchApp[]): ModelTopic[] => [...new Map(a
 export const classifiedReviewCount = (apps: WatchApp[]) => apps.reduce((total, app) => total + app.reviews.filter(review => getReviewAnalysis(review, !!app.sample)).length, 0);
 
 export interface ResearchContext {
+  mode?: 'explore' | 'improve';
   product: string;
   question: string;
   focusTopic: string;
@@ -128,6 +129,7 @@ export interface ResearchContext {
 export const normalizeResearchContext = (value: unknown): ResearchContext => {
   const candidate = value && typeof value === 'object' ? value as Partial<ResearchContext> : {};
   return {
+    mode: candidate.mode === 'improve' ? 'improve' : 'explore',
     product: typeof candidate.product === 'string' ? candidate.product.trim().slice(0, 600) : '',
     question: typeof candidate.question === 'string' ? candidate.question.trim().slice(0, 400) : '',
     focusTopic: typeof candidate.focusTopic === 'string' && /^topic-[a-f0-9]{16}$/.test(candidate.focusTopic) ? candidate.focusTopic : 'all',

@@ -41,7 +41,14 @@ existing failures in legacy components.
 
 ## Product workspace
 
-Overview attributes findings to individual apps and provides expandable review
+The first screen is opportunity research, not collection statistics. Save a
+research question, choose Explore new ideas or Improve my product, and optionally
+set product context or a focus theme. The same source evidence supports either
+task; each saved research run records its own context. Sources opens the original
+manual collection, classification, watchlist, trend, weekly and evidence tools.
+Their data storage keys and scrape workflows are unchanged.
+
+In Sources, Overview attributes findings to individual apps and provides expandable review
 evidence. Filter by app and 7/30-day periods. The comparison table shows sample
 ratings rather than the store's aggregate rating. Weekly brief uses a fixed
 7-day comparison; Ask market answers three supported questions from the selected
@@ -126,3 +133,41 @@ Gemini configuration. This does not activate new subscription entitlements or
 deduct existing report credits. Keep it disabled until pilot usage/cost limits
 are agreed. See the [Gemini generation API](https://ai.google.dev/api/generate-content)
 for structured response support.
+
+## Opportunity hypotheses and validation shortlist
+
+Find opportunities makes one explicit Gemini request for up to five hypotheses,
+using at most 24 classified, current-window original quote excerpts. Excerpts are
+selected across apps in round-robin order, prioritizing complaints and requests;
+identical excerpts within an app/theme are deduplicated. This is a bounded,
+non-representative selection, not a complete market summary. Real and illustrative
+source data are never mixed in a real request. No names, full review bodies or
+model-generated statistics are sent. New research uses the existing server-side
+Gemini model and production pilot flag, with a separate 30-request/15-minute cap.
+This is a request limit, not a monetary budget guarantee.
+
+The model proposes possible scenarios, obstacles, consequences to verify,
+reasons to investigate, business unknowns and a concrete interview/prototype
+experiment. All scenarios and business value remain hypotheses. Each hypothesis
+must cite supplied evidence identifiers; original quotes and cited review counts
+are resolved in code. No opportunity score, willingness-to-pay claim or automatic
+development priority is established. The model may return fewer than three
+opportunities or none. Structural validation cannot prove semantic accuracy;
+review the cited text before acting.
+
+Results are persisted locally and retained on failure. Changing the saved
+question, task, selected evidence, period or model marks the old report as stale;
+regeneration requires an explicit click. Unsaved question changes disable
+generation. Identical requests have a 24-hour user/market/model/content cache
+in backend memory; a restart clears it. Provider-reported input, output, thinking
+and total token usage, when available, appears under Research scope & usage.
+These are the original generation counts, not additional charges for a cached
+repeat, and are not a price estimate.
+
+Save for validation stores a snapshot, up to 50 items in this browser. Validation
+status can be To validate, Interview planned, Prototype planned or Set aside;
+none implies a completed experiment. Export produces a Markdown brief with
+original evidence and unknowns. An explicit Update saved replaces an older
+snapshot for the same hypothesis while preserving its status. This shortlist is
+not unattended monitoring or a history of completed experiments. Illustrative
+sample opportunities never call Gemini and stay labeled in the UI and exports.

@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, Plus, Radar, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Radar, Search, Settings2 } from 'lucide-react';
 
 import Navigation from '../components/Navigation';
 import { SERVER_URL } from '../components/Constants';
 import { appendSyncObservation, classifiedReviewCount, getMarketTopics, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, normalizeResearchContext, ResearchContext, MarketReview, ReviewAnalysis, WatchApp } from '../utils/marketIntelligence';
 import MarketInsights from '../components/MarketInsights';
-import { ResearchQuestionEditor } from '../components/MarketResearch';
+import OpportunityWorkspace from '../components/OpportunityWorkspace';
 import MarketModelControls, { ClassifierProfile } from '../components/MarketModelControls';
 import { useAuth } from '../components/AuthContext';
 
@@ -53,6 +53,8 @@ const MarketDashboard: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchApp[]>(loadWatchlist);
   const watchlistRef = useRef(watchlist);
   const [research, setResearch] = useState<ResearchContext>(loadResearch);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [generatingOpportunities, setGeneratingOpportunities] = useState(false);
   const { token } = useAuth();
   const [profile, setProfile] = useState<ClassifierProfile | null>(null);
   const [checkingModel, setCheckingModel] = useState(true);
@@ -335,7 +337,7 @@ const MarketDashboard: React.FC = () => {
     }
   };
 
-  const busy = isAdding || syncingId !== null || syncingAll || classifying;
+  const busy = isAdding || syncingId !== null || syncingAll || classifying || generatingOpportunities;
   const realApps = watchlist.filter(app => !app.sample);
   const currentModelCount = profile?.configured ? realApps.reduce((sum, app) => sum + app.reviews.filter(review => {
     const analysis = getReviewAnalysis(review); return analysis?.provider === profile.provider && analysis.model === profile.model;
@@ -346,11 +348,23 @@ const MarketDashboard: React.FC = () => {
       <Navigation />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
         <div className="flex items-center gap-2 text-teal-800 text-sm font-medium"><Radar className="w-4 h-4" />Product intelligence</div>
-        <h1 className="text-3xl font-semibold text-gray-950 mt-2">Your market</h1>
+        <div className="flex flex-wrap justify-between items-center gap-3 mt-2">
+          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Review sources' : 'Opportunity research'}</h1>
+          <button onClick={() => setSourcesOpen(value => !value)} className="inline-flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-3 py-2">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to opportunities' : `Sources (${watchlist.length})`}</button>
+        </div>
         <p className="mt-2 text-sm text-gray-500">{watchlist.some(app => app.sample) ? 'Sample market · illustrative reviews' : 'Manual monitoring preview · saved in this browser'}</p>
 
+        <div className={sourcesOpen ? 'hidden' : ''}>
+          {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}
+          <OpportunityWorkspace apps={watchlist} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
+            onBusyChange={setGeneratingOpportunities} onOpenSources={() => setSourcesOpen(true)} onResearchSave={next => {
+              setResearch(next);
+              try { localStorage.setItem(RESEARCH_KEY, JSON.stringify(next)); }
+              catch { setError('Research question could not be saved in this browser. It remains available until this page closes.'); setSourcesOpen(true); }
+            }} />
+        </div>
+        <div className={sourcesOpen ? '' : 'hidden'}>
         <section className="mt-5 border-b border-gray-200 pb-5">
-          {watchlist.length === 0 && <button onClick={loadSample} className="mb-4 text-blue-700 font-semibold">Explore a sample market</button>}
           <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_auto] gap-3">
             <select
               aria-label="New app role"
@@ -416,11 +430,6 @@ const MarketDashboard: React.FC = () => {
         <MarketModelControls profile={profile} checking={checkingModel} busy={busy} progress={classificationProgress}
           classified={currentModelCount} total={realApps.reduce((total, app) => total + app.reviews.length, 0)}
           error={classificationError} onCheck={() => { setClassificationError(null); setModelCheck(value => value + 1); }} onClassify={classifyReviews} />
-        <ResearchQuestionEditor context={research} topics={getMarketTopics(watchlist)} onSave={next => {
-          setResearch(next);
-          try { localStorage.setItem(RESEARCH_KEY, JSON.stringify(next)); setNotice('Research question saved in this browser.'); }
-          catch { setError('Research question could not be saved in this browser. It remains available until this page closes.'); }
-        }} />
         <MarketInsights apps={watchlist} research={research} busy={busy} syncingId={syncingId} syncErrors={syncErrors}
           onSync={refreshApp} onSyncAll={syncAll}
           onRemove={id => persistWatchlist(watchlistRef.current.filter(app => app.id !== id))}
@@ -428,6 +437,7 @@ const MarketDashboard: React.FC = () => {
             ...app, role: app.id === id ? nextRole : nextRole === 'my-app' ? 'competitor' : app.role,
           })))}
         />
+        </div>
       </main>
     </div>
   );

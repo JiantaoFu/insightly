@@ -133,7 +133,7 @@ test('latest failed sync and region mismatch withhold comparisons after reload',
 });
 
 test('research question validation handles malformed storage and bounds input', () => {
-  assert.deepEqual(normalizeResearchContext(null), { product: '', question: '', focusTopic: 'all' });
+  assert.deepEqual(normalizeResearchContext(null), { mode: 'explore', product: '', question: '', focusTopic: 'all' });
   const normalized = normalizeResearchContext({ product: 'x'.repeat(900), question: ' question ', focusTopic: 'Invented topic' });
   assert.equal(normalized.product.length, 600);
   assert.equal(normalized.question, 'question');

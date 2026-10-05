@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   applyBody, applyHead, applyHeroCopy, extractSummary, hasMainMarkers, jsonForScript,
   mdToHtml, renderAppReportMain, renderInsightsMain, splitReport,
+  applyGoneHead, classifyReportLookup, isShareId, renderGoneMain, GONE, GONE_CSS, PAGE_CSS,
 } from './prerender-core.js';
 
 const shell = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
@@ -100,4 +101,62 @@ test('insights list + teams hero', () => {
   assert.ok(teams.includes('<h1 class="isk-h1">Teams H</h1>'));
   assert.ok(teams.includes('data-prerendered'));
   assert.ok(teams.includes('>Book a Demo</a>'));
+});
+
+test('isShareId: md5 hex only', () => {
+  assert.equal(isShareId('a76a6ea3f499160cdfe174330a02969d'), true);
+  assert.equal(isShareId('1CD802BF2D661DC96A4DF344975AEFAF'), true);
+  assert.equal(isShareId('doesnotexist123'), false);
+  assert.equal(isShareId('https%3A%2F%2Fapps.apple.com%2Fus%2Fapp%2Fx'), false);
+  assert.equal(isShareId(''), false);
+});
+
+test('classifyReportLookup: only explicit backend codes are definitive', () => {
+  const id = 'a76a6ea3f499160cdfe174330a02969d';
+  const app = (b) => !!b.appDetails;
+  const c = (api, sid = id) => classifyReportLookup(sid, api, app);
+
+  assert.deepEqual(c({ status: 200, body: { appDetails: {}, report: 'x' } }), { result: 'ok' });
+  // Definitive
+  assert.deepEqual(c(null, 'doesnotexist123'), { result: 'gone', reason: 'not_found' });
+  assert.deepEqual(c({ status: 404, body: { error: 'Report not found', code: 'not_found' } }), { result: 'gone', reason: 'not_found' });
+  assert.deepEqual(c({ status: 410, body: { error: 'Report expired.', code: 'expired' } }), { result: 'gone', reason: 'expired' });
+  // Timeout / network error
+  assert.equal(c(null).result, 'unknown');
+  // Legacy ambiguous answers (current production backend): fallback
+  assert.equal(c({ status: 404, body: { error: 'Report not found or inaccessible', shouldReanalyze: true } }).result, 'unknown');
+  assert.equal(c({ status: 404, body: { error: 'Report expired. Please re-run the comparison.', shouldReanalyze: true } }).result, 'unknown');
+  assert.equal(c({ status: 410, body: { error: 'Report expired. Please re-run the analysis.', shouldReanalyze: true } }).result, 'unknown');
+  // Transient / odd
+  assert.equal(c({ status: 503, body: { error: 'x', code: 'unavailable' } }).result, 'unknown');
+  assert.equal(c({ status: 502, body: null }).result, 'unknown'); // Render's HTML error page
+  assert.equal(c({ status: 500, body: { code: 'not_found' } }).result, 'unknown'); // code+status must agree
+  assert.equal(c({ status: 410, body: { code: 'not_found' } }).result, 'unknown');
+  assert.equal(c({ status: 200, body: { error: 'x' } }).result, 'unknown');
+  assert.equal(c({ status: 200, body: {} }).result, 'unknown');
+});
+
+test('gone page: own title, noindex, no canonical, no hero, data for the SPA', () => {
+  let html = applyGoneHead(shell);
+  html = applyBody(html, {
+    main: renderGoneMain({ reportType: 'competitor' }),
+    css: PAGE_CSS + GONE_CSS,
+    data: { kind: 'report-gone', shareId: 'abc', reportType: 'competitor', reason: 'not_found' },
+  });
+  assert.match(html, new RegExp(`<title>${GONE.title.replace(/[|]/g, '\\$&')}</title>`));
+  assert.equal(count(html, /<title>/g), 1);
+  assert.match(html, /<meta name="robots" content="noindex">/);
+  assert.equal(count(html, /<meta name="robots"/g), 1);
+  assert.doesNotMatch(html, /rel="canonical"/);
+  assert.doesNotMatch(html, /property="og:url"/);
+  assert.doesNotMatch(html, /name="twitter:url"/);
+  assert.doesNotMatch(html, /application\/ld\+json/);
+  assert.doesNotMatch(html, /<main class="isk-hero"/); // home hero gone
+  assert.doesNotMatch(html, /Find Your Next Product Idea/);
+  assert.equal(count(html, /<h1[\s>]/g), 1);
+  assert.match(html, /<h1>This report has expired or no longer exists<\/h1>/);
+  assert.match(html, /<a class="ipr-btn" href="\/">Check an app/);
+  assert.match(html, /competitor comparison/);
+  assert.match(html, /data-prerendered/);
+  assert.match(html, /id="__INSIGHTLY_DATA__">\{"kind":"report-gone"/);
 });

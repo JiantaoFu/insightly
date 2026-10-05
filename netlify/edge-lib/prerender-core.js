@@ -185,7 +185,7 @@ function metaRe(attr, name) {
 
 /**
  * Rewrite the page-level <head> tags of the SPA shell.
- * meta: { title, description, canonical, image?, imageAlt?, ogType?, twitterCard?, jsonLd? }
+ * meta: { title, description, canonical (null = remove), robots?, image?, imageAlt?, ogType?, twitterCard?, jsonLd? }
  */
 export function applyHead(html, meta) {
   const t = esc(meta.title);
@@ -194,12 +194,24 @@ export function applyHead(html, meta) {
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${t}</title>`);
   html = setTag(html, metaRe('name', 'title'), `<meta name="title" content="${t}">`);
   html = setTag(html, metaRe('name', 'description'), `<meta name="description" content="${d}">`);
-  html = setTag(html, /<link\s+rel="canonical"[^>]*>/i, `<link rel="canonical" href="${c}">`);
+  if (meta.robots) {
+    html = setTag(html, metaRe('name', 'robots'), `<meta name="robots" content="${esc(meta.robots)}">`);
+  }
+  if (meta.canonical === null) {
+    // Pages that must not be indexed (e.g. a gone report) get no canonical /
+    // og:url pointing anywhere, least of all at the home page.
+    html = html
+      .replace(/\s*<link\s+rel="canonical"[^>]*>/i, '')
+      .replace(new RegExp('\\s*' + metaRe('property', 'og:url').source, 'i'), '')
+      .replace(new RegExp('\\s*' + metaRe('name', 'twitter:url').source, 'i'), '');
+  } else {
+    html = setTag(html, /<link\s+rel="canonical"[^>]*>/i, `<link rel="canonical" href="${c}">`);
+  }
   html = setTag(html, metaRe('property', 'og:type'), `<meta property="og:type" content="${esc(meta.ogType || 'website')}">`);
-  html = setTag(html, metaRe('property', 'og:url'), `<meta property="og:url" content="${c}">`);
+  if (meta.canonical !== null) html = setTag(html, metaRe('property', 'og:url'), `<meta property="og:url" content="${c}">`);
   html = setTag(html, metaRe('property', 'og:title'), `<meta property="og:title" content="${t}">`);
   html = setTag(html, metaRe('property', 'og:description'), `<meta property="og:description" content="${d}">`);
-  html = setTag(html, metaRe('name', 'twitter:url'), `<meta name="twitter:url" content="${c}">`);
+  if (meta.canonical !== null) html = setTag(html, metaRe('name', 'twitter:url'), `<meta name="twitter:url" content="${c}">`);
   html = setTag(html, metaRe('name', 'twitter:title'), `<meta name="twitter:title" content="${t}">`);
   html = setTag(html, metaRe('name', 'twitter:description'), `<meta name="twitter:description" content="${d}">`);
   if (meta.image) {
@@ -379,3 +391,75 @@ export function renderSignInMain({ heading }) {
           </section>
         </main>`;
 }
+
+// ------------------------------------------------------- gone reports ----
+
+// Every share id since Feb 2025 is an md5 hex digest (server/utils.js
+// generateUrlHash, used for both app and competitor reports). Anything else
+// can never resolve, so the edge can call it gone without asking the backend.
+export const SHARE_ID_RE = /^[0-9a-f]{32}$/i;
+export const isShareId = (id) => typeof id === 'string' && SHARE_ID_RE.test(id);
+
+/**
+ * Classify a backend shared-report lookup.
+ *   'ok'      -> 200 with a usable payload (hasPayload(body))
+ *   'gone'    -> DEFINITIVELY not found / expired: serve 410
+ *   'unknown' -> error, timeout, or an ambiguous answer: serve the 200 shell fallback
+ *
+ * "Definitive" means the backend said so explicitly with a machine-readable
+ * code (backend contract in server/utils/reportLookup.js):
+ *   404 {code:'not_found'} or 410 {code:'expired'}.
+ * The legacy answers without `code` (404 "Report not found or inaccessible" is
+ * also returned for storage errors; the competitor 404 "Report expired" only
+ * means "not in this process's memory cache") are deliberately 'unknown'.
+ *
+ * @param {string} shareId
+ * @param {{status:number, body:any} | null} api  null = network error / timeout
+ * @param {(body:any) => boolean} hasPayload
+ * @returns {{ result: 'ok'|'gone'|'unknown', reason?: string }}
+ */
+export function classifyReportLookup(shareId, api, hasPayload) {
+  if (!isShareId(shareId)) return { result: 'gone', reason: 'not_found' };
+  if (!api) return { result: 'unknown', reason: 'unreachable' };
+  const body = api.body && typeof api.body === 'object' ? api.body : null;
+  if (api.status === 200) {
+    return body && !body.error && hasPayload(body) ? { result: 'ok' } : { result: 'unknown', reason: 'bad-payload' };
+  }
+  const code = body && body.code;
+  if (api.status === 404 && code === 'not_found') return { result: 'gone', reason: 'not_found' };
+  if (api.status === 410 && code === 'expired') return { result: 'gone', reason: 'expired' };
+  return { result: 'unknown', reason: `http-${api.status}` };
+}
+
+export const GONE = {
+  title: 'Report Expired or Not Found | Insightly',
+  description:
+    'This Insightly report link has expired or no longer exists. Paste any App Store or Google Play link on the home page to get a fresh AI review analysis.',
+  heading: 'This report has expired or no longer exists',
+};
+
+/** Head for a gone report: own title, noindex, no canonical/og:url, no home JSON-LD. */
+export function applyGoneHead(html) {
+  return applyHead(html, {
+    title: GONE.title,
+    description: GONE.description,
+    canonical: null,
+    robots: 'noindex',
+    jsonLd: null,
+  });
+}
+
+/** Main for a gone report (replaces the home hero). reportType: 'app' | 'competitor'. */
+export function renderGoneMain({ reportType }) {
+  const what = reportType === 'competitor' ? 'competitor comparison' : 'app review analysis';
+  return `<main class="ipr" id="ipr-main" data-prerendered data-report-gone>
+          <section class="ipr-card ipr-gone">
+            <h1>${esc(GONE.heading)}</h1>
+            <p>The ${what} at this link has expired or was removed. Reports are generated from live store reviews, so you can get a fresh one in a minute.</p>
+            <a class="ipr-btn" href="/">Check an app on the home page →</a>
+            <a class="ipr-lnk" href="/app-insights">or browse 2,800+ free reports</a>
+          </section>
+        </main>`;
+}
+
+export const GONE_CSS = '.ipr-gone{max-width:36rem;margin:2rem auto;text-align:center;padding:2.5rem 2rem}.ipr-gone h1{font-size:1.5rem}.ipr-gone p{color:#4B5563;margin-top:.75rem}';

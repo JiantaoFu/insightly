@@ -4,11 +4,11 @@ import { SERVER_URL } from './Constants';
 import ResearchStart from './ResearchStart';
 import type { ClassifierProfile } from './MarketModelControls';
 import { getReviewAnalysis, type ResearchContext, type WatchApp } from '../utils/marketIntelligence';
-import { loadResearchScope, SCOPE_STORAGE, storeAppKey, type ResearchApp, type ResearchScope } from '../utils/marketResearchFlow';
-import { illustrativeOpportunityReport, loadSavedOpportunities, OPPORTUNITY_STORAGE, OPPORTUNITY_VERSION, opportunityInputKey, opportunityMarkdown, opportunityRequest, parseOpportunityReport, saveOpportunitySnapshot, SAVED_OPPORTUNITY_STORAGE, selectOpportunityEvidence, type Opportunity, type OpportunityReport, type SavedOpportunity } from '../utils/marketOpportunities';
+import { storeAppKey, type ResearchApp, type ResearchScope } from '../utils/marketResearchFlow';
+import { illustrativeOpportunityReport, OPPORTUNITY_VERSION, opportunityInputKey, opportunityMarkdown, opportunityRequest, parseOpportunityReport, saveOpportunitySnapshot, selectOpportunityEvidence, type Opportunity, type OpportunityReport, type SavedOpportunity } from '../utils/marketOpportunities';
+import type { ResearchProject } from '../utils/researchProjects';
 import { downloadFile } from '../utils/download';
 
-const readStorage = (key: string): unknown => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } };
 
 const OpportunityRow = ({ opportunity: op, report, saved, previouslySaved, onSave, onStage, onRemove }: {
   opportunity: Opportunity; report: OpportunityReport; saved?: SavedOpportunity; onSave?: () => void;
@@ -46,19 +46,17 @@ const OpportunityRow = ({ opportunity: op, report, saved, previouslySaved, onSav
 };
 
 interface Props {
+  project: ResearchProject; onProjectChange: (patch: Partial<ResearchProject>) => void;
   apps: WatchApp[]; research: ResearchContext; onResearchSave: (context: ResearchContext) => void;
   profile: ClassifierProfile | null; checking: boolean; token: string | null; busy: boolean;
   onBusyChange: (busy: boolean) => void; onOpenSources: () => void;
   onPrepare: (apps: ResearchApp[], days: number, progress: (text: string) => void, signal: AbortSignal) => Promise<{ apps: WatchApp[]; warnings: string[] }>;
 }
 
-export default function OpportunityWorkspace({ apps, research, onResearchSave, profile, checking, token, busy, onBusyChange, onOpenSources, onPrepare }: Props) {
-  const [scope, setScope] = useState(() => loadResearchScope(readStorage(SCOPE_STORAGE), apps));
+export default function OpportunityWorkspace({ project, onProjectChange, apps, research, onResearchSave, profile, checking, token, busy, onBusyChange, onOpenSources, onPrepare }: Props) {
+  const { scope, days, report, saved } = project;
   const [scopeDirty, setScopeDirty] = useState(false);
-  const [days, setDays] = useState(() => parseOpportunityReport(readStorage(OPPORTUNITY_STORAGE))?.days || 90);
-  const [report, setReport] = useState(() => parseOpportunityReport(readStorage(OPPORTUNITY_STORAGE)));
-  const [setupOpen, setSetupOpen] = useState(() => !parseOpportunityReport(readStorage(OPPORTUNITY_STORAGE)));
-  const [saved, setSaved] = useState(() => loadSavedOpportunities(readStorage(SAVED_OPPORTUNITY_STORAGE)));
+  const [setupOpen, setSetupOpen] = useState(() => !project.report);
   const [view, setView] = useState<'opportunities' | 'saved'>('opportunities');
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
@@ -76,14 +74,11 @@ export default function OpportunityWorkspace({ apps, research, onResearchSave, p
   const stale = !!visibleReport && (scopeDirty || visibleReport.inputKey !== inputKey || (visibleReport.researchAppKeys && JSON.stringify(visibleReport.researchAppKeys) !== JSON.stringify(scope.apps.map(app => app.key))) || (!visibleReport.sample && profile?.configured && visibleReport.model !== profile.model));
 
   const persistScope = (next: ResearchScope) => {
-    setScope(next);
-    if (next.query !== scope.query) onResearchSave({ mode: 'explore', question: '', product: '', focusTopic: 'all' });
-    try { localStorage.setItem(SCOPE_STORAGE, JSON.stringify(next)); } catch { setError('Browser storage is full. This research scope will be lost when the page closes.'); }
+    onProjectChange({ scope: next, ...(next.query !== scope.query ? { research: { mode: 'explore', question: '', product: '', focusTopic: 'all' } } : {}) });
   };
 
   const persistSaved = (next: SavedOpportunity[]) => {
-    setSaved(next);
-    try { localStorage.setItem(SAVED_OPPORTUNITY_STORAGE, JSON.stringify(next)); } catch { setError('Browser storage is unavailable or full. Saved changes will be lost when this page closes.'); }
+    onProjectChange({ saved: next });
   };
 
   const generate = async () => {
@@ -99,18 +94,16 @@ export default function OpportunityWorkspace({ apps, research, onResearchSave, p
       const nextInputKey = opportunityInputKey(context, selectedEvidence, days);
       if (report && report.inputKey === nextInputKey && report.model === profile.model && JSON.stringify(report.researchAppKeys) === JSON.stringify(scope.apps.map(app => app.key))) { setProgress('Research is up to date.'); setSetupOpen(false); return; }
       setProgress('Connecting feedback to user problems...');
-      const marketId = localStorage.getItem('insightly_market_id_v1') || crypto.randomUUID();
-      localStorage.setItem('insightly_market_id_v1', marketId);
+      const marketId = project.id;
       const response = await fetch(`${SERVER_URL}/api/market/opportunities`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(opportunityRequest(marketId, context, selectedEvidence, days)), signal: AbortSignal.any([abort.signal, AbortSignal.timeout(100000)]) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Opportunity research is unavailable.');
       const next = parseOpportunityReport({ ...data, inputKey: nextInputKey, evidence: selectedEvidence, context, days, sample: false, researchAppKeys: scope.apps.map(app => app.key) });
       if (!next || data.version !== OPPORTUNITY_VERSION || data.provider !== 'gemini' || data.model !== profile.model) throw new Error('Research returned invalid hypotheses or evidence references.');
-      setReport(next);
+      onProjectChange({ report: next });
       setSetupOpen(false);
       setProgress('Research complete.');
-      try { localStorage.setItem(OPPORTUNITY_STORAGE, JSON.stringify(next)); } catch { setError('Research is available until this page closes; browser storage is full or unavailable.'); }
     } catch (error) { setProgress(''); setError(abort.signal.aborted ? 'Research stopped. Completed review collection and analysis have been saved.' : `${error instanceof Error ? error.message : 'Research failed.'} Any previous results are retained.`); }
     finally { controller.current = null; setGenerating(false); onBusyChange(false); }
   };
@@ -134,7 +127,7 @@ export default function OpportunityWorkspace({ apps, research, onResearchSave, p
           <label>Specific question<input aria-label="Optional research question" disabled={busy} maxLength={400} value={research.question} onChange={event => onResearchSave({ ...research, question: event.target.value })} placeholder="Any user problem worth investigating" className="block w-full mt-1 px-3 py-2 border border-gray-300 rounded" /></label>
           <label>Research for<select aria-label="Research purpose" disabled={busy} value={research.mode || 'explore'} onChange={event => onResearchSave({ ...research, mode: event.target.value as ResearchContext['mode'] })} className="block w-full mt-1 px-3 py-2 border border-gray-300 rounded"><option value="explore">A new direction</option><option value="improve">My existing product</option></select></label>
           {research.mode === 'improve' && <label>My product <span className="text-gray-400">· optional</span><input disabled={busy} maxLength={600} value={research.product} onChange={event => onResearchSave({ ...research, product: event.target.value })} className="block w-full mt-1 px-3 py-2 border border-gray-300 rounded" /></label>}
-          <label>Review period<select disabled={busy} aria-label="Opportunity evidence period" value={days} onChange={event => setDays(Number(event.target.value))} className="block mt-1 border border-gray-300 rounded p-2"><option value={90}>Last 90 days</option><option value={30}>Last 30 days</option><option value={7}>Last 7 days</option></select></label>
+          <label>Review period<select disabled={busy} aria-label="Opportunity evidence period" value={days} onChange={event => onProjectChange({ days: Number(event.target.value) })} className="block mt-1 border border-gray-300 rounded p-2"><option value={90}>Last 90 days</option><option value={30}>Last 30 days</option><option value={7}>Last 7 days</option></select></label>
         </div>
       </details>}
     </>}

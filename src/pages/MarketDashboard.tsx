@@ -3,8 +3,9 @@ import { ArrowLeft, Loader2, Plus, Radar, Search, Settings2 } from 'lucide-react
 
 import Navigation from '../components/Navigation';
 import { SERVER_URL } from '../components/Constants';
-import { appendSyncObservation, classifiedReviewCount, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, normalizeResearchContext, ResearchContext, MarketReview, WatchApp } from '../utils/marketIntelligence';
-import { classifyResearchReviews, storeAppKey, type ResearchApp } from '../utils/marketResearchFlow';
+import { appendSyncObservation, classifiedReviewCount, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, MarketReview, WatchApp } from '../utils/marketIntelligence';
+import { classifyResearchReviews, parseResearchApp, storeAppKey, type ResearchApp } from '../utils/marketResearchFlow';
+import { changeResearchProject, loadResearchProjects, newResearchProject, PROJECTS_STORAGE, projectSources, type ResearchProject, type ResearchProjects } from '../utils/researchProjects';
 import MarketInsights from '../components/MarketInsights';
 import OpportunityWorkspace from '../components/OpportunityWorkspace';
 import MarketModelControls, { ClassifierProfile } from '../components/MarketModelControls';
@@ -12,13 +13,6 @@ import { useAuth } from '../components/AuthContext';
 
 
 const STORAGE_KEY = 'insightly_market_watchlist_v1';
-const RESEARCH_KEY = 'insightly_market_research_v1';
-const MARKET_KEY = 'insightly_market_id_v1';
-
-const loadResearch = () => {
-  try { return normalizeResearchContext(JSON.parse(localStorage.getItem(RESEARCH_KEY) || '{}')); }
-  catch { return normalizeResearchContext(null); }
-};
 
 const loadWatchlist = (): WatchApp[] => {
   try {
@@ -53,7 +47,26 @@ const processAppUrl = async (url: string, signal?: AbortSignal) => {
 const MarketDashboard: React.FC = () => {
   const [watchlist, setWatchlist] = useState<WatchApp[]>(loadWatchlist);
   const watchlistRef = useRef(watchlist);
-  const [research, setResearch] = useState<ResearchContext>(loadResearch);
+  const [projects, setProjects] = useState(() => loadResearchProjects(localStorage, watchlist));
+  const projectsRef = useRef(projects);
+  const project = projects.projects.find(item => item.id === projects.activeId)!;
+  const research = project.research;
+  const scopedApps = projectSources(project, watchlist);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const persistProjects = (next: ResearchProjects) => {
+    projectsRef.current = next;
+    setProjects(next);
+    try { localStorage.setItem(PROJECTS_STORAGE, JSON.stringify(next)); setStorageError(null); }
+    catch { setStorageError('Research changes could not be saved. Keep this page open; browser storage is full or unavailable.'); }
+  };
+  const updateProject = (patch: Partial<ResearchProject>) => {
+    const current = projectsRef.current;
+    persistProjects(changeResearchProject(current, project.id, patch));
+  };
+  useEffect(() => {
+    try { localStorage.setItem(PROJECTS_STORAGE, JSON.stringify(projectsRef.current)); }
+    catch { setStorageError('Research migration could not be saved. Existing data has been retained.'); }
+  }, []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [generatingOpportunities, setGeneratingOpportunities] = useState(false);
   const { token } = useAuth();
@@ -63,7 +76,6 @@ const MarketDashboard: React.FC = () => {
   const [classifying, setClassifying] = useState(false);
   const [classificationProgress, setClassificationProgress] = useState<string | null>(null);
   const [classificationError, setClassificationError] = useState<string | null>(null);
-  const marketIdRef = useRef('');
   const [syncingAll, setSyncingAll] = useState(false);
   const [url, setUrl] = useState('');
   const [role, setRole] = useState<WatchApp['role']>(watchlist.some(app => app.role === 'my-app') ? 'competitor' : 'my-app');
@@ -97,7 +109,7 @@ const MarketDashboard: React.FC = () => {
     if (!profile?.configured || classifying) return;
     setClassifying(true); setClassificationError(null);
     try {
-      const result = await classifyResearchReviews({ apps: watchlistRef.current.filter(app => !app.sample), profile, marketId: marketId(), serverUrl: SERVER_URL, token,
+      const result = await classifyResearchReviews({ apps: projectSources(project, watchlistRef.current), profile, marketId: marketId(), serverUrl: SERVER_URL, token,
         onProgress: setClassificationProgress, onUpdate: mergeResearchApps });
       setNotice(`${result.completed} reviews classified by Gemini. Completed reviews are retained.`);
     } catch (error) {
@@ -166,6 +178,7 @@ const MarketDashboard: React.FC = () => {
       }))),
     })));
     setRole('competitor');
+    updateProject({ sample: true });
   };
 
   const refreshApp = async (app: WatchApp, signal?: AbortSignal) => {
@@ -216,7 +229,7 @@ const MarketDashboard: React.FC = () => {
   const syncAll = async () => {
     setSyncingAll(true);
     setNotice(null);
-    const apps = watchlistRef.current.filter(app => !app.sample);
+    const apps = projectSources(project, watchlistRef.current);
     let successful = 0;
     try {
       for (const app of apps) {
@@ -238,17 +251,11 @@ const MarketDashboard: React.FC = () => {
     }
   };
 
-  const marketId = () => {
-    if (!marketIdRef.current) {
-      marketIdRef.current = localStorage.getItem(MARKET_KEY) || crypto.randomUUID();
-      localStorage.setItem(MARKET_KEY, marketIdRef.current);
-    }
-    return marketIdRef.current;
-  };
+  const marketId = () => project.id;
 
   const mergeResearchApps = (updated: WatchApp[]) => {
     const byId = new Map(updated.map(app => [app.id, app]));
-    persistWatchlist(watchlistRef.current.map(app => byId.get(app.id) || app));
+    persistWatchlist(watchlistRef.current.map(app => byId.has(app.id) ? { ...byId.get(app.id)!, role: app.role } : app));
   };
 
   const collectApp = async (appUrl: string, appRole: WatchApp['role'], signal?: AbortSignal) => {
@@ -306,11 +313,15 @@ const MarketDashboard: React.FC = () => {
       setError('Use a valid App Store or Google Play URL.');
       return;
     }
-    if (watchlist.some(app => storeAppKey(app.url) === storeAppKey(url.trim()))) {
-      setError('This app is already in your market watchlist.');
+    if (project.scope.apps.length >= 5) {
+      setError('This research already has five apps. Remove one before adding another.');
       return;
     }
-    if (role === 'my-app' && watchlist.some(app => app.role === 'my-app')) {
+    if (project.scope.apps.some(app => app.key === storeAppKey(url.trim()))) {
+      setError('This app is already in this research.');
+      return;
+    }
+    if (role === 'my-app' && scopedApps.some(app => app.role === 'my-app')) {
       setError('A My App is already assigned. This app can be added as a competitor.');
       return;
     }
@@ -319,7 +330,10 @@ const MarketDashboard: React.FC = () => {
       setIsAdding(true);
       setError(null);
       setNotice(null);
-      const nextApp = await collectApp(url.trim(), role);
+      const nextApp = watchlistRef.current.find(app => !app.sample && storeAppKey(app.url) === storeAppKey(url.trim())) || await collectApp(url.trim(), 'competitor');
+      const selected = parseResearchApp({ title: nextApp.name, appUrl: nextApp.url, icon: nextApp.icon, developer: nextApp.developer });
+      if (!selected) throw new Error('This store URL cannot be added to research.');
+      updateProject({ scope: { ...project.scope, apps: [...project.scope.apps, selected] }, roles: { ...project.roles, [selected.key]: role } });
       setRole('competitor');
       setNotice(nextApp.reviews.length ? `${nextApp.name} added with ${nextApp.reviews.length} reviews. Your market results are below.` : `${nextApp.name} added, but its public store feed returned no reviews. Try another store region or platform.`);
       setUrl('');
@@ -331,7 +345,7 @@ const MarketDashboard: React.FC = () => {
   };
 
   const busy = isAdding || syncingId !== null || syncingAll || classifying || generatingOpportunities;
-  const realApps = watchlist.filter(app => !app.sample);
+  const realApps = scopedApps.filter(app => !app.sample);
   const currentModelCount = profile?.configured ? realApps.reduce((sum, app) => sum + app.reviews.filter(review => {
     const analysis = getReviewAnalysis(review); return analysis?.provider === profile.provider && analysis.model === profile.model;
   }).length, 0) : classifiedReviewCount(realApps);
@@ -343,18 +357,32 @@ const MarketDashboard: React.FC = () => {
         <div className="flex items-center gap-2 text-teal-800 text-sm font-medium"><Radar className="w-4 h-4" />Product intelligence</div>
         <div className="flex flex-wrap justify-between items-center gap-3 mt-2">
           <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Review sources' : 'Find your next product direction'}</h1>
-          <button onClick={() => setSourcesOpen(value => !value)} className="inline-flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-3 py-2">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to opportunities' : `Sources (${watchlist.length})`}</button>
+          <button onClick={() => setSourcesOpen(value => !value)} className="inline-flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-3 py-2">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to opportunities' : `Sources (${scopedApps.length})`}</button>
         </div>
         <p className="mt-2 text-sm text-gray-500">{watchlist.some(app => app.sample) && !realApps.length ? 'Sample market · illustrative reviews' : 'Research saved in this browser'}</p>
+        <div className="flex flex-wrap items-end gap-3 mt-5 pb-4 border-b border-gray-200">
+          <label className="text-sm text-gray-600 min-w-0 flex-1 max-w-md">Research direction
+            <select aria-label="Research direction" disabled={busy} value={project.id} onChange={event => {
+              persistProjects({ ...projectsRef.current, activeId: event.target.value });
+              setError(null); setNotice(null); setClassificationError(null); setUrl('');
+            }} className="block w-full mt-1 border border-gray-300 rounded px-3 py-2 text-gray-900">
+              {projects.projects.map(item => <option key={item.id} value={item.id}>{item.scope.title}</option>)}
+            </select>
+          </label>
+          <button disabled={busy} onClick={() => {
+            const next = newResearchProject();
+            persistProjects({ activeId: next.id, projects: [...projectsRef.current.projects, next] });
+            setSourcesOpen(false); setError(null); setNotice(null); setClassificationError(null); setUrl('');
+          }} className="inline-flex items-center gap-2 py-2 px-3 text-sm text-teal-800 disabled:opacity-40"><Plus className="w-4 h-4" />New research</button>
+        </div>
+        {storageError && <p role="alert" className="text-sm text-red-700 mt-3">{storageError}</p>}
 
         <div className={sourcesOpen ? 'hidden' : ''}>
           {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}
-          <OpportunityWorkspace apps={watchlist} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
+          <OpportunityWorkspace key={project.id} project={project} onProjectChange={updateProject} apps={watchlist.filter(app => !app.sample || project.sample)} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
             onPrepare={prepareResearch}
             onBusyChange={setGeneratingOpportunities} onOpenSources={() => setSourcesOpen(true)} onResearchSave={next => {
-              setResearch(next);
-              try { localStorage.setItem(RESEARCH_KEY, JSON.stringify(next)); }
-              catch { setError('Research question could not be saved in this browser. It remains available until this page closes.'); setSourcesOpen(true); }
+              updateProject({ research: next });
             }} />
         </div>
         <div className={sourcesOpen ? '' : 'hidden'}>
@@ -424,12 +452,11 @@ const MarketDashboard: React.FC = () => {
         <MarketModelControls profile={profile} checking={checkingModel} busy={busy} progress={classificationProgress}
           classified={currentModelCount} total={realApps.reduce((total, app) => total + app.reviews.length, 0)}
           error={classificationError} onCheck={() => { setClassificationError(null); setModelCheck(value => value + 1); }} onClassify={classifyReviews} />
-        <MarketInsights apps={watchlist} research={research} busy={busy} syncingId={syncingId} syncErrors={syncErrors}
+        <MarketInsights key={project.id} apps={scopedApps} research={research} busy={busy} syncingId={syncingId} syncErrors={syncErrors}
           onSync={refreshApp} onSyncAll={syncAll}
-          onRemove={id => persistWatchlist(watchlistRef.current.filter(app => app.id !== id))}
-          onRoleChange={(id, nextRole) => persistWatchlist(watchlistRef.current.map(app => ({
-            ...app, role: app.id === id ? nextRole : nextRole === 'my-app' ? 'competitor' : app.role,
-          })))}
+          onRemove={id => updateProject({ scope: { ...project.scope, apps: project.scope.apps.filter(app => app.key !== storeAppKey(watchlist.find(item => item.id === id)?.url || '')) } })}
+          onRoleChange={(id, nextRole) => updateProject({ roles: Object.fromEntries(project.scope.apps.map(app => [app.key,
+            app.key === storeAppKey(watchlist.find(item => item.id === id)?.url || '') ? nextRole : nextRole === 'my-app' ? 'competitor' : project.roles[app.key] || 'competitor'])) })}
         />
         </div>
       </main>

@@ -154,10 +154,10 @@ export default function ResearchStart({ scope, onChange, apps, busy, available, 
       </li>)}</ul>
     </div>}
     <button disabled={busy} onClick={() => setBrowse(value => !value)} className="mt-4 inline-flex items-center gap-2 text-sm text-teal-800"><Search className="w-4 h-4" />{browse ? 'Close app browser' : 'Browse more apps'}</button>
-    {browse && <AppCandidatePicker key={country} initialQuery={/^https?:\/\//i.test(query.trim()) ? scope.apps[0]?.title || '' : query.trim()} country={country} selected={scope.apps} busy={busy} token={token}
-      onToggle={app => { const included = scope.apps.some(item => item.key === app.key); if (included || scope.apps.length < 5) onChange({ ...scope, query: query.trim(), country,
+    {browse && <AppCandidatePicker key={country} initialQuery={/^https?:\/\//i.test(query.trim()) ? scope.apps[0]?.title || '' : query.trim()} country={country} selected={dirty ? [] : scope.apps} busy={busy} token={token}
+      onToggle={app => { const selected = dirty ? [] : scope.apps; const included = selected.some(item => item.key === app.key); if (included || selected.length < 5) onChange({ ...scope, query: query.trim(), country,
         title: dirty ? (/^https?:\/\//i.test(query.trim()) ? app.title.slice(0, 160) : query.trim().slice(0, 160)) || 'Your app research' : scope.title,
-        apps: included ? scope.apps.filter(item => item.key !== app.key) : [...scope.apps, app] }); }} />}
+        apps: included ? selected.filter(item => item.key !== app.key) : [...selected, app] }); }} />}
     {!scope.apps.length && !scope.query && !showAdd && <button disabled={busy} onClick={() => setShowAdd(true)} className="mt-4 text-sm text-teal-800 inline-flex gap-1 items-center"><Plus className="w-4 h-4" />Add an app directly</button>}
     {showAdd && <div className="mt-4 border-t border-gray-200 pt-4">
       <form onSubmit={event => { event.preventDefault(); void addUrl(); }} className="flex gap-2"><input autoFocus aria-label="Add app name or store URL" value={manual} onChange={event => { setManual(event.target.value); setError(''); }} disabled={busy} placeholder="App name or store link" className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm" /><button disabled={busy || !storeAppKey(manual.trim())} title="Add app link" aria-label="Add app link" className="p-2 text-teal-800 disabled:opacity-40">{adding ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}</button></form>

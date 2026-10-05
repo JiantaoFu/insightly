@@ -211,3 +211,12 @@ original evidence and unknowns. An explicit Update saved replaces an older
 snapshot for the same hypothesis while preserving its status. This shortlist is
 not unattended monitoring or a history of completed experiments. Illustrative
 sample opportunities never call Gemini and stay labeled in the UI and exports.
+
+## Independent Research Directions
+
+- The research selector and New research action keep app selections, questions, review periods, reports, saved directions and app roles separate.
+- Committing a different starting query preserves the previous research as a separate direction. Editing app selections within a direction retains its report with the existing stale-evidence warning.
+- Sources, classification totals, classification batches and Sync all use only the active direction. Removing an app detaches it from that direction; collected reviews remain reusable through Saved sources in the app picker.
+- Existing current scope/report migrate into the first direction. Unmatched saved snapshots remain under Previous saved directions. Other collected apps remain in shared storage; no automatic category assignment is attempted. Legacy storage keys remain untouched for rollback.
+- Research remains browser-local. This does not add cloud persistence or scheduled monitoring. Multiple simultaneous editing tabs are not coordinated.
+- Verification: 55 unit tests pass; production build passes; isolated desktop/mobile acceptance covers two research runs, scoped classification/sync, switching, saved-stage restoration and source removal without deleting reviews. Whole-repository lint/typecheck still have pre-existing errors outside these changes.

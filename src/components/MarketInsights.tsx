@@ -114,7 +114,7 @@ const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, o
           {asked.slice(0, 8).map(signal => <SignalRow key={signal.key} signal={signal} days={days} action />)}
         </section>}
         {view === 'watchlist' && <section className="py-5">
-          <h2 className="text-lg font-semibold mb-1">Watchlist</h2><p className="text-sm text-gray-500 mb-4">Manual monitoring · saved in this browser · next sync not scheduled</p>
+          <h2 className="text-lg font-semibold mb-1">Watchlist</h2><p className="text-sm text-gray-500 mb-4">Current research only · manual sync · saved in this browser</p>
           {!apps.length && <p className="text-sm text-gray-500">No watched apps yet.</p>}
           {apps.map(app => <div key={app.id} className="grid grid-cols-[36px_minmax(0,1fr)] md:grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 py-4 border-b border-gray-200">
             <div className="w-9 h-9">{app.icon ? <img src={app.icon} alt="" className="w-9 h-9 rounded" /> : <Smartphone className="w-5 h-5 text-gray-400 m-2" />}</div>
@@ -129,7 +129,7 @@ const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, o
             </div>
             <div className="col-start-2 md:col-start-auto flex items-center gap-2"><select disabled={busy} value={app.role} aria-label={`Role for ${app.name}`} onChange={event => onRoleChange(app.id, event.target.value as WatchApp['role'])} className="border border-gray-300 rounded p-1.5 text-xs"><option value="my-app">My App</option><option value="competitor">Competitor</option></select>
             <button title={`Sync ${app.name}`} aria-label={`Sync ${app.name}`} disabled={busy || app.sample} onClick={() => onSync(app)} className="p-2 hover:bg-gray-100 rounded disabled:opacity-40"><RefreshCw className={`w-4 h-4 ${syncingId === app.id ? 'animate-spin' : ''}`} /></button>
-            <button title={`Remove ${app.name}`} aria-label={`Remove ${app.name}`} disabled={busy} onClick={() => { if (appId === app.id) setAppId('all'); onRemove(app.id); }} className="p-2 text-gray-500 hover:text-red-700 disabled:opacity-40"><Trash2 className="w-4 h-4" /></button></div>
+            <button title={`Remove ${app.name} from this research; keep collected reviews`} aria-label={`Remove ${app.name} from research`} disabled={busy} onClick={() => { if (appId === app.id) setAppId('all'); onRemove(app.id); }} className="p-2 text-gray-500 hover:text-red-700 disabled:opacity-40"><Trash2 className="w-4 h-4" /></button></div>
           </div>)}
           <MarketCoverage apps={apps} />
         </section>}

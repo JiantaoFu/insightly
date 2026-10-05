@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { LRUCache } from 'lru-cache';
 import gplay from 'google-play-scraper';
+import googleSearch from '@jeromyfu/google-play-scraper';
 import { searchApps, getAppDetails } from './appStoreScraper.js';
 import { classifierProfile, classificationFailure, generateMarketJson } from './marketClassifier.js';
 
@@ -43,10 +44,23 @@ export async function resolveMarketApp(url) {
   return result;
 }
 
+export async function searchGoogleApps(query, country, limit = 6) {
+  const results = await googleSearch.search({ term: query, num: limit, country, lang: 'en', requestOptions: { timeout: 20000 } });
+  const verified = [];
+  // The mobile search parser may fall back to package names. Resolve real titles
+  // and developers with bounded concurrency before showing or ranking results.
+  for (let offset = 0; offset < Math.min(results.length, limit); offset += 6) {
+    const batch = await Promise.allSettled(results.slice(offset, Math.min(offset + 6, limit)).map(app => resolveMarketApp(app.url)));
+    for (const result of batch) if (result.status === 'fulfilled') verified.push({ ...result.value, url: result.value.appUrl });
+  }
+  if (results.length && !verified.length) throw new Error('Google Play app details unavailable.');
+  return verified;
+}
+
 async function searchStores(query, country) {
   const searches = await Promise.allSettled([
     searchApps(query, { num: 6, country }),
-    gplay.search({ term: query, num: 6, country, lang: 'en', fullDetail: true, requestOptions: { timeout: 20000 } }),
+    searchGoogleApps(query, country, 6),
   ]);
   if (searches.every(result => result.status === 'rejected')) throw new Error('Store search unavailable.');
   const apps = searches.flatMap(result => result.status === 'fulfilled' ? result.value : []).flatMap(app => {

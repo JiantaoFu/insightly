@@ -18,6 +18,7 @@ import { LLM_PROVIDERS } from './llmProviders.js';
 import { classifierProfile, marketClassificationHandler } from './marketClassifier.js';
 import { opportunityHandler } from './marketOpportunities.js';
 import { discoveryHandler } from './marketDiscovery.js';
+import { marketAppSearchHandler } from './marketAppSearch.js';
 import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
 import { supabase } from './supabaseClient.js';
@@ -384,6 +385,8 @@ app.use('/api', (req, res, next) => {
 });
 
 app.get('/api/market/classifier', verifyToken, (_req, res) => res.json(classifierProfile()));
+app.post('/api/market/search-apps', verifyToken,
+  rateLimit({ windowMs: 15 * 60000, max: 120, keyGenerator: req => String(req.user.id || req.user.sub || req.ip), standardHeaders: true, legacyHeaders: false }), marketAppSearchHandler());
 app.post('/api/market/discover', verifyToken,
   rateLimit({ windowMs: 15 * 60000, max: 15, keyGenerator: req => String(req.user.id || req.user.sub || req.ip), standardHeaders: true, legacyHeaders: false }), discoveryHandler());
 app.post('/api/market/resolve-app', verifyToken,

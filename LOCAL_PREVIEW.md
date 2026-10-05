@@ -44,6 +44,23 @@ existing failures in legacy components.
 
 ## Product workspace
 
+The starting input now offers app-name autocomplete after a 450ms pause (at least
+two characters), with icons, developer and store labels. Arrow keys and Enter pick
+an app link; submitting a field without choosing an app still starts discovery.
+Autocomplete only queries the stores, up to six matches per store, and uses no LLM.
+
+**Browse more apps** opens a selectable store-results list with keyword search,
+App Store / Google Play filters, and 20 results per page. It fetches a bounded pool
+of up to 60 results per store (120 combined, up to six pages), cached for ten minutes.
+These are available search matches, not the store's total inventory. Partial store
+failures are labeled and cached briefly. Selections persist across pages and into
+the saved research scope; the five-app research limit is independent of browsing.
+Browsing and pagination do not invoke Gemini. The original Add app link entry stays
+available for apps that store search does not surface.
+Google Play candidate discovery uses the project's corrected mobile store-search
+implementation. Results are resolved against app details in batches of six so
+fallback package-name labels do not appear as app titles; metadata is cached.
+
 The first screen starts with a field or app. Discovery uses Gemini to plan at most
 two search queries, searches real stores, then selects up to five verified apps
 by their metadata. The model can select supplied app IDs only; it cannot invent

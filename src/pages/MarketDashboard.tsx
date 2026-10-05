@@ -3,7 +3,8 @@ import { ArrowLeft, Loader2, Plus, Radar, Search, Settings2 } from 'lucide-react
 
 import Navigation from '../components/Navigation';
 import { SERVER_URL } from '../components/Constants';
-import { appendSyncObservation, classifiedReviewCount, getMarketTopics, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, normalizeResearchContext, ResearchContext, MarketReview, ReviewAnalysis, WatchApp } from '../utils/marketIntelligence';
+import { appendSyncObservation, classifiedReviewCount, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, normalizeResearchContext, ResearchContext, MarketReview, WatchApp } from '../utils/marketIntelligence';
+import { classifyResearchReviews, storeAppKey, type ResearchApp } from '../utils/marketResearchFlow';
 import MarketInsights from '../components/MarketInsights';
 import OpportunityWorkspace from '../components/OpportunityWorkspace';
 import MarketModelControls, { ClassifierProfile } from '../components/MarketModelControls';
@@ -28,7 +29,7 @@ const loadWatchlist = (): WatchApp[] => {
   }
 };
 
-const processAppUrl = async (url: string) => {
+const processAppUrl = async (url: string, signal?: AbortSignal) => {
   const endpoint = url.includes('apps.apple.com')
     ? `${SERVER_URL}/app-store/process-url`
     : `${SERVER_URL}/google-play/process-url`;
@@ -37,7 +38,7 @@ const processAppUrl = async (url: string) => {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, maxReviews: 500, months: 0 }),
-    signal: AbortSignal.timeout(90000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000),
   });
 
   if (!response.ok) {
@@ -95,53 +96,12 @@ const MarketDashboard: React.FC = () => {
   const classifyReviews = async () => {
     if (!profile?.configured || classifying) return;
     setClassifying(true); setClassificationError(null);
-    let completed = 0;
     try {
-      if (!marketIdRef.current) {
-        marketIdRef.current = localStorage.getItem(MARKET_KEY) || crypto.randomUUID();
-        localStorage.setItem(MARKET_KEY, marketIdRef.current);
-      }
-      const pending = watchlistRef.current.filter(app => !app.sample).flatMap(app => app.reviews
-        .filter(review => { const analysis = getReviewAnalysis(review); return !analysis || analysis.provider !== profile.provider || analysis.model !== profile.model; })
-        .map(review => ({ appId: app.id, appName: app.name, review }))).slice(0, 120);
-      while (completed < pending.length) {
-        const batch: typeof pending = [];
-        let characters = 0;
-        for (const item of pending.slice(completed, completed + 12)) {
-          if (typeof item.review.text !== 'string' || !item.review.text.trim() || item.review.text.length > 16000) {
-            if (batch.length) break;
-            throw new Error('A review is empty or exceeds the 16,000-character classification limit. Original text is retained.');
-          }
-          if (characters + item.review.text.length > 60000) break;
-          batch.push(item);
-          characters += item.review.text.length;
-        }
-        setClassificationProgress(`${completed} / ${pending.length} reviews classified this run`);
-        const response = await fetch(`${SERVER_URL}/api/market/classify`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ marketId: marketIdRef.current, topics: getMarketTopics(watchlistRef.current.filter(app => !app.sample)),
-            reviews: batch.map(({ review, appName }, index) => ({ key: 'r' + index, text: review.text, appName })) }),
-          signal: AbortSignal.timeout(100000),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Model classification unavailable.');
-        if (result.version !== MODEL_CLASSIFIER_VERSION || result.provider !== 'gemini' || result.model !== profile.model
-          || !Array.isArray(result.classifications) || result.classifications.length !== batch.length) throw new Error('Model service returned an incompatible or incomplete batch.');
-        const analyses = new Map<MarketReview, ReviewAnalysis>();
-        for (const [index, item] of batch.entries()) {
-          const rows = result.classifications.filter((row: { key: string }) => row.key === 'r' + index);
-          if (rows.length !== 1) throw new Error('Model service returned duplicate or missing review assignments.');
-          const analysis: ReviewAnalysis = { version: result.version, provider: result.provider, model: result.model,
-            source: 'model', sourceText: item.review.text, analyzedAt: result.analyzedAt, labels: rows[0].labels };
-          if (!getReviewAnalysis({ ...item.review, analysis })) throw new Error('Model service returned unverifiable review evidence.');
-          analyses.set(item.review, analysis);
-        }
-        persistWatchlist(watchlistRef.current.map(app => ({ ...app, reviews: app.reviews.map(review => analyses.has(review) ? { ...review, analysis: analyses.get(review) } : review) })));
-        completed += batch.length;
-      }
-      setNotice(`${completed} reviews classified by Gemini. Remaining unclassified reviews are kept for the next run.`);
+      const result = await classifyResearchReviews({ apps: watchlistRef.current.filter(app => !app.sample), profile, marketId: marketId(), serverUrl: SERVER_URL, token,
+        onProgress: setClassificationProgress, onUpdate: mergeResearchApps });
+      setNotice(`${result.completed} reviews classified by Gemini. Completed reviews are retained.`);
     } catch (error) {
-      setClassificationError(`${error instanceof Error ? error.message : 'Classification failed.'} ${completed} completed reviews retained. No keyword fallback.`);
+      setClassificationError(`${error instanceof Error ? error.message : 'Classification failed.'} Completed reviews retained.`);
     } finally { setClassifying(false); setClassificationProgress(null); }
   };
 
@@ -208,14 +168,14 @@ const MarketDashboard: React.FC = () => {
     setRole('competitor');
   };
 
-  const refreshApp = async (app: WatchApp) => {
+  const refreshApp = async (app: WatchApp, signal?: AbortSignal) => {
     const startedAt = new Date().toISOString();
     let returnedCountry: string | undefined;
     setSyncingId(app.id);
     setError(null);
     setSyncErrors(previous => ({ ...previous, [app.id]: '' }));
     try {
-      const data = await processAppUrl(app.url);
+      const data = await processAppUrl(app.url, signal);
       returnedCountry = data.reviews.country;
       const incoming: MarketReview[] = data.reviews?.reviews || [];
       const current = watchlistRef.current.find(item => item.id === app.id) || app;
@@ -278,6 +238,63 @@ const MarketDashboard: React.FC = () => {
     }
   };
 
+  const marketId = () => {
+    if (!marketIdRef.current) {
+      marketIdRef.current = localStorage.getItem(MARKET_KEY) || crypto.randomUUID();
+      localStorage.setItem(MARKET_KEY, marketIdRef.current);
+    }
+    return marketIdRef.current;
+  };
+
+  const mergeResearchApps = (updated: WatchApp[]) => {
+    const byId = new Map(updated.map(app => [app.id, app]));
+    persistWatchlist(watchlistRef.current.map(app => byId.get(app.id) || app));
+  };
+
+  const collectApp = async (appUrl: string, appRole: WatchApp['role'], signal?: AbortSignal) => {
+    const startedAt = new Date().toISOString();
+    const data = await processAppUrl(appUrl, signal);
+    const source = data.reviews.source || (appUrl.includes('play.google.com') ? 'review-feed' : undefined);
+    const observed = observeReviewSync([], data.reviews.reviews, {
+      startedAt, finishedAt: new Date().toISOString(), url: appUrl, kind: 'baseline',
+      country: data.reviews.country, source, partial: data.reviews.partial, limitReached: data.reviews.limitReached,
+    });
+    const nextApp: WatchApp = {
+      id: crypto.randomUUID(), role: appRole, url: appUrl, name: data.details.title || 'Untitled app', icon: data.details.icon, developer: data.details.developer,
+      platform: appUrl.includes('apps.apple.com') ? 'ios' : 'android', reviews: observed.reviews, reviewSource: source, reviewCountry: data.reviews.country,
+      syncHistory: [observed.observation], lastFetchedCount: data.reviews.reviews.length, lastAddedCount: 0, partial: !!data.reviews.partial, syncedAt: observed.observation.finishedAt,
+    };
+    persistWatchlist([...watchlistRef.current, nextApp]);
+    return nextApp;
+  };
+
+  const prepareResearch = async (selected: ResearchApp[], days: number, progress: (text: string) => void, signal: AbortSignal) => {
+    if (!profile?.configured) throw new Error('Research service unavailable.');
+    const warnings: string[] = [];
+    for (const [index, app] of selected.entries()) {
+      signal.throwIfAborted();
+      progress(`Collecting reviews: ${app.title} (${index + 1}/${selected.length})`);
+      const existing = watchlistRef.current.find(item => !item.sample && storeAppKey(item.url) === app.key);
+      try {
+        // Reuse a successful recent collection when retrying a later research step.
+        if (existing) {
+          const recent = existing.reviews.length && Date.now() - new Date(existing.syncedAt).getTime() < 3600000 && existing.syncHistory?.at(-1)?.status !== 'failed';
+          if (!recent && !await refreshApp(existing, signal)) warnings.push(`${app.title}: update failed; saved reviews retained.`);
+        } else await collectApp(app.appUrl, 'competitor', signal);
+      } catch (error) {
+        signal.throwIfAborted();
+        warnings.push(`${app.title}: ${error instanceof Error ? error.message : 'Collection failed.'}`);
+      }
+    }
+    signal.throwIfAborted();
+    const keys = new Set(selected.map(app => app.key));
+    const scoped = watchlistRef.current.filter(app => !app.sample && keys.has(storeAppKey(app.url)));
+    for (const app of scoped) if (!app.reviews.length) warnings.push(`${app.name}: the store returned no reviews.`);
+    const result = await classifyResearchReviews({ apps: scoped, profile, marketId: marketId(), serverUrl: SERVER_URL, token, days, signal,
+      onProgress: progress, onUpdate: mergeResearchApps });
+    return { apps: result.apps, warnings };
+  };
+
   const handleAdd = async () => {
     if (!url.trim()) {
       setError('Paste an App Store or Google Play URL first.');
@@ -289,7 +306,7 @@ const MarketDashboard: React.FC = () => {
       setError('Use a valid App Store or Google Play URL.');
       return;
     }
-    if (watchlist.some(app => app.url === url.trim())) {
+    if (watchlist.some(app => storeAppKey(app.url) === storeAppKey(url.trim()))) {
       setError('This app is already in your market watchlist.');
       return;
     }
@@ -299,34 +316,10 @@ const MarketDashboard: React.FC = () => {
     }
 
     try {
-      const startedAt = new Date().toISOString();
       setIsAdding(true);
       setError(null);
       setNotice(null);
-      const data = await processAppUrl(url.trim());
-      const source = data.reviews.source || (parsed.hostname === 'play.google.com' ? 'review-feed' : undefined);
-      const observed = observeReviewSync([], data.reviews.reviews, {
-        startedAt, finishedAt: new Date().toISOString(), url: url.trim(), kind: 'baseline',
-        country: data.reviews.country, source, partial: data.reviews.partial, limitReached: data.reviews.limitReached,
-      });
-      const nextApp: WatchApp = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        role,
-        url: url.trim(),
-        name: data.details?.title || 'Untitled app',
-        icon: data.details?.icon,
-        developer: data.details?.developer,
-        platform: url.includes('apps.apple.com') ? 'ios' : 'android',
-        reviews: observed.reviews,
-        reviewSource: source,
-        reviewCountry: data.reviews.country,
-        syncHistory: [observed.observation],
-        lastFetchedCount: data.reviews?.reviews?.length || 0,
-        lastAddedCount: 0,
-        partial: !!data.reviews?.partial,
-        syncedAt: observed.observation.finishedAt,
-      };
-      persistWatchlist([...watchlistRef.current, nextApp]);
+      const nextApp = await collectApp(url.trim(), role);
       setRole('competitor');
       setNotice(nextApp.reviews.length ? `${nextApp.name} added with ${nextApp.reviews.length} reviews. Your market results are below.` : `${nextApp.name} added, but its public store feed returned no reviews. Try another store region or platform.`);
       setUrl('');
@@ -349,14 +342,15 @@ const MarketDashboard: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
         <div className="flex items-center gap-2 text-teal-800 text-sm font-medium"><Radar className="w-4 h-4" />Product intelligence</div>
         <div className="flex flex-wrap justify-between items-center gap-3 mt-2">
-          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Review sources' : 'Opportunity research'}</h1>
+          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Review sources' : 'Find your next product direction'}</h1>
           <button onClick={() => setSourcesOpen(value => !value)} className="inline-flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-3 py-2">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to opportunities' : `Sources (${watchlist.length})`}</button>
         </div>
-        <p className="mt-2 text-sm text-gray-500">{watchlist.some(app => app.sample) ? 'Sample market · illustrative reviews' : 'Manual monitoring preview · saved in this browser'}</p>
+        <p className="mt-2 text-sm text-gray-500">{watchlist.some(app => app.sample) && !realApps.length ? 'Sample market · illustrative reviews' : 'Research saved in this browser'}</p>
 
         <div className={sourcesOpen ? 'hidden' : ''}>
           {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}
           <OpportunityWorkspace apps={watchlist} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
+            onPrepare={prepareResearch}
             onBusyChange={setGeneratingOpportunities} onOpenSources={() => setSourcesOpen(true)} onResearchSave={next => {
               setResearch(next);
               try { localStorage.setItem(RESEARCH_KEY, JSON.stringify(next)); }

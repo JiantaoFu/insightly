@@ -7,9 +7,12 @@ configuration below for real classification. If you have an existing
 environment, disable protected routes only in your local environment and point
 VITE_SERVER_URL at http://localhost:3000.
 
-Choose **Explore a sample market** to try the dashboard without store requests.
-Sample reviews are labeled and do not represent real apps. Remove the sample
-apps before adding your own store URLs. Use the refresh icon to sync real apps.
+Enter a field, app name or store link, then choose **Find related apps**.
+Review the recommended apps, optionally add or remove one, and choose **Start
+research**. A research question and product description are optional.
+Choose **Explore a sample market** to try illustrative data without model or
+store requests. Sample reviews are excluded from real research automatically.
+Use the refresh icon in Sources to sync individual real apps.
 Reviews are deduplicated on refresh and saved in this browser. Historical reviews
 are retained when available, even if outside the trend windows. Topic trends use
 30-day windows; the weekly digest compares 7-day windows. Both use review dates
@@ -21,8 +24,8 @@ If RSS feeds return no reviews, structured review data from the official product
 and all-reviews pages is merged by review ID. That result is a limited sample, labeled in the watchlist,
 and must not be treated as the app's complete recent review volume.
 
-The local API supports store scraping, health checks and Gemini classification. Production login,
-AI research, billing and public reports continue to use `npm run dev` with the
+The local API supports store scraping, related-app discovery, classification and
+problem synthesis. Production login, legacy AI chat, billing and public reports continue to use `npm run dev` with the
 existing backend credentials. The dashboard's built-in evidence view works
 without an AI key, but real reviews need Gemini classification before topic findings
 are available. Saved review text remains accessible without a model key.
@@ -41,10 +44,27 @@ existing failures in legacy components.
 
 ## Product workspace
 
-The first screen is opportunity research, not collection statistics. Save a
-research question, choose Explore new ideas or Improve my product, and optionally
-set product context or a focus theme. The same source evidence supports either
-task; each saved research run records its own context. Sources opens the original
+The first screen starts with a field or app. Discovery uses Gemini to plan at most
+two search queries, searches real stores, then selects up to five verified apps
+by their metadata. The model can select supplied app IDs only; it cannot invent
+store links. A supplied store app stays in the scope. App additions and removals
+change the research scope without deleting saved source reviews. Old watchlists
+initially select their first five real apps; other saved sources remain available
+in Add app. Discovery successes have a 24-hour in-memory cache isolated by user,
+query, region and model. Partial store failures are labeled and remain retriable.
+
+Start research collects the selected apps, reads up to 120 eligible reviews in at
+most ten classification batches, then generates a small set of user problems.
+The default evidence period is 90 days; optional focus settings include 7/30 days,
+a specific question and context for an existing product. Collection reuses a
+successful source from the last hour when retrying. Previously classified reviews
+are reused, and pending work is balanced across apps. Failure preserves completed
+batches and previous reports; Stop prevents subsequent browser requests (an
+already-running provider request may still complete and incur usage).
+
+After a successful run, setup collapses and the first view shows user scenarios,
+obstacles, an original quote and a next validation step. Additional evidence,
+inferred impact and business unknowns are expandable. Sources opens the original
 manual collection, classification, watchlist, trend, weekly and evidence tools.
 Their data storage keys and scrape workflows are unchanged.
 
@@ -71,9 +91,9 @@ The existing browser storage key is retained so this upgrade preserves watchlist
 
 ## Research validation preview (P0)
 
-Save a product description, current question and explicit focus topic under
-Product question. Research brief respects the selected apps, period and saved
-topic and exports a Markdown brief with review evidence and coverage notes.
+The optional Research focus stores a product description and question. The older
+Research brief in Sources respects its selected apps, period and saved topic,
+and exports a Markdown brief with review evidence and coverage notes.
 It uses model-classified evidence, not freeform AI reasoning about the question;
 product context is preserved for human interpretation, not used to invent a gap.
 Illustrative data remains labeled in the exported brief.
@@ -102,8 +122,9 @@ does not prove that your account has access to that model.
 
 Click **Classify reviews** after syncing real apps. Each run processes at most
 120 pending reviews, sequentially in batches of up to 12 and 60,000 characters.
-Individual reviews are limited to 16,000 characters and are never silently
-truncated. Only app names and review text are sent, along with the current theme
+Individual reviews are limited to 16,000 characters. Empty and oversized reviews
+remain saved but are excluded from model batches, never silently truncated.
+Only app names and review text are sent, along with the current theme
 vocabulary; usernames, ratings and dates are not sent. Classification invokes
 Gemini and can incur provider charges. Syncing alone never invokes Gemini.
 
@@ -136,7 +157,7 @@ for structured response support.
 
 ## Opportunity hypotheses and validation shortlist
 
-Find opportunities makes one explicit Gemini request for up to five hypotheses,
+The final research step makes one explicit Gemini request for up to five hypotheses,
 using at most 24 classified, current-window original quote excerpts. Excerpts are
 selected across apps in round-robin order, prioritizing complaints and requests;
 identical excerpts within an app/theme are deduplicated. This is a bounded,
@@ -157,14 +178,16 @@ review the cited text before acting.
 
 Results are persisted locally and retained on failure. Changing the saved
 question, task, selected evidence, period or model marks the old report as stale;
-regeneration requires an explicit click. Unsaved question changes disable
-generation. Identical requests have a 24-hour user/market/model/content cache
+regeneration requires an explicit click. Optional context saves as it is edited;
+changing the starting point requires finding related apps before another run.
+Identical requests have a 24-hour user/market/model/content cache
 in backend memory; a restart clears it. Provider-reported input, output, thinking
-and total token usage, when available, appears under Research scope & usage.
+and total token usage for the final synthesis, when available, appears under Research scope & usage.
+Discovery and classification usage are additional, not included in that figure.
 These are the original generation counts, not additional charges for a cached
 repeat, and are not a price estimate.
 
-Save for validation stores a snapshot, up to 50 items in this browser. Validation
+Save direction stores a snapshot, up to 50 items in this browser. Validation
 status can be To validate, Interview planned, Prototype planned or Set aside;
 none implies a completed experiment. Export produces a Markdown brief with
 original evidence and unknowns. An explicit Update saved replaces an older

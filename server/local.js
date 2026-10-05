@@ -6,6 +6,7 @@ import gplay from 'google-play-scraper';
 import rateLimit from 'express-rate-limit';
 import { classifierProfile, marketClassificationHandler } from './marketClassifier.js';
 import { opportunityHandler } from './marketOpportunities.js';
+import { decisionHandler } from './marketDecisions.js';
 import { discoveryHandler } from './marketDiscovery.js';
 import { marketAppSearchHandler } from './marketAppSearch.js';
 
@@ -14,6 +15,7 @@ const app = express();
 app.use(cors({ origin: /^http:\/\/(localhost|127\.0\.0\.1):\d+$/ }));
 app.use(express.json({ limit: '512kb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', mode: 'local-market' }));
+for (const stage of ['brief', 'report']) app.post('/api/market/decision/' + stage, rateLimit({ windowMs: 15 * 60000, max: 20, standardHeaders: true, legacyHeaders: false }), decisionHandler(true, stage));
 app.get('/api/market/classifier', (_req, res) => res.json(classifierProfile(true)));
 app.post('/api/market/search-apps', rateLimit({ windowMs: 15 * 60000, max: 120, standardHeaders: true, legacyHeaders: false }), marketAppSearchHandler(true));
 app.post('/api/market/discover', rateLimit({ windowMs: 15 * 60000, max: 15, standardHeaders: true, legacyHeaders: false }), discoveryHandler(true));

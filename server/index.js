@@ -17,6 +17,7 @@ import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { classifierProfile, marketClassificationHandler } from './marketClassifier.js';
 import { opportunityHandler } from './marketOpportunities.js';
+import { decisionHandler } from './marketDecisions.js';
 import { discoveryHandler } from './marketDiscovery.js';
 import { marketAppSearchHandler } from './marketAppSearch.js';
 import { LRUCache } from 'lru-cache';
@@ -385,6 +386,8 @@ app.use('/api', (req, res, next) => {
 });
 
 app.get('/api/market/classifier', verifyToken, (_req, res) => res.json(classifierProfile()));
+for (const stage of ['brief', 'report']) app.post('/api/market/decision/' + stage, verifyToken,
+  rateLimit({ windowMs: 15 * 60000, max: 20, keyGenerator: req => String(req.user.id || req.user.sub || req.ip), standardHeaders: true, legacyHeaders: false }), decisionHandler(false, stage));
 app.post('/api/market/search-apps', verifyToken,
   rateLimit({ windowMs: 15 * 60000, max: 120, keyGenerator: req => String(req.user.id || req.user.sub || req.ip), standardHeaders: true, legacyHeaders: false }), marketAppSearchHandler());
 app.post('/api/market/discover', verifyToken,

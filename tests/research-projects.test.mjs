@@ -7,7 +7,8 @@ const modules = new Map();
 function compile(name) {
   if (modules.has(name)) return modules.get(name);
   let source = ts.transpileModule(readFileSync(new URL(`../src/utils/${name}.ts`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-  source = source.replace(/from '\.\/([^']+)'/g, (_, dependency) => `from '${compile(dependency)}'`);
+  source = source.replace(/from '\.\/([^']+)'/g, (_, dependency) => `from '${compile(dependency)}'`)
+    .replace(/from '..\/..\/shared\/decisionContract.js'/g, `from '${new URL('../shared/decisionContract.js', import.meta.url).href}'`);
   const url = 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
   modules.set(name, url);
   return url;
@@ -61,4 +62,15 @@ test('reload restores active direction and scopes; invalid active ID falls back 
   assert.equal(restored.projects[1].days, 7);
   assert.equal(restored.projects[1].scope.apps[0].title, 'Translation');
   assert.equal(loadResearchProjects(storage({ [PROJECTS_STORAGE]: { ...state, activeId: 'missing' } }), []).activeId, a.id);
+});
+
+test('decision research keeps corrected context through source changes and reload', () => {
+  const brief = { title: 'Backup focus', situation: 'Growth is slow', decision: 'Should we prioritize backup?', searchQuery: 'photo backup', assumptions: ['A simpler task may help'], limits: ['Growth causes are unknown'] };
+  const original = { ...newResearchProject(), workflow: 'decision', decision: { input: 'My product growth is slow', briefInput: 'My product growth is slow', brief, report: null }, scope: scope('Photos', app('1', 'Photos')) };
+  const changed = changeResearchProject({ activeId: original.id, projects: [original] }, original.id, { scope: scope('Photo backup', app('2', 'Backup')) });
+  assert.equal(changed.projects.length, 1);
+  const restored = loadResearchProjects(storage({ [PROJECTS_STORAGE]: changed }), []);
+  assert.deepEqual(restored.projects[0].decision.brief, brief);
+  assert.equal(restored.projects[0].workflow, 'decision');
+  assert.equal(restored.projects[0].scope.apps[0].title, 'Backup');
 });

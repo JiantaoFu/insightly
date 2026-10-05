@@ -24,7 +24,7 @@ export interface SavedOpportunity {
   stage: 'saved' | 'interview' | 'prototype' | 'archived';
 }
 
-export function selectOpportunityEvidence(apps: WatchApp[], context: ResearchContext, days = 30, now = new Date()): OpportunityEvidence[] {
+export function selectOpportunityEvidence(apps: WatchApp[], context: ResearchContext, days = 30, now = new Date(), balanced = false): OpportunityEvidence[] {
   const sampleOnly = apps.length > 0 && apps.every(app => app.sample);
   const groups = apps.filter(app => sampleOnly || !app.sample).map(app => splitReviewWindows(app.reviews, days, now).current.flatMap((review, index) =>
     (getReviewAnalysis(review, !!app.sample)?.labels || []).filter(label => context.focusTopic === 'all' || label.topic.id === context.focusTopic)
@@ -32,6 +32,15 @@ export function selectOpportunityEvidence(apps: WatchApp[], context: ResearchCon
         quote: label.evidence, intent: label.intent, polarity: label.polarity, appUrl: app.url, date: review.date || review.timestamp || '',
         country: app.reviewCountry || requestedCountry(app.url), source: app.reviewSource || 'unverified', partial: !!app.partial, sample: !!app.sample })))
     .sort((a, b) => Number(b.intent === 'complaint' || b.intent === 'request') - Number(a.intent === 'complaint' || a.intent === 'request')));
+  if (balanced) for (const group of groups) {
+    const problems = group.filter(item => item.intent === 'complaint' || item.intent === 'request');
+    const alternatives = group.filter(item => item.intent !== 'complaint' && item.intent !== 'request');
+    group.length = 0;
+    while (problems.length || alternatives.length) {
+      if (problems.length) group.push(problems.shift()!);
+      if (alternatives.length) group.push(alternatives.shift()!);
+    }
+  }
   const selected: OpportunityEvidence[] = [], seen = new Set<string>();
   // Round-robin across apps so one high-volume app cannot consume the whole evidence budget.
   while (selected.length < 24 && groups.some(group => group.length)) {

@@ -8,6 +8,7 @@ import { classifyResearchReviews, parseResearchApp, storeAppKey, type ResearchAp
 import { changeResearchProject, loadResearchProjects, newResearchProject, PROJECTS_STORAGE, projectSources, type ResearchProject, type ResearchProjects } from '../utils/researchProjects';
 import MarketInsights from '../components/MarketInsights';
 import OpportunityWorkspace from '../components/OpportunityWorkspace';
+import DecisionWorkspace from '../components/DecisionWorkspace';
 import MarketModelControls, { ClassifierProfile } from '../components/MarketModelControls';
 import { useAuth } from '../components/AuthContext';
 
@@ -51,6 +52,7 @@ const MarketDashboard: React.FC = () => {
   const projectsRef = useRef(projects);
   const project = projects.projects.find(item => item.id === projects.activeId)!;
   const research = project.research;
+  const workflow = project.workflow || (project.scope.apps.length || project.scope.query || project.report || project.saved.length || project.sample ? 'apps' : 'decision');
   const scopedApps = projectSources(project, watchlist);
   const [storageError, setStorageError] = useState<string | null>(null);
   const persistProjects = (next: ResearchProjects) => {
@@ -178,7 +180,7 @@ const MarketDashboard: React.FC = () => {
       }))),
     })));
     setRole('competitor');
-    updateProject({ sample: true });
+    updateProject({ sample: true, workflow: 'apps' });
   };
 
   const refreshApp = async (app: WatchApp, signal?: AbortSignal) => {
@@ -378,12 +380,16 @@ const MarketDashboard: React.FC = () => {
         {storageError && <p role="alert" className="text-sm text-red-700 mt-3">{storageError}</p>}
 
         <div className={sourcesOpen ? 'hidden' : ''}>
+          <div role="tablist" aria-label="Research starting point" className="flex gap-5 border-b border-gray-200 mt-3">
+            {(['decision', 'apps'] as const).map(mode => <button key={mode} role="tab" aria-selected={workflow === mode} disabled={busy} onClick={() => updateProject({ workflow: mode })} className={`py-3 text-sm border-b-2 ${workflow === mode ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{mode === 'decision' ? 'Research a decision' : 'Explore apps'}</button>)}
+          </div>
           {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}
-          <OpportunityWorkspace key={project.id} project={project} onProjectChange={updateProject} apps={watchlist.filter(app => !app.sample || project.sample)} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
+          {workflow === 'decision' ? <DecisionWorkspace key={project.id} project={project} onChange={updateProject} apps={watchlist} profile={profile} checking={checkingModel} token={token} busy={busy}
+            onBusyChange={setGeneratingOpportunities} onPrepare={prepareResearch} onOpenSources={() => setSourcesOpen(true)} /> : <OpportunityWorkspace key={project.id} project={project} onProjectChange={updateProject} apps={watchlist.filter(app => !app.sample || project.sample)} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
             onPrepare={prepareResearch}
             onBusyChange={setGeneratingOpportunities} onOpenSources={() => setSourcesOpen(true)} onResearchSave={next => {
               updateProject({ research: next });
-            }} />
+            }} />}
         </div>
         <div className={sourcesOpen ? '' : 'hidden'}>
         <section className="mt-5 border-b border-gray-200 pb-5">

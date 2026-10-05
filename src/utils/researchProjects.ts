@@ -1,6 +1,7 @@
 import { normalizeResearchContext, type ResearchContext, type WatchApp } from './marketIntelligence';
 import { loadResearchScope, SCOPE_STORAGE, storeAppKey, type ResearchScope } from './marketResearchFlow';
 import { loadSavedOpportunities, OPPORTUNITY_STORAGE, parseOpportunityReport, SAVED_OPPORTUNITY_STORAGE, type OpportunityReport, type SavedOpportunity } from './marketOpportunities';
+import { loadDecision, type DecisionState } from './decisionResearch';
 
 export const PROJECTS_STORAGE = 'insightly_research_projects_v1';
 export interface ResearchProject {
@@ -12,6 +13,8 @@ export interface ResearchProject {
   days: number;
   roles: Record<string, WatchApp['role']>;
   sample?: boolean;
+  workflow?: 'decision' | 'apps';
+  decision?: DecisionState;
 }
 export interface ResearchProjects { activeId: string; projects: ResearchProject[] }
 
@@ -31,7 +34,7 @@ export function changeResearchProject(state: ResearchProjects, id: string, patch
   if (!current) return state;
   if (patch.scope?.title === 'New research' && patch.scope.apps.length) patch = { ...patch, scope: { ...patch.scope, title: patch.scope.apps[0].title.slice(0, 160) } };
   // A committed new starting point creates a direction; edits within a direction stay together.
-  if (patch.scope && patch.scope.query !== current.scope.query && (current.scope.apps.length || current.report || current.saved.length)) {
+  if (current.workflow !== 'decision' && patch.scope && patch.scope.query !== current.scope.query && (current.scope.apps.length || current.report || current.saved.length)) {
     const next = { ...newResearchProject(), ...patch };
     return { activeId: next.id, projects: [...state.projects, next] };
   }
@@ -48,6 +51,7 @@ export function loadResearchProjects(storage: Pick<Storage, 'getItem'>, apps: Wa
       id: item.id, scope: loadResearchScope(item.scope, []), research: normalizeResearchContext(item.research),
       report: parseOpportunityReport(item.report), saved: loadSavedOpportunities(item.saved),
       days: [7, 30, 90].includes(item.days) ? item.days : 90, sample: item.sample === true,
+      workflow: item.workflow === 'decision' ? 'decision' as const : item.workflow === 'apps' ? 'apps' as const : undefined, decision: item.decision ? loadDecision(item.decision) : undefined,
       roles: Object.fromEntries(Object.entries(item.roles || {}).filter(([, role]) => role === 'my-app' || role === 'competitor')) as ResearchProject['roles'],
     }));
     if (projects.length) return { projects, activeId: projects.some(item => item.id === stored.activeId) ? stored.activeId : projects[0].id };

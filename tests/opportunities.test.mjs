@@ -80,6 +80,16 @@ test('evidence selection is bounded, app-balanced, dated, classified and exclude
   assert.equal(selectOpportunityEvidence([unclassified], context, 30, now).some(item => item.reviewKey === 'a:r0'), false);
 });
 
+test('decision evidence sampling retains praise alongside complaints without changing default discovery', () => {
+  const mixed = app('mixed');
+  mixed.reviews.at(-1).analysis.labels[0].intent = 'praise';
+  mixed.reviews.at(-1).analysis.labels[0].polarity = 'positive';
+  assert.equal(selectOpportunityEvidence([mixed], context, 30, now).some(item => item.intent === 'praise'), false);
+  const balanced = selectOpportunityEvidence([mixed], context, 30, now, true);
+  assert.equal(balanced.length, 24);
+  assert.equal(balanced[1].intent, 'praise');
+});
+
 test('stored reports and validation snapshots reject corrupted references and preserve grounded exports', () => {
   const report = illustrativeOpportunityReport([{ ...evidence, sample: true }], context, 30);
   assert.ok(parseOpportunityReport(report));

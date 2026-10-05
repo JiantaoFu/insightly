@@ -16,6 +16,7 @@ import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { classifierProfile, marketClassificationHandler } from './marketClassifier.js';
+import { opportunityHandler } from './marketOpportunities.js';
 import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
 import { supabase } from './supabaseClient.js';
@@ -382,6 +383,8 @@ app.use('/api', (req, res, next) => {
 });
 
 app.get('/api/market/classifier', verifyToken, (_req, res) => res.json(classifierProfile()));
+app.post('/api/market/opportunities', verifyToken,
+  rateLimit({ windowMs: 15 * 60000, max: 30, keyGenerator: req => String(req.user.id || req.user.sub || req.ip), standardHeaders: true, legacyHeaders: false }), opportunityHandler());
 app.post('/api/market/classify', verifyToken,
   rateLimit({ windowMs: 15 * 60000, max: 120, keyGenerator: req => String(req.user.id || req.user.sub || req.ip), standardHeaders: true, legacyHeaders: false }),
   marketClassificationHandler());

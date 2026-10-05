@@ -4,12 +4,17 @@ import {
   PAGE_CSS,
   applyBody,
   applyHead,
+  applyGoneHead,
   applyHeroCopy,
+  classifyReportLookup,
   extractSummary,
+  GONE_CSS,
   firstHeading,
   hasMainMarkers,
+  isShareId,
   renderAppReportMain,
   renderCompetitorReportMain,
+  renderGoneMain,
   renderInsightsMain,
   renderSignInMain,
 } from "../edge-lib/prerender-core.js";
@@ -29,6 +34,12 @@ import {
 //
 // Failure mode: on any backend error/timeout we return the plain SPA shell
 // (what the site served before this change) and mark it uncacheable.
+//
+// Gone reports: only when the backend DEFINITIVELY says a shared report does
+// not exist / has expired (404 {code:"not_found"} / 410 {code:"expired"}), or
+// the id cannot be a share id at all, we answer 410 with a small noindex
+// "expired" page instead of the 200 home shell (which Google treated as a
+// duplicate of the home page). See classifyReportLookup().
 
 const BACKEND = Netlify.env.get("PRERENDER_BACKEND") || "https://insightly-5iyw.onrender.com"; // keep in sync with netlify.toml redirects
 const BACKEND_TIMEOUT_MS = 10000;
@@ -40,6 +51,9 @@ const BACKEND_TIMEOUT_MS = 10000;
 const CACHE_REPORT = "public, durable, s-maxage=86400, stale-while-revalidate=604800";
 const CACHE_LIST = "public, durable, s-maxage=3600, stale-while-revalidate=86400";
 const CACHE_STATIC = "public, durable, s-maxage=86400, stale-while-revalidate=604800";
+// Short: re-running an analysis for the same app recreates the report under
+// the same id (md5 of the store URL), so a cached 410 must not linger.
+const CACHE_GONE = "public, durable, s-maxage=600";
 
 const HOME = {
   title: "Find Your Next Product Idea in Competitors' 1-Star Reviews | Insightly",
@@ -99,12 +113,28 @@ function passthrough(origin: Response, html: string): Response {
   return respond(html, origin, null, origin.status);
 }
 
+function gone(shareId: string, reportType: "app" | "competitor", reason: string, origin: Response, html: string): Response {
+  html = applyGoneHead(html);
+  html = applyBody(html, {
+    main: renderGoneMain({ reportType }),
+    css: PAGE_CSS + GONE_CSS,
+    // Lets the SPA render the same expired view on its first render (no spinner, no refetch).
+    data: { kind: "report-gone", shareId, reportType, reason },
+  });
+  const res = respond(html, origin, CACHE_GONE, 410);
+  res.headers.set("x-insightly-prerender", `gone:${reason}`);
+  res.headers.set("x-robots-tag", "noindex");
+  return res;
+}
+
 async function renderAppReport(shareId: string, origin: Response, html: string) {
-  const api = await backendJson(`/api/shared-app-report?shareId=${encodeURIComponent(shareId)}`);
-  if (!api || api.status !== 200 || !api.body?.appDetails || api.body.error) {
-    return passthrough(origin, html);
-  }
-  const { appDetails, report } = api.body;
+  const api = isShareId(shareId)
+    ? await backendJson(`/api/shared-app-report?shareId=${encodeURIComponent(shareId)}`)
+    : null;
+  const lookup = classifyReportLookup(shareId, api, (b: any) => !!b.appDetails);
+  if (lookup.result === "gone") return gone(shareId, "app", lookup.reason!, origin, html);
+  if (lookup.result !== "ok") return passthrough(origin, html);
+  const { appDetails, report } = api!.body;
   const appName = appDetails.title || "App";
   // Same title/description rule as ShareReportView.tsx (updateMetadata).
   const title = `${appName} Review Analysis Report | Insightly`;
@@ -145,11 +175,13 @@ async function renderAppReport(shareId: string, origin: Response, html: string) 
 }
 
 async function renderCompetitorReport(shareId: string, origin: Response, html: string) {
-  const api = await backendJson(`/api/shared-competitor-report?shareId=${encodeURIComponent(shareId)}`);
-  if (!api || api.status !== 200 || !api.body?.report || api.body.error) {
-    return passthrough(origin, html);
-  }
-  const report = String(api.body.report);
+  const api = isShareId(shareId)
+    ? await backendJson(`/api/shared-competitor-report?shareId=${encodeURIComponent(shareId)}`)
+    : null;
+  const lookup = classifyReportLookup(shareId, api, (b: any) => !!b.report);
+  if (lookup.result === "gone") return gone(shareId, "competitor", lookup.reason!, origin, html);
+  if (lookup.result !== "ok") return passthrough(origin, html);
+  const report = String(api!.body.report);
   const heading = firstHeading(report) || "Competitor Analysis Report";
   const title = `${heading} | Insightly Competitor Analysis`;
   const description =
@@ -255,7 +287,10 @@ export default async (request: Request, context: Context) => {
     }
 
     const [section, id, ...rest] = path.split("/").filter(Boolean);
-    if (!id || rest.length || !/^[A-Za-z0-9_-]{6,128}$/.test(id)) return passthrough(origin, html);
+    // Single path segment only. Ids that are not md5 share ids (e.g. the
+    // Feb-2025 /share/<url-encoded store URL> links) never reach the backend:
+    // classifyReportLookup() reports them as gone.
+    if (!id || rest.length) return passthrough(origin, html);
     if (section === "shared-app-report" || section === "share") return await renderAppReport(id, origin, html);
     if (section === "shared-competitor-report") return await renderCompetitorReport(id, origin, html);
   } catch (err) {

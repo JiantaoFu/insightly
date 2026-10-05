@@ -10,7 +10,9 @@
 type PrerenderData =
   | { kind: 'app-report'; shareId: string; appDetails: any; report: string }
   | { kind: 'competitor-report'; shareId: string; report: string }
-  | { kind: 'db-analyses'; pageSize: number; results: any[]; pagination: any };
+  | { kind: 'db-analyses'; pageSize: number; results: any[]; pagination: any }
+  // Served with HTTP 410: the backend definitively said the report is gone.
+  | { kind: 'report-gone'; shareId: string; reportType: 'app' | 'competitor'; reason: string };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 let cached: PrerenderData | null | undefined;

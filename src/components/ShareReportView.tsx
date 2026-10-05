@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { Loader2, AlertTriangle, Download, RefreshCw, Star, Sparkles, ArrowRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import Navigation from './Navigation';
@@ -30,15 +30,23 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
       ? takePrerenderData('app-report', d => d.shareId === shareId)
       : takePrerenderData('competitor-report', d => d.shareId === shareId)
   );
+  // Page was served as HTTP 410 (report definitively gone): show the expired
+  // view straight away, no spinner and no refetch.
+  const [initialGone] = useState(() =>
+    initial ? null : takePrerenderData('report-gone', d => d.shareId === shareId && d.reportType === reportType)
+  );
+  const [gone, setGone] = useState(!!initialGone);
   const [report, setReport] = useState<string>(initial?.report || '');
   const [appData, setAppData] = useState<any>(initial && 'appDetails' in initial ? initial.appDetails : null);
-  const [isLoading, setIsLoading] = useState(!initial);
+  const [isLoading, setIsLoading] = useState(!initial && !initialGone);
   const [error, setError] = useState<string | null>(null);
-  const [loadedId, setLoadedId] = useState<string | undefined>(initial ? shareId : undefined);
+  const [loadedId, setLoadedId] = useState<string | undefined>(initial || initialGone ? shareId : undefined);
 
   const fetchSharedReport = async () => {
     try {
       setIsLoading(true);
+      setGone(false);
+      setError(null);
       const apiEndpoint = reportType === 'app'
         ? `/api/shared-app-report?shareId=${shareId}`
         : `/api/shared-competitor-report?shareId=${shareId}`;
@@ -47,6 +55,13 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
         method: 'GET'
       });
       const responseData = await analysisResponse.json();
+
+      // Same definitive signal the edge function uses (server/utils/reportLookup.js).
+      if ((analysisResponse.status === 404 && responseData.code === 'not_found') ||
+          (analysisResponse.status === 410 && responseData.code === 'expired')) {
+        setGone(true);
+        return;
+      }
 
       if (responseData.error) {
         setError(responseData.error);
@@ -184,6 +199,10 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
     : sentiment === 'Mixed'
       ? 'bg-yellow-100 text-yellow-800'
       : 'bg-red-100 text-red-800';
+
+  if (gone) {
+    return <ReportGoneView reportType={reportType} />;
+  }
 
   if (isLoading) {
     return (
@@ -356,6 +375,55 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
         </div>
       </div>
       {/* <ProductHuntBadge /> */}
+    </div>
+  );
+};
+
+// Keep in sync with GONE / renderGoneMain() in netlify/edge-lib/prerender-core.js.
+const GONE_TITLE = 'Report Expired or Not Found | Insightly';
+
+const ReportGoneView: React.FC<{ reportType: 'app' | 'competitor' }> = ({ reportType }) => {
+  useEffect(() => {
+    const prevTitle = document.title;
+    document.title = GONE_TITLE;
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const added = !robots;
+    const prevRobots = robots?.content;
+    if (!robots) {
+      robots = document.createElement('meta');
+      robots.name = 'robots';
+      document.head.appendChild(robots);
+    }
+    robots.content = 'noindex';
+    return () => {
+      document.title = prevTitle;
+      // The shell has no robots meta; a 'noindex' one only comes from this
+      // view or the 410 page itself, so drop it when leaving the gone view.
+      if (added || prevRobots === 'noindex') robots?.remove();
+      else if (robots && prevRobots !== undefined) robots.content = prevRobots;
+    };
+  }, []);
+
+  const what = reportType === 'competitor' ? 'competitor comparison' : 'app review analysis';
+  return (
+    <div className="container mx-auto p-4 pt-24 max-w-4xl">
+      <Navigation />
+      <div className="max-w-xl mx-auto mt-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center">
+        <h1 className="text-2xl font-extrabold text-gray-900">This report has expired or no longer exists</h1>
+        <p className="mt-3 text-gray-600">
+          The {what} at this link has expired or was removed. Reports are generated from live store
+          reviews, so you can get a fresh one in a minute.
+        </p>
+        <Link
+          to="/"
+          className="mt-6 block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg"
+        >
+          Check an app on the home page →
+        </Link>
+        <Link to="/app-insights" className="mt-4 block text-sm font-medium text-blue-600">
+          or browse 2,800+ free reports
+        </Link>
+      </div>
     </div>
   );
 };

@@ -17,6 +17,7 @@ import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
+import { isValidShareId, storageErrorInfo, classifyStorageError, decideAppReport, decideCompetitorReport } from './utils/reportLookup.js';
 import { supabase } from './supabaseClient.js';
 import { generateSitemap, initializeSitemap } from './sitemap.js';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
@@ -1475,35 +1476,54 @@ app.get('/api/shared-app-report', async (req, res) => {
     });
   }
 
-  try {
-    // Get the full report from storage
-    const fullReport = await getReportFromStorage(shareId);
+  // Share IDs are md5 hashes: anything else can never exist.
+  if (!isValidShareId(shareId)) {
+    return res.status(404).json({ error: 'Report not found', code: 'not_found', shouldReanalyze: true });
+  }
 
-    // Get minimal metadata from database if needed
-    const { data: metadata } = await supabase
+  // Responses carry a machine-readable `code` (see server/utils/reportLookup.js):
+  // 404 not_found / 410 expired are definitive, 503 unavailable is transient.
+  let fullReport = null;
+  let storage = 'ok';
+  try {
+    fullReport = await getReportFromStorage(shareId);
+  } catch (error) {
+    storage = error?.message === 'FILE_NOT_FOUND' ? 'not_found' : 'error';
+    console.error('Error fetching shared report from storage:', shareId, error?.message || error);
+  }
+
+  let row = 'error';
+  let timestamp;
+  try {
+    const { data: metadata, error: dbError } = await supabase
         .from('analysis_reports')
         .select('timestamp')
         .eq('hash_url', shareId)
-        .single();
-
-    if (metadata && isRecordEntryExpired({ timestamp: metadata.timestamp })) {
-        return res.status(410).json({
-            error: 'Report expired. Please re-run the analysis.',
-            shouldReanalyze: true
-        });
+        .maybeSingle();
+    if (dbError) {
+      console.error('Error fetching shared report metadata:', shareId, dbError);
+    } else {
+      row = metadata ? 'present' : 'absent';
+      timestamp = metadata?.timestamp;
     }
+  } catch (dbError) {
+    console.error('Error fetching shared report metadata:', shareId, dbError);
+  }
 
-    res.json({
+  const decision = decideAppReport({
+    storage, row, timestamp,
+    now: Date.now(),
+    expirationMs: RECORD_EXPIRATION_HOURS * 60 * 60 * 1000
+  });
+
+  if (decision.serve) {
+    return res.json({
         appDetails: fullReport.appDetails,
         report: fullReport.finalReport
     });
-  } catch (error) {
-    console.error('Error fetching shared report:', error);
-    res.status(404).json({
-        error: 'Report not found or inaccessible',
-        shouldReanalyze: true
-    });
   }
+  if (decision.status === 503) res.set('Retry-After', '60');
+  return res.status(decision.status).json(decision.body);
 });
 
 app.get('/api/share-competitor-report', (req, res) => {
@@ -1532,7 +1552,7 @@ app.get('/api/share-competitor-report', (req, res) => {
   });
 });
 
-app.get('/api/shared-competitor-report', (req, res) => {
+app.get('/api/shared-competitor-report', async (req, res) => {
   const { shareId } = req.query;
 
   if (!shareId) {
@@ -1540,16 +1560,58 @@ app.get('/api/shared-competitor-report', (req, res) => {
   }
 
   const sharedReportEntry = comparisonCache.get(shareId);
-
-  if (!sharedReportEntry) {
-    return res.status(404).json({
-      error: 'Report expired. Please re-run the comparison.',
-      shouldReanalyze: true
-    });
+  if (sharedReportEntry) {
+    // Return the entire report directly
+    return res.json({ report: sharedReportEntry.finalReport });
   }
 
-  // Return the entire report directly
-  res.json({ report: sharedReportEntry.finalReport });
+  if (!isValidShareId(shareId)) {
+    return res.status(404).json({ error: 'Report not found. Please re-run the comparison.', code: 'not_found', shouldReanalyze: true });
+  }
+
+  // Cache miss: the in-memory LRU only holds the newest COMPARISON_CACHE_MAX_SIZE
+  // reports (loaded at startup), so a miss alone does not mean "gone". Check the DB.
+  let row = 'error';
+  let entry = null;
+  try {
+    const { data, error } = await supabase
+      .from('comparison_reports')
+      .select('*')
+      .eq('hash_url', shareId)
+      .maybeSingle();
+    if (error) {
+      console.error('Error fetching shared competitor report:', shareId, error);
+    } else {
+      row = data ? 'present' : 'absent';
+      entry = data;
+    }
+  } catch (dbError) {
+    console.error('Error fetching shared competitor report:', shareId, dbError);
+  }
+
+  const decision = decideCompetitorReport({
+    row,
+    timestamp: entry?.timestamp,
+    now: Date.now(),
+    expirationMs: RECORD_EXPIRATION_HOURS * 60 * 60 * 1000
+  });
+
+  if (decision.serve) {
+    try {
+      comparisonCache.set(shareId, {
+        competitors: typeof entry.competitors === 'string' ? JSON.parse(entry.competitors) : entry.competitors,
+        finalReport: entry.final_report,
+        timestamp: entry.timestamp,
+        urls: entry.urls,
+        getShareLink: () => `${process.env.CLIENT_ORIGIN}/shared-competitor-report/${shareId}`
+      });
+    } catch (cacheError) {
+      console.warn('Could not cache competitor report:', shareId, cacheError?.message);
+    }
+    return res.json({ report: entry.final_report });
+  }
+  if (decision.status === 503) res.set('Retry-After', '60');
+  return res.status(decision.status).json(decision.body);
 });
 
 // Add new endpoint to check if a report already exists
@@ -2326,17 +2388,19 @@ async function getReportFromStorage(hashUrl, retries = 3) {
                 .download(fileName);
 
             if (error) {
-                console.error(`❌ Storage error for ${hashUrl}:`, error);
+                const info = await storageErrorInfo(error);
+                console.error(`❌ Storage error for ${hashUrl}:`, info);
 
                 // Check if we should retry
-                if (attempt < retries && (error.statusCode === 503 || error.statusCode === 429)) {
+                const status = Number(info.status);
+                if (attempt < retries && (status === 429 || status >= 500)) {
                     const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
                     console.log(`⏳ Retrying in ${delay}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     continue;
                 }
 
-                if (error.statusCode === 400 || error.status === 400) {
+                if (classifyStorageError(info) === 'not_found') {
                     console.warn(`⚠️ File not found in storage: ${fileName}`);
                     throw new Error('FILE_NOT_FOUND');
                 }

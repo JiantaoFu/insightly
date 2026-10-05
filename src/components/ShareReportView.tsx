@@ -9,6 +9,13 @@ import { ShareComponent } from './ShareButton';
 import ReviewPreview from './ReviewPreview';
 import { SERVER_URL } from './Constants';
 import { updateMetadata } from '../utils/metadata';
+import { takePrerenderData } from '../utils/prerenderData';
+
+// Report markdown uses "#" for its sections; render them one level down so
+// the page keeps a single <h1> (the app name), matching the prerendered HTML.
+const markdownComponents = {
+  h1: ({ node, ...props }: any) => <h2 {...props} />,
+};
 
 interface SharedReportViewProps {
   reportType: 'app' | 'competitor';
@@ -16,10 +23,18 @@ interface SharedReportViewProps {
 
 const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
   const { shareId } = useParams<{ shareId: string }>();
-  const [report, setReport] = useState<string>('');
-  const [appData, setAppData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Report embedded by the prerender edge function for this exact page, if any:
+  // render it straight away instead of a spinner + second fetch.
+  const [initial] = useState(() =>
+    reportType === 'app'
+      ? takePrerenderData('app-report', d => d.shareId === shareId)
+      : takePrerenderData('competitor-report', d => d.shareId === shareId)
+  );
+  const [report, setReport] = useState<string>(initial?.report || '');
+  const [appData, setAppData] = useState<any>(initial && 'appDetails' in initial ? initial.appDetails : null);
+  const [isLoading, setIsLoading] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
+  const [loadedId, setLoadedId] = useState<string | undefined>(initial ? shareId : undefined);
 
   const fetchSharedReport = async () => {
     try {
@@ -52,6 +67,8 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
   };
 
   useEffect(() => {
+    if (loadedId === shareId) return; // already have this report from the prerendered page
+    setLoadedId(shareId);
     fetchSharedReport();
   }, [shareId, reportType]);
 
@@ -63,24 +80,26 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
         : `${appName} Competitor Analysis Report | Insightly`;
 
       // Extract summary from report
+      // Keep in sync with extractSummary() in netlify/edge-lib/prerender-core.js
+      // (the prerendered <meta name="description">). Sentences end at . ! ?
+      // followed by whitespace, so "68.4%" doesn't cut a sentence in half.
       const getSummary = (text: string): string => {
-        // Remove markdown headers, formatting, and the standard summary header
         const cleanText = text
           .replace(/#{1,6}\s?[^\n]+\n*/g, '') // Remove all headers
           .replace(/\*\*/g, '')               // Remove bold formatting
           .replace(/Summary of Key Insights\s*\n+/g, '') // Remove the summary header
+          .replace(/\s+/g, ' ')
           .trim();
 
-        // Get first 2-3 sentences (up to 155 chars)
-        const sentences = cleanText.split(/[.!?]+/);
+        // Whole sentences, up to 155 chars
         let summary = '';
-        for (const sentence of sentences) {
-          const trimmedSentence = sentence.trim();
-          if (trimmedSentence && (summary + trimmedSentence).length < 155) {
-            summary += (summary ? ' ' : '') + trimmedSentence + '.';
-          } else {
-            break;
-          }
+        for (const sentence of cleanText.replace(/([.!?])\s+/g, '$1\u0000').split('\u0000')) {
+          const next = summary ? `${summary} ${sentence}` : sentence;
+          if (next.length > 155) break;
+          summary = next;
+        }
+        if (!summary && cleanText) {
+          summary = cleanText.slice(0, 152).replace(/\s+\S*$/, '') + '…';
         }
         return summary.trim();
       };
@@ -306,7 +325,7 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
 
       <div className="prose prose-sm max-w-none mb-8">
         {reportBody ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportBody}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{reportBody}</ReactMarkdown>
         ) : (
           <p>No report available</p>
         )}

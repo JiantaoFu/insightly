@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import AppCard from './AppCard';
 import { SERVER_URL } from './Constants';
+import { takePrerenderData } from '../utils/prerenderData';
 
 interface DBAnalysesListProps {
   pageSize?: number;
@@ -19,15 +20,25 @@ const DBAnalysesList: React.FC<DBAnalysesListProps> = ({
   pageSize = 10,
   searchTerm = ''
 }) => {
-  const [analyses, setAnalyses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // First page embedded by the prerender edge function on /app-insights.
+  const [initial] = useState(() =>
+    searchTerm ? null : takePrerenderData('db-analyses', d => d.pageSize === pageSize)
+  );
+  const [analyses, setAnalyses] = useState<any[]>(initial?.results || []);
+  const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<PaginationData>({
+  const [pagination, setPagination] = useState<PaginationData>(initial ? {
+    total: initial.pagination.total,
+    page: initial.pagination.page,
+    totalPages: initial.pagination.totalPages,
+    hasMore: initial.pagination.hasMore
+  } : {
     total: 0,
     page: 1,
     totalPages: 1,
     hasMore: false
   });
+  const skipInitialFetch = useRef(!!initial);
 
   // Add debounce function
   const debounce = (func: Function, wait: number) => {
@@ -74,6 +85,10 @@ const DBAnalysesList: React.FC<DBAnalysesListProps> = ({
   );
 
   useEffect(() => {
+    if (skipInitialFetch.current) {
+      skipInitialFetch.current = false;
+      return;
+    }
     if (searchTerm) {
       debouncedFetch(searchTerm);
     } else {

@@ -1,38 +1,67 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
-import { AppReportView, CompetitorReportView } from './components/ShareReportView';
 import { AuthProvider } from './components/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute, { AuthInterstitialPage as AuthInterstitial } from './components/ProtectedRoute';
 import { CreditsProvider } from './contexts/CreditsContext';
-// Loaded eagerly (not lazy): Netlify's prerender crawler snapshots the page
-// before async route chunks finish loading, so these SEO-critical pages were
-// being captured with an empty #root and stale meta tags. Eager imports make
-// the crawler see real content on /, /for-teams, /app-insights and /blog/*.
-import BlogListPage from './pages/BlogListPage';
-import BlogPostPage from './pages/BlogPostPage';
+// Only the home page ships in the main bundle. Every other route is a
+// lazyPage() chunk; main.tsx preloads the current route's chunk before the
+// first render (see preloadRoute below), so prerendered HTML from
+// netlify/edge-functions/prerender.ts is replaced in one step with no
+// Suspense spinner in between.
 import Home from './pages/Home';
-import TeamsLandingPage from './pages/TeamsLandingPage';
-import AppInsightsPage from './pages/AppInsightsPage';
-import PrivacyPage from './pages/PrivacyPage';
-import AuthInterstitial from './pages/AuthInterstitial';
-import ExtensionPage from './pages/ExtensionPage';
-import TermsPage from './pages/TermsPage';
-import RefundPage from './pages/RefundPage';
 import Navigation from './components/Navigation';
 import Footer from './components/Footer';
-import { Link } from 'react-router-dom';
+import { Link, matchPath } from 'react-router-dom';
+import { lazyPage } from './utils/lazyPage';
 
-
-// Lazy load pages
-const CompetitorAnalysis = lazy(() => import('./components/CompetitorAnalysis'));
-const MainAnalysis = lazy(() => import('./components/MainAnalysis'));
-const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
-const PaymentCancel = lazy(() => import('./pages/PaymentCancel'));
-const AccountPage = lazy(() => import('./pages/AccountPage'));
+const TeamsLandingPage = lazyPage(() => import('./pages/TeamsLandingPage'));
+const AppReportView = lazyPage(() => import('./components/ShareReportView').then(m => ({ default: m.AppReportView })));
+const CompetitorReportView = lazyPage(() => import('./components/ShareReportView').then(m => ({ default: m.CompetitorReportView })));
+const AppInsightsPage = lazyPage(() => import('./pages/AppInsightsPage'));
+const BlogListPage = lazyPage(() => import('./pages/BlogListPage'));
+const BlogPostPage = lazyPage(() => import('./pages/BlogPostPage'));
+const PrivacyPage = lazyPage(() => import('./pages/PrivacyPage'));
+const ExtensionPage = lazyPage(() => import('./pages/ExtensionPage'));
+const TermsPage = lazyPage(() => import('./pages/TermsPage'));
+const RefundPage = lazyPage(() => import('./pages/RefundPage'));
+const CompetitorAnalysis = lazyPage(() => import('./components/CompetitorAnalysis'));
+const MainAnalysis = lazyPage(() => import('./components/MainAnalysis'));
+const PaymentSuccess = lazyPage(() => import('./pages/PaymentSuccess'));
+const PaymentCancel = lazyPage(() => import('./pages/PaymentCancel'));
+const AccountPage = lazyPage(() => import('./pages/AccountPage'));
 // ChatBox has a named (not default) export, so wrap the dynamic import.
-const ChatBox = lazy(() => import('./components/ChatBox').then(m => ({ default: m.ChatBox })));
+const ChatBox = lazyPage(() => import('./components/ChatBox').then(m => ({ default: m.ChatBox })));
+
+// path -> page chunk(s) to preload before the first render. Keep in sync with <Routes>.
+const PRELOAD: [string, { preload: () => Promise<unknown> }[]][] = [
+  ['/for-teams', [TeamsLandingPage]],
+  ['/app', [MainAnalysis, AuthInterstitial]],
+  ['/shared-app-report/:shareId', [AppReportView]],
+  ['/share/:shareId', [AppReportView]],
+  ['/shared-competitor-report/:shareId', [CompetitorReportView]],
+  ['/app-insights', [AppInsightsPage]],
+  ['/competitor-insights', [CompetitorAnalysis, AuthInterstitial]],
+  ['/chat', [ChatBox, AuthInterstitial]],
+  ['/payment-success', [PaymentSuccess]],
+  ['/payment-cancel', [PaymentCancel]],
+  ['/account', [AccountPage]],
+  ['/blog', [BlogListPage]],
+  ['/blog/:slug', [BlogPostPage]],
+  ['/privacy', [PrivacyPage]],
+  ['/login', [AuthInterstitial]],
+  ['/extension', [ExtensionPage]],
+  ['/terms', [TermsPage]],
+  ['/refund', [RefundPage]],
+];
+
+/** Resolve once the chunk(s) for `pathname` are loaded (never rejects). */
+export function preloadRoute(pathname: string): Promise<unknown> {
+  const hit = PRELOAD.find(([pattern]) => matchPath(pattern, pathname));
+  if (!hit) return Promise.resolve();
+  return Promise.all(hit[1].map(p => p.preload())).catch(() => undefined);
+}
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -77,6 +106,8 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               } />
               <Route path="/shared-app-report/:shareId" element={<AppReportView/>} />
+              {/* Legacy (pre-Feb-2025) app report URL; still in Google's index. */}
+              <Route path="/share/:shareId" element={<AppReportView/>} />
               <Route path="/shared-competitor-report/:shareId" element={<CompetitorReportView/>} />
               <Route path="/app-insights" element={<AppInsightsPage />} />
               <Route path="/competitor-insights" element={

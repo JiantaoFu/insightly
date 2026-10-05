@@ -6,6 +6,7 @@ import gplay from 'google-play-scraper';
 import rateLimit from 'express-rate-limit';
 import { classifierProfile, marketClassificationHandler } from './marketClassifier.js';
 import { opportunityHandler } from './marketOpportunities.js';
+import { discoveryHandler } from './marketDiscovery.js';
 
 // Account-free local entry point; production continues to use index.js.
 const app = express();
@@ -13,6 +14,8 @@ app.use(cors({ origin: /^http:\/\/(localhost|127\.0\.0\.1):\d+$/ }));
 app.use(express.json({ limit: '512kb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', mode: 'local-market' }));
 app.get('/api/market/classifier', (_req, res) => res.json(classifierProfile(true)));
+app.post('/api/market/discover', rateLimit({ windowMs: 15 * 60000, max: 15, standardHeaders: true, legacyHeaders: false }), discoveryHandler(true));
+app.post('/api/market/resolve-app', rateLimit({ windowMs: 15 * 60000, max: 60, standardHeaders: true, legacyHeaders: false }), discoveryHandler(true, true));
 app.post('/api/market/classify', rateLimit({ windowMs: 15 * 60000, max: 120, standardHeaders: true, legacyHeaders: false }), marketClassificationHandler(true));
 app.post('/api/market/opportunities', rateLimit({ windowMs: 15 * 60000, max: 30, standardHeaders: true, legacyHeaders: false }), opportunityHandler(true));
 app.get('/api/search-apps', async (req, res) => {

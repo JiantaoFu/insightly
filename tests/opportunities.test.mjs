@@ -24,7 +24,8 @@ test('opportunity input is bounded and sends no username, full review or invente
   const body = input(); body.evidence[0].userName = 'Private user';
   assert.equal(validateOpportunityInput(body).evidence[0].userName, undefined);
   assert.throws(() => validateOpportunityInput({ ...body, evidence: Array(25).fill(body.evidence[0]) }));
-  assert.throws(() => validateOpportunityInput({ ...body, question: '' }));
+  assert.equal(validateOpportunityInput({ ...body, question: '', days: 90 }).question, '');
+  assert.throws(() => validateOpportunityInput({ ...body, question: 'x'.repeat(401) }));
   assert.throws(() => validateOpportunityInput({ ...body, days: 365 }));
 });
 
@@ -92,6 +93,7 @@ test('stored reports and validation snapshots reject corrupted references and pr
   assert.equal(loadSavedOpportunities([{ ...saved, stage: 'confirmed-profitable' }]).length, 0);
   assert.notEqual(opportunityInputKey(context, [evidence], 30), opportunityInputKey({ ...context, mode: 'improve' }, [evidence], 30));
   assert.notEqual(opportunityInputKey(context, [evidence], 30), opportunityInputKey(context, [{ ...evidence, quote: 'Changed' }], 30));
+  assert.equal(opportunityInputKey(context, [evidence], 30), opportunityInputKey({ question: context.question, focusTopic: 'all', product: '', mode: 'explore' }, [evidence], 30));
 });
 
 test('explicit saved snapshot updates preserve validation stage and do not duplicate the opportunity', () => {

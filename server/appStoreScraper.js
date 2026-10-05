@@ -6,7 +6,7 @@ import { calculateAverageRating, calculateScoreDistribution } from './utils.js';
 // Function to extract App Store app ID from a URL
 export function extractAppStoreId(url) {
   // Regex to match App Store URL patterns
-  const appStoreRegex = /https?:\/\/apps\.apple\.com\/[a-z]{2}\/app\/[^/]+\/id(\d+)/;
+  const appStoreRegex = /https?:\/\/apps\.apple\.com\/[a-z]{2}\/app\/(?:[^/]+\/)?id(\d+)/;
   const match = url.match(appStoreRegex);
 
   if (match && match[1]) {

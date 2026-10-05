@@ -17,6 +17,7 @@ export interface OpportunityReport {
   opportunities: Opportunity[]; evidence: OpportunityEvidence[]; context: ResearchContext; days: number;
   usage: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number };
   sample: boolean;
+  researchAppKeys?: string[];
 }
 export interface SavedOpportunity {
   opportunity: Opportunity; report: OpportunityReport; savedAt: string;
@@ -48,7 +49,8 @@ export function selectOpportunityEvidence(apps: WatchApp[], context: ResearchCon
   return selected;
 }
 
-export const opportunityInputKey = (context: ResearchContext, evidence: OpportunityEvidence[], days: number) => JSON.stringify([OPPORTUNITY_VERSION, context, days, evidence]);
+export const opportunityInputKey = (context: ResearchContext, evidence: OpportunityEvidence[], days: number) => JSON.stringify([OPPORTUNITY_VERSION,
+  { mode: context.mode || 'explore', product: context.product, question: context.question, focusTopic: context.focusTopic }, days, evidence]);
 export const opportunityRequest = (marketId: string, context: ResearchContext, evidence: OpportunityEvidence[], days: number) => ({
   marketId, mode: context.mode || 'explore', product: context.product, question: context.question, days,
   evidence: evidence.map(({ key, reviewKey, appId, appName, topic, quote, intent, polarity }) => ({ key, reviewKey, appId, appName, topic, quote, intent, polarity })),
@@ -59,11 +61,12 @@ export function parseOpportunityReport(value: unknown): OpportunityReport | null
   if (!value || typeof value !== 'object') return null;
   const report = value as OpportunityReport;
   if (report.version !== OPPORTUNITY_VERSION || !bounded(report.inputKey, 150000) || !bounded(report.provider, 100) || !bounded(report.model, 100)
-    || !Number.isFinite(new Date(report.generatedAt).getTime()) || typeof report.sample !== 'boolean' || ![7, 30].includes(report.days)
+    || !Number.isFinite(new Date(report.generatedAt).getTime()) || typeof report.sample !== 'boolean' || ![7, 30, 90].includes(report.days)
     || !report.context || !bounded(report.context.product, 600, true) || !bounded(report.context.question, 400, true)
     || !['explore', 'improve'].includes(report.context.mode || 'explore') || !Array.isArray(report.evidence) || report.evidence.length > 24
     || !Array.isArray(report.opportunities) || report.opportunities.length > 5) return null;
   const refs = new Set<string>();
+  if (report.researchAppKeys && (!Array.isArray(report.researchAppKeys) || report.researchAppKeys.length > 5 || report.researchAppKeys.some(key => !bounded(key, 200)))) return null;
   for (const item of report.evidence) {
     if (!item || !bounded(item.key, 100) || refs.has(item.key) || !bounded(item.quote, 1000) || !bounded(item.appName, 200)
       || !bounded(item.reviewKey, 200) || !bounded(item.appId, 100) || !bounded(item.topic, 100)

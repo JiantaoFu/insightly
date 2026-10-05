@@ -5,15 +5,11 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Edge function: inject per-report OG/Twitter tags for social crawlers
-# (WhatsApp, X, Facebook, LinkedIn...) on shared report pages. The SPA sets
-# these via JS, which social crawlers never run. Regular users pass through.
-[[edge_functions]]
-  function = "social-cards"
-  path = "/shared-app-report/*"
-[[edge_functions]]
-  function = "social-cards"
-  path = "/shared-competitor-report/*"
+# Edge function netlify/edge-functions/prerender.ts serves crawlable HTML
+# (own <title>, description, canonical, OG/Twitter tags and main content) for
+# /, /for-teams, /app, /app-insights, /shared-app-report/*,
+# /shared-competitor-report/* and the legacy /share/*. Its paths and
+# `cache: "manual"` are declared in the function's own `config` export.
 
 [[redirects]]
   from = "/sitemap.xml"

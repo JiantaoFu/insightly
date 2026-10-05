@@ -5,7 +5,12 @@ import React from 'react';
  * (Netlify proxies to Render), so the Google consent screen shows insightly.top
  * — never the onrender.com backend host.
  */
-const AuthInterstitial: React.FC = () => {
+interface AuthInterstitialProps {
+  /** Page heading; defaults to the /login wording. /app passes its own. */
+  heading?: string;
+}
+
+const AuthInterstitial: React.FC<AuthInterstitialProps> = ({ heading = 'Continue to Insightly' }) => {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-white rounded-2xl shadow-xl border border-gray-200 p-8 md:p-10">
@@ -29,7 +34,7 @@ const AuthInterstitial: React.FC = () => {
         </div>
         {/* Right: auth actions — dual path */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Continue to Insightly</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{heading}</h1>
           <p className="mt-2 text-gray-600 text-sm">
             Login saves your credits &amp; report history. Reading public reports never requires login.
           </p>

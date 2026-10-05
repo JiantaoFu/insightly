@@ -155,6 +155,7 @@
             <div class="isk-burger" aria-hidden="true"><i></i><i></i><i></i></div>
           </div>
         </nav>
+        <!--prerender:main:start-->
         <main class="isk-hero" id="isk-hero">
           <div class="isk-grid"></div>
           <div class="isk-wrap isk-inner">
@@ -182,15 +183,18 @@
             </div>
           </div>
         </main>
+        <!--prerender:main:end-->
       </div>
       <script>
         // index.html is the shell for every SPA route; only show the Home hero
         // skeleton on "/". Other routes get the nav bar only until React mounts.
+        // Pages prerendered by netlify/edge-functions/prerender.ts swap this
+        // <main> out (or mark it data-prerendered), so this is a no-op there.
         (function () {
           var p = location.pathname;
-          if (p !== '/' && p !== '/index.html') {
-            var h = document.getElementById('isk-hero');
-            if (h) h.style.display = 'none';
+          var h = document.getElementById('isk-hero');
+          if (h && p !== '/' && p !== '/index.html' && !h.hasAttribute('data-prerendered')) {
+            h.style.display = 'none';
           }
         })();
       </script>

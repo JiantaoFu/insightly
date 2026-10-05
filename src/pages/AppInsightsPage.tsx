@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { updateMetadata } from '../utils/metadata';
 import { Search } from 'lucide-react';
 import DBAnalysesList from '../components/DBAnalysesList';
 import CachedComparisonsList from '../components/CachedComparisonsList';
@@ -9,6 +10,15 @@ import Footer from '../components/Footer';
 const AppInsightsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('analyses');
+
+  // Same title/description the prerender edge function serves for /app-insights.
+  useEffect(() => {
+    updateMetadata(
+      'Comprehensive App Analysis Archive | Insightly',
+      'Explore our comprehensive database of app analyses. We provide in-depth insights into app performance, user reviews, and developer reputation.',
+      { canonicalPath: '/app-insights' }
+    );
+  }, []);
 
   return (
     <>

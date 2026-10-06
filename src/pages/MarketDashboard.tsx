@@ -9,6 +9,7 @@ import { changeResearchProject, loadResearchProjects, newResearchProject, PROJEC
 import MarketInsights from '../components/MarketInsights';
 import OpportunityWorkspace from '../components/OpportunityWorkspace';
 import DecisionWorkspace from '../components/DecisionWorkspace';
+import DecisionEvidence from '../components/DecisionEvidence';
 import MarketModelControls, { ClassifierProfile } from '../components/MarketModelControls';
 import { useAuth } from '../components/AuthContext';
 
@@ -70,6 +71,7 @@ const MarketDashboard: React.FC = () => {
     catch { setStorageError('Research migration could not be saved. Existing data has been retained.'); }
   }, []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [sourceView, setSourceView] = useState<'evidence' | 'manage'>('evidence');
   const [generatingOpportunities, setGeneratingOpportunities] = useState(false);
   const { token } = useAuth();
   const [profile, setProfile] = useState<ClassifierProfile | null>(null);
@@ -358,8 +360,8 @@ const MarketDashboard: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
         <div className="flex items-center gap-2 text-teal-800 text-sm font-medium"><Radar className="w-4 h-4" />Product intelligence</div>
         <div className="flex flex-wrap justify-between items-center gap-3 mt-2">
-          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Review sources' : 'Find your next product direction'}</h1>
-          <button onClick={() => setSourcesOpen(value => !value)} className="inline-flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-3 py-2">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to opportunities' : `Sources (${scopedApps.length})`}</button>
+          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Evidence & sources' : 'Find your next product direction'}</h1>
+          <button onClick={() => setSourcesOpen(value => !value)} className="inline-flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-3 py-2">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to next steps' : `Evidence & sources (${scopedApps.length})`}</button>
         </div>
         <p className="mt-2 text-sm text-gray-500">{watchlist.some(app => app.sample) && !realApps.length ? 'Sample market · illustrative reviews' : 'Research saved in this browser'}</p>
         <div className="flex flex-wrap items-end gap-3 mt-5 pb-4 border-b border-gray-200">
@@ -392,6 +394,12 @@ const MarketDashboard: React.FC = () => {
             }} />}
         </div>
         <div className={sourcesOpen ? '' : 'hidden'}>
+        <div role="tablist" aria-label="Evidence and sources" className="flex flex-wrap gap-5 border-b border-gray-200 mt-4">
+          {(['evidence', 'manage'] as const).map(tab => <button key={tab} id={`source-tab-${tab}`} role="tab" aria-selected={sourceView === tab} aria-controls={`source-panel-${tab}`} onClick={() => setSourceView(tab)} className={`py-3 text-sm border-b-2 ${sourceView === tab ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{tab === 'evidence' ? 'Evidence details' : 'Source management'}</button>)}
+        </div>
+        <p className="mt-4 text-sm text-amber-800">Saved suggestions are a snapshot. Collecting or classifying more reviews does not update them automatically.</p>
+        <div id="source-panel-evidence" role="tabpanel" aria-labelledby="source-tab-evidence" hidden={sourceView !== 'evidence'}><DecisionEvidence report={project.decision?.report || null} /></div>
+        <div id="source-panel-manage" role="tabpanel" aria-labelledby="source-tab-manage" hidden={sourceView !== 'manage'}>
         <section className="mt-5 border-b border-gray-200 pb-5">
           <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_auto] gap-3">
             <select
@@ -455,15 +463,16 @@ const MarketDashboard: React.FC = () => {
           {isAdding && <p role="status" className="mt-3 text-sm text-gray-500">Fetching app details and recent reviews...</p>}
         </section>
 
-        <MarketModelControls profile={profile} checking={checkingModel} busy={busy} progress={classificationProgress}
+        <details className="mt-4"><summary className="text-sm text-gray-600 cursor-pointer">Analysis coverage &amp; model settings</summary><MarketModelControls profile={profile} checking={checkingModel} busy={busy} progress={classificationProgress}
           classified={currentModelCount} total={realApps.reduce((total, app) => total + app.reviews.length, 0)}
-          error={classificationError} onCheck={() => { setClassificationError(null); setModelCheck(value => value + 1); }} onClassify={classifyReviews} />
+          error={classificationError} onCheck={() => { setClassificationError(null); setModelCheck(value => value + 1); }} onClassify={classifyReviews} /></details>
         <MarketInsights key={project.id} apps={scopedApps} research={research} busy={busy} syncingId={syncingId} syncErrors={syncErrors}
           onSync={refreshApp} onSyncAll={syncAll}
           onRemove={id => updateProject({ scope: { ...project.scope, apps: project.scope.apps.filter(app => app.key !== storeAppKey(watchlist.find(item => item.id === id)?.url || '')) } })}
           onRoleChange={(id, nextRole) => updateProject({ roles: Object.fromEntries(project.scope.apps.map(app => [app.key,
             app.key === storeAppKey(watchlist.find(item => item.id === id)?.url || '') ? nextRole : nextRole === 'my-app' ? 'competitor' : project.roles[app.key] || 'competitor'])) })}
         />
+        </div>
         </div>
       </main>
     </div>

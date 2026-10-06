@@ -50,7 +50,7 @@ const SignalRow = ({ signal, days, action = false }: { signal: MarketSignal; day
 );
 
 const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, onSyncAll, onRemove, onRoleChange }: Props) => {
-  const [view, setView] = useState<'overview' | 'brief' | 'weekly' | 'ask' | 'watchlist'>('overview');
+  const [view, setView] = useState<'overview' | 'brief' | 'weekly' | 'ask' | 'watchlist'>('watchlist');
   const [days, setDays] = useState(30);
   const [appId, setAppId] = useState('all');
   const [question, setQuestion] = useState('changes');
@@ -71,9 +71,9 @@ const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, o
   return (
     <div className="mt-7">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200">
-        <div role="tablist" aria-label="Market views" className="flex flex-wrap gap-5">
+        <details><summary className="text-sm text-gray-600 cursor-pointer py-3">Monitoring &amp; analysis tools</summary><div role="tablist" aria-label="Market views" className="flex flex-wrap gap-5">
           {(['overview', 'brief', 'weekly', 'ask', 'watchlist'] as const).map(tab => <button key={tab} id={`market-tab-${tab}`} role="tab" aria-selected={view === tab} aria-controls="market-panel" onClick={() => setView(tab)} className={`py-3 text-sm font-medium border-b-2 ${view === tab ? 'border-teal-700 text-teal-900' : 'border-transparent text-gray-500 hover:text-gray-900'}`}>{({ overview: 'Overview', brief: 'Research brief', weekly: 'Weekly brief', ask: 'Ask market', watchlist: 'Watchlist' })[tab]}</button>)}
-        </div>
+        </div></details>
         <div className="flex gap-3 items-center pb-2 flex-wrap">
           {view !== 'watchlist' && <select aria-label="Filter by app" value={appId} onChange={event => setAppId(event.target.value)} className="border border-gray-300 rounded p-2 text-sm max-w-52"><option value="all">All apps</option>{apps.map(app => <option value={app.id} key={app.id}>{app.name}</option>)}</select>}
           {view !== 'weekly' && view !== 'watchlist' && <select aria-label="Comparison period" value={days} onChange={event => setDays(Number(event.target.value))} className="border border-gray-300 rounded p-2 text-sm"><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option></select>}
@@ -131,7 +131,7 @@ const MarketInsights = ({ apps, research, busy, syncingId, syncErrors, onSync, o
             <button title={`Sync ${app.name}`} aria-label={`Sync ${app.name}`} disabled={busy || app.sample} onClick={() => onSync(app)} className="p-2 hover:bg-gray-100 rounded disabled:opacity-40"><RefreshCw className={`w-4 h-4 ${syncingId === app.id ? 'animate-spin' : ''}`} /></button>
             <button title={`Remove ${app.name} from this research; keep collected reviews`} aria-label={`Remove ${app.name} from research`} disabled={busy} onClick={() => { if (appId === app.id) setAppId('all'); onRemove(app.id); }} className="p-2 text-gray-500 hover:text-red-700 disabled:opacity-40"><Trash2 className="w-4 h-4" /></button></div>
           </div>)}
-          <MarketCoverage apps={apps} />
+          <details className="mt-5"><summary className="text-sm text-gray-600 cursor-pointer">Collection quality &amp; history</summary><MarketCoverage apps={apps} /></details>
         </section>}
       </div>
     </div>

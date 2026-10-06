@@ -17,9 +17,9 @@ import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
-import { isValidShareId, storageErrorInfo, classifyStorageError, decideAppReport, decideCompetitorReport } from './utils/reportLookup.js';
+import { recordExpirationHours, isValidShareId, storageErrorInfo, classifyStorageError, decideAppReport, decideCompetitorReport } from './utils/reportLookup.js';
 import { supabase } from './supabaseClient.js';
-import { generateSitemap, initializeSitemap } from './sitemap.js';
+import { generateSitemap, initializeSitemap, getSitemapMeta } from './sitemap.js';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { embeddingService } from './services/EmbeddingService.js'
 import { availableFunctions, functionDeclarations } from './functions.js';
@@ -497,9 +497,7 @@ const comparisonCache = new LRUCache({
   maxAge: 1000 * 60 * 60 * 24 * 90
 });
 
-const RECORD_EXPIRATION_HOURS = process.env.RECORD_EXPIRATION_HOURS
-  ? parseInt(process.env.RECORD_EXPIRATION_HOURS, 10)
-  : 24 * 7 * 365;
+const RECORD_EXPIRATION_HOURS = recordExpirationHours();
 
 // Function to check if cache entry is expired
 const isRecordEntryExpired = (recordEntry) => {
@@ -2015,6 +2013,12 @@ app.get('/sitemap.xml', async (req, res) => {
     // Cache for an hour at CDNs/proxies (Netlify proxies this path);
     // the XML itself is also cached in-process for an hour.
     res.header('Cache-Control', 'public, max-age=3600');
+    // Deploy check: 'storage-verified' once the sitemap_app_reports() migration is applied.
+    const meta = getSitemapMeta();
+    if (meta) {
+      res.header('X-Sitemap-Source', meta.storageVerified ? 'storage-verified' : 'db-only');
+      res.header('X-Sitemap-Counts', `app=${meta.appReports}; competitor=${meta.competitorReports}; static=${meta.staticRoutes}`);
+    }
     res.send(sitemap);
   } catch (error) {
     console.error('Error serving sitemap:', error);

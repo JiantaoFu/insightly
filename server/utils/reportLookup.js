@@ -12,6 +12,16 @@
  * Anything without a `code` must be treated as ambiguous by clients.
  */
 
+/**
+ * RECORD_EXPIRATION_HOURS (default 7 years). Read lazily so .env loaded by
+ * dotenv.config() at server start is honoured. Shared by the report endpoints
+ * and the sitemap so both apply the same expiry rule.
+ */
+export function recordExpirationHours(env = process.env) {
+  const h = parseInt(env.RECORD_EXPIRATION_HOURS, 10);
+  return Number.isFinite(h) && h > 0 ? h : 24 * 7 * 365;
+}
+
 // Share IDs are md5 hex digests (generateUrlHash in server/utils.js).
 export const SHARE_ID_RE = /^[0-9a-f]{32}$/i;
 

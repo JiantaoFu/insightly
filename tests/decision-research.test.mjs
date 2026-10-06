@@ -2,16 +2,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDecisionResearch, decisionHandler } from '../server/marketDecisions.js';
 import { parseDecisionBrief, parseDecisionResult } from '../shared/decisionContract.js';
-const brief = { title: 'Focus photo backup', situation: 'Founder reports slow growth.', decision: 'Should the product focus on photo backup?', searchQuery: 'automatic photo backup', assumptions: ['A narrower workflow would help users'], limits: ['Reviews cannot diagnose growth or brand effects'] };
+const brief = { title: 'Focus photo backup', situation: 'Founder reports slow growth.', decision: 'Should the product focus on photo backup?', searchQuery: 'automatic photo backup', assumptions: ['A narrower workflow would help users'], limits: ['Reviews cannot diagnose growth or brand effects'], originalIdea: 'Focus on backup' };
 const input = 'My photo product is not growing. Should I focus on backup and rebrand?';
 const profile = { configured: true, model: 'fixture' };
 const evidence = [{ key: 'e0', reviewKey: 'a:r0', appId: 'a', appName: 'Photos', topic: 'Backup reliability', quote: 'Backup stops.', intent: 'complaint', polarity: 'negative' }];
 const result = { position: 'conditional', conclusion: 'Test reliability before deciding scope.', conclusionKeys: ['e0'], supports: [{ text: 'This review reports interrupted backup.', evidenceKeys: ['e0'] }], counters: [], unknowns: ['Whether this affects the target users'], nextStep: { action: 'Observe a backup session with a user.', success: 'They finish the task without intervention.', changeMind: 'The missing companion workflow prevents completion.' } };
+const direction = { kind: 'observed', title: 'Make backup status clear', scenario: 'A person leaves a backup running.', problem: 'The backup stops.', proposal: 'Test a visible completion status.', rationale: 'Check task completion before expanding features.', uncertainty: 'Relevance to the target users is unknown.', action: 'Observe a backup attempt.', changeMind: 'People already know the result without extra status.', evidenceKeys: ['e0'] };
+result.directions = [direction];
+result.originalIdea = { status: 'adjust', assessment: 'Explore completion rather than simply removing features.', evidenceKeys: ['e0'] };
 const body = () => ({ marketId: 'project-a', input, brief, days: 90, evidence });
 
 test('decision brief separates hypothesis and limits and rejects missing or oversized fields', () => {
   assert.deepEqual(parseDecisionBrief(brief), brief);
-  assert.equal(parseDecisionBrief({ ...brief, assumptions: [] }), null);
+  assert.deepEqual(parseDecisionBrief({ ...brief, assumptions: [], originalIdea: '' }).assumptions, []);
   assert.equal(parseDecisionBrief({ ...brief, decision: 'x'.repeat(401) }), null);
   assert.equal(parseDecisionBrief({ ...brief, limits: [] }), null);
 });
@@ -42,7 +45,7 @@ test('brief generation is independent of collection; invalid output is not cache
   assert.equal(calls, 2);
   await assert.rejects(run({ input: 'short' }, 'user', profile, 'brief'));
   await assert.rejects(run({ input }, 'user', { configured: false }, 'brief'));
-  await assert.rejects(run({ ...body(), evidence: [] }, 'user', profile, 'report'));
+  await assert.rejects(run({ ...body(), evidence: [{}] }, 'user', profile, 'report'));
   assert.equal(calls, 2);
 });
 
@@ -67,4 +70,29 @@ test('same-user concurrency and origin/auth guards protect decision endpoints', 
     await decisionHandler(local)({ headers }, response);
     assert.equal(response.code, 403);
   }
+});
+
+test('directions require grounded observed problems and valid distinct alternatives', () => {
+  assert.equal(parseDecisionResult({ ...result, directions: [] }, ['e0'], true), null);
+  assert.equal(parseDecisionResult({ ...result, directions: [direction, direction] }, ['e0'], true), null);
+  assert.equal(parseDecisionResult({ ...result, directions: [{ ...direction, evidenceKeys: [] }] }, ['e0'], true), null);
+  assert.equal(parseDecisionResult({ ...result, directions: [{ ...direction, evidenceKeys: ['invented'] }] }, ['e0'], true), null);
+  const { directions, originalIdea, ...legacy } = result;
+  assert.ok(parseDecisionResult(legacy, ['e0']));
+  assert.equal(parseDecisionResult(legacy, ['e0'], true), null);
+});
+
+test('a founder without an idea gets context-only next steps without fabricated review support', async () => {
+  const noIdea = { ...brief, originalIdea: '', assumptions: [], decision: 'What user tasks should we explore next?' };
+  const contextResult = { ...result, position: 'insufficient', supports: [], counters: [], conclusionKeys: [],
+    directions: [{ ...direction, kind: 'investigate', evidenceKeys: [] }],
+    originalIdea: { status: 'not_provided', assessment: 'No approach supplied; explore task completion.', evidenceKeys: [] } };
+  const run = createDecisionResearch(async () => ({ text: JSON.stringify(contextResult) }));
+  const response = await run({ ...body(), input: 'I have no idea what to improve next.', brief: noIdea, evidence: [] }, 'user', profile, 'report');
+  assert.equal(response.report.directions[0].kind, 'investigate');
+  assert.equal(response.report.originalIdea.status, 'not_provided');
+  assert.equal(parseDecisionResult({ ...contextResult, position: 'conditional' }, [], true), null);
+  assert.equal(parseDecisionResult({ ...contextResult, originalIdea: { ...contextResult.originalIdea, status: 'retain' } }, [], true), null);
+  const inventedIdea = createDecisionResearch(async () => ({ text: JSON.stringify({ ...contextResult, originalIdea: { ...contextResult.originalIdea, status: 'adjust' } }) }));
+  await assert.rejects(inventedIdea({ ...body(), brief: noIdea, evidence: [] }, 'user', profile, 'report'));
 });

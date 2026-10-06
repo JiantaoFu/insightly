@@ -7,10 +7,10 @@ const digest = value => createHash('sha256').update(JSON.stringify(value)).diges
 const bounded = (value, max, empty = false) => typeof value === 'string' && value.length <= max && (empty || value.trim().length > 0);
 const reject = message => { const error = new Error(message); error.status = 400; error.publicMessage = true; throw error; };
 
-export function validateOpportunityInput(body) {
+export function validateOpportunityInput(body, { allowEmptyEvidence = false } = {}) {
   if (!body || !bounded(body.marketId, 100) || !['explore', 'improve'].includes(body.mode)
     || !bounded(body.question, 400, true) || !bounded(body.product, 600, true) || ![7, 30, 90].includes(body.days)
-    || !Array.isArray(body.evidence) || body.evidence.length < 1 || body.evidence.length > 24) reject('Supply 1-24 classified evidence excerpts and a valid research scope.');
+    || !Array.isArray(body.evidence) || body.evidence.length < (allowEmptyEvidence ? 0 : 1) || body.evidence.length > 24) reject('Supply valid classified evidence excerpts and a valid research scope.');
   const keys = new Set();
   const evidence = body.evidence.map(item => {
     if (!item || !bounded(item.key, 100) || keys.has(item.key) || !bounded(item.reviewKey, 200)

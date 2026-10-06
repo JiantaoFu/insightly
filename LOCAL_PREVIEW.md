@@ -223,7 +223,17 @@ sample opportunities never call Gemini and stay labeled in the UI and exports.
 
 ## Decision Research
 
-New directions start with Research a decision. Explore apps preserves the existing app-first flow; migrated app research retains that flow.
+### Constructive Next Steps (v2)
+
+The main workflow is now Find next steps. A narrative can describe an uncertain situation without supplying a hypothesis. The generated research focus retains an optional original idea, allows zero assumptions, and searches the underlying task rather than only validating the proposal.
+
+Reports lead with 1-3 distinct directions, in priority order: an observed problem with citations (solution still unvalidated), an exploratory idea with unverified demand, or a targeted evidence-gathering action. Each includes a possible scenario, problem, proposed approach, priority rationale, limits, one next action and a disconfirming finding. Original ideas receive a separate retain/adjust/set-aside/undetermined assessment; absent ideas do not get invented hypothesis verdicts.
+
+Get exploratory suggestions is an explicit context-only action. It does not collect or classify reviews and labels the result as having no review evidence. Empty evidence cannot support observed problems or validated retain/set-aside claims. Source failures do not silently become market-backed suggestions. Existing collection budgets, citation validation, cache isolation and the two-call report/evidence-editing budget are unchanged. v1 reports remain readable; v2 generation requires the new direction fields.
+
+Verification: 66 automated tests, production build, targeted lint, isolated desktop/mobile acceptance for no-idea and original-idea flows, and the prior app-first/project-switching regression pass. A live Gemini run used a no-idea Lomorage description with the existing ten public-review excerpts. It produced prioritized alternatives and correctly recorded no original idea. These are model interpretations of a small competitor sample, not proof of growth, demand or relevance to Lomorage; semantic overgeneralization remains a review risk even with the editing pass. Whole-repository lint/typecheck still have pre-existing failures.
+
+The underlying research pipeline is retained from v1. Explore apps preserves the app-first flow; migrated app research retains that flow.
 
 - Describe a situation (10-4000 characters), then Shape my research. Gemini drafts a situation, decision, assumptions and evidence limitations. The draft is editable and must be reviewed before confirming sources. A changed narrative requires a fresh understanding step.
 - Confirm & find sources searches verified store listings. Source selection is editable; existing collection and batch classification are reused. First-round limits remain five apps, up to 120 pending reviews classified, and 24 selected excerpts per report. Decision selection interleaves praise/observations with complaints/requests, rather than selecting only complaints.

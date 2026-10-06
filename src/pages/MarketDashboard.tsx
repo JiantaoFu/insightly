@@ -381,7 +381,7 @@ const MarketDashboard: React.FC = () => {
 
         <div className={sourcesOpen ? 'hidden' : ''}>
           <div role="tablist" aria-label="Research starting point" className="flex gap-5 border-b border-gray-200 mt-3">
-            {(['decision', 'apps'] as const).map(mode => <button key={mode} role="tab" aria-selected={workflow === mode} disabled={busy} onClick={() => updateProject({ workflow: mode })} className={`py-3 text-sm border-b-2 ${workflow === mode ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{mode === 'decision' ? 'Research a decision' : 'Explore apps'}</button>)}
+            {(['decision', 'apps'] as const).map(mode => <button key={mode} role="tab" aria-selected={workflow === mode} disabled={busy} onClick={() => updateProject({ workflow: mode })} className={`py-3 text-sm border-b-2 ${workflow === mode ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{mode === 'decision' ? 'Find next steps' : 'Explore apps'}</button>)}
           </div>
           {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}
           {workflow === 'decision' ? <DecisionWorkspace key={project.id} project={project} onChange={updateProject} apps={watchlist} profile={profile} checking={checkingModel} token={token} busy={busy}

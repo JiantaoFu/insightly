@@ -46,7 +46,7 @@ export default function DecisionWorkspace({ project, apps, onChange, profile, ch
     reviews: app.reviews.filter(review => getReviewAnalysis(review)?.model === profile?.model) })), context, project.days, new Date(), true);
   const appKeys = project.scope.apps.map(app => app.key);
   const currentEvidence = evidenceFor(apps.filter(app => appKeys.includes(storeAppKey(app.url))));
-  const stale = !!report && (!briefCurrent || !brief || report.inputKey !== decisionInputKey(state.input.trim(), brief, project.days, appKeys, currentEvidence, profile?.model || ''));
+  const stale = !!report && (!briefCurrent || !brief || report.inputKey !== decisionInputKey(state.input.trim(), brief, project.days, report.basis === 'context' ? [] : appKeys, report.basis === 'context' ? [] : currentEvidence, profile?.model || ''));
   const updateBrief = (patch: Partial<DecisionBrief>) => { if (brief) onChange({ decision: { ...state, brief: { ...brief, ...patch } } }); };
   const post = async (endpoint: string, body: unknown, signal: AbortSignal) => {
     const response = await fetch(`${SERVER_URL}/api/market/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -64,7 +64,7 @@ export default function DecisionWorkspace({ project, apps, onChange, profile, ch
     finally { controller.current = null; onBusyChange(false); }
   };
   const understand = () => run(async signal => {
-    setProgress('Understanding your decision...');
+    setProgress('Understanding your situation...');
     const data = await post('decision/brief', { input: state.input }, signal);
     const next = parseDecisionBrief(data.brief);
     if (!next || data.version !== DECISION_VERSION || data.provider !== 'gemini' || data.model !== profile?.model) throw new Error('The research brief was invalid.');
@@ -83,36 +83,39 @@ export default function DecisionWorkspace({ project, apps, onChange, profile, ch
     if (data.partial) setWarnings(['Some store searches failed. The source selection may be incomplete.']);
     setProgress('');
   });
-  const research = () => run(async signal => {
-    if (!validBrief || !briefCurrent || !appKeys.length || (editSources && sourceDirty)) return;
-    const prepared = await onPrepare(project.scope.apps, project.days, setProgress, signal);
+  const research = (contextOnly = false) => run(async signal => {
+    if (!validBrief || !briefCurrent || (!contextOnly && (!appKeys.length || (editSources && sourceDirty)))) return;
+    const prepared = contextOnly ? { apps: [], warnings: [] } : await onPrepare(project.scope.apps, project.days, setProgress, signal);
     setWarnings(prepared.warnings); signal.throwIfAborted();
     const evidence = evidenceFor(prepared.apps);
-    if (!evidence.length) throw new Error('No usable classified review evidence was found in this period. The decision cannot be judged from these sources. Try other sources or a longer period.');
-    const inputKey = decisionInputKey(state.input.trim(), validBrief, project.days, appKeys, evidence, profile!.model);
+    if (!evidence.length && !contextOnly) throw new Error('No usable classified reviews were found. Adjust your sources or choose Get exploratory suggestions for a context-only starting point.');
+    const selectedKeys = contextOnly ? [] : appKeys;
+    const inputKey = decisionInputKey(state.input.trim(), validBrief, project.days, selectedKeys, evidence, profile!.model);
     if (report?.inputKey === inputKey) { setEditing(false); setProgress('Research is up to date.'); return; }
-    setProgress('Weighing evidence for your decision...');
+    setProgress(contextOnly ? 'Exploring possible next steps from your context...' : 'Finding and checking useful directions...');
     const data = await post('decision/report', { marketId: project.id, input: state.input, brief: validBrief, days: project.days, evidence }, signal);
-    const next = parseDecisionReport({ ...data, inputKey, input: state.input.trim(), brief: validBrief, days: project.days, appKeys, evidence, result: data.report });
-    if (!next || data.provider !== 'gemini' || data.model !== profile?.model) throw new Error('Research returned invalid evidence references.');
+    const next = parseDecisionReport({ ...data, inputKey, input: state.input.trim(), brief: validBrief, days: project.days, appKeys: selectedKeys, evidence, result: data.report, basis: contextOnly ? 'context' : 'reviews' });
+    if (!next || data.version !== DECISION_VERSION || data.provider !== 'gemini' || data.model !== profile?.model) throw new Error('Research returned invalid evidence references.');
     onChange({ decision: { ...state, report: next }, research: { ...context, question: validBrief.decision } });
     setEditing(false); setProgress('Research complete.');
   });
 
   return <section className="mt-6 min-w-0">
-    {report && <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 className="text-lg font-semibold">Decision research</h2><button disabled={busy} onClick={() => setEditing(value => !value)} className="text-sm text-teal-800">{editing ? 'Back to result' : 'Edit research'}</button></div>}
+    {report && <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 className="text-lg font-semibold">Your next steps</h2><button disabled={busy} onClick={() => setEditing(value => !value)} className="text-sm text-teal-800">{editing ? 'Back to result' : 'Edit research'}</button></div>}
     {editing && <>
-      <label className="block text-lg font-semibold" htmlFor="decision-input">What are you considering?</label>
+      <label className="block text-lg font-semibold" htmlFor="decision-input">What are you working on or exploring?</label>
       <textarea id="decision-input" value={state.input} disabled={busy} maxLength={4000} rows={5} onChange={event => onChange({ workflow: 'decision', decision: { ...state, input: event.target.value } })}
-        placeholder="My product is not growing. I am considering focusing on one job instead of offering everything..." className="block mt-3 w-full resize-y rounded border border-gray-300 p-3 text-base font-normal focus:ring-2 focus:ring-teal-600" />
+        placeholder="My product is not growing and I am unsure what to improve next. I want to understand which user problems are worth solving..." className="block mt-3 w-full resize-y rounded border border-gray-300 p-3 text-base font-normal focus:ring-2 focus:ring-teal-600" />
       <button disabled={busy || !available || state.input.trim().length < 10} onClick={understand} className="mt-3 inline-flex items-center gap-2 bg-teal-700 text-white rounded px-4 py-2 text-sm disabled:opacity-40"><ArrowRight className="w-4 h-4" />{brief ? 'Update understanding' : 'Shape my research'}</button>
       {brief && <section className="mt-6 py-5 border-y border-gray-200">
-        <h2 className="text-lg font-semibold">Is this the decision?</h2>
+        <h2 className="text-lg font-semibold">Is this the right focus?</h2>
         <p className="text-xs text-gray-500 mt-2">Your situation · self-reported</p><p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words">{brief.situation}</p>
         <label className="block text-sm font-medium mt-4">Research question<textarea aria-label="Decision to investigate" disabled={busy} rows={3} maxLength={400} value={brief.decision} onChange={event => updateBrief({ decision: event.target.value })} className="block w-full border border-gray-300 rounded mt-2 p-3 font-normal" /></label>
-        <h3 className="text-sm font-medium mt-4">Assumptions to test</h3><ul className="mt-2 list-disc pl-5 space-y-2 text-sm text-gray-700">{brief.assumptions.map((item, i) => <li key={i} className="break-words">{item}</li>)}</ul>
+        <p className="text-sm text-gray-600 mt-4">{brief.originalIdea ? `Your current idea: ${brief.originalIdea}` : 'No proposed approach yet.'}</p>
+        {!!brief.assumptions.length && <><h3 className="text-sm font-medium mt-4">Open questions to examine</h3><ul className="mt-2 list-disc pl-5 space-y-2 text-sm text-gray-700">{brief.assumptions.map((item, i) => <li key={i} className="break-words">{item}</li>)}</ul></>}
         <details className="mt-4 text-sm"><summary className="text-teal-800 cursor-pointer">Correct context and assumptions</summary>
           <label className="block mt-3">Situation<textarea aria-label="Research situation" disabled={busy} rows={3} maxLength={800} value={brief.situation} onChange={event => updateBrief({ situation: event.target.value })} className="block w-full border rounded p-2 mt-1" /></label>
+          <label className="block mt-3">Current idea · optional<textarea aria-label="Current idea" disabled={busy} rows={2} maxLength={600} value={brief.originalIdea || ''} onChange={event => updateBrief({ originalIdea: event.target.value })} className="block w-full border rounded p-2 mt-1" /></label>
           {brief.assumptions.map((item, i) => <label key={i} className="block mt-3">Assumption {i + 1}<textarea disabled={busy} maxLength={300} value={item} onChange={event => updateBrief({ assumptions: brief.assumptions.map((text, index) => index === i ? event.target.value : text) })} className="block w-full border rounded p-2 mt-1" /></label>)}
         </details>
         <h3 className="text-sm font-medium mt-4">Outside what reviews can establish</h3><ul className="mt-2 list-disc pl-5 space-y-2 text-sm text-gray-600">{brief.limits.map((item, i) => <li key={i} className="break-words">{item}</li>)}</ul>
@@ -130,7 +133,8 @@ export default function DecisionWorkspace({ project, apps, onChange, profile, ch
         {app.icon && <img src={app.icon} alt="" className="w-9 h-9 rounded object-cover shrink-0" />}<div className="min-w-0 flex-1"><p className="text-sm font-medium break-words">{app.title}</p><p className="text-xs text-gray-500 break-words">{app.reason}</p></div>
         <button title={`Remove ${app.title} from research`} aria-label={`Remove ${app.title} from research`} disabled={busy} onClick={() => onChange({ scope: { ...project.scope, apps: project.scope.apps.filter(item => item.key !== app.key) } })} className="p-2"><X className="w-4 h-4" /></button>
       </li>)}</ul></section>}
-      {brief && <button disabled={busy || !available || !briefCurrent || !appKeys.length || (editSources && sourceDirty)} onClick={research} className="inline-flex gap-2 items-center px-4 py-3 rounded bg-teal-700 text-white text-sm disabled:opacity-40"><ArrowRight className="w-4 h-4" />Research this decision</button>}
+      {brief && <div className="flex flex-wrap items-center gap-4 mt-3"><button disabled={busy || !available || !briefCurrent || !appKeys.length || (editSources && sourceDirty)} onClick={() => research()} className="inline-flex gap-2 items-center px-4 py-3 rounded bg-teal-700 text-white text-sm disabled:opacity-40"><ArrowRight className="w-4 h-4" />Find next steps</button>
+        <button disabled={busy || !available || !briefCurrent} onClick={() => research(true)} className="text-sm text-teal-800 disabled:opacity-40">Get exploratory suggestions</button></div>}
     </>}
     {!available && <p role="status" className="mt-4 text-sm text-amber-800">{checking ? 'Checking research service...' : profile?.message || 'Research service unavailable. Check the model connection in Sources.'}</p>}
     <div role="status" className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">{controller.current && <Loader2 className="w-4 h-4 animate-spin" />}{progress}{controller.current && <button onClick={() => controller.current?.abort()} className="inline-flex items-center gap-2"><Square className="w-4 h-4" />Stop</button>}</div>
@@ -138,16 +142,30 @@ export default function DecisionWorkspace({ project, apps, onChange, profile, ch
     {!!warnings.length && <ul role="status" className="mt-3 text-sm text-amber-800 list-disc pl-5">{warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul>}
     {report && <article className="mt-6 border-t border-gray-200 pt-5">
       {stale && <p role="status" className="text-sm text-amber-800 mb-4">Previous result. The question, sources, feedback or model has changed.</p>}
-      <p className="text-xs text-gray-500">{report.result.position === 'insufficient' ? 'Insufficient evidence to decide' : 'Conditional interpretation · not a validated strategy'}</p>
+      <p className="text-xs text-gray-500">{report.basis === 'context' ? 'Context-only suggestions · no reviews analyzed' : report.result.position === 'insufficient' ? 'Directions to explore · evidence is not yet sufficient to decide' : 'Evidence-informed directions · not validated solutions'}</p>
       <h2 className="mt-2 text-xl font-semibold break-words">{report.brief.decision}</h2>
       <p className="mt-4 text-gray-800 whitespace-pre-wrap break-words">{report.result.conclusion}</p><Citations keys={report.result.conclusionKeys} evidence={report.evidence} />
-      <div className="grid md:grid-cols-2 gap-6 mt-6">{(['supports', 'counters'] as const).map(side => <section key={side}><h3 className="font-semibold">{side === 'supports' ? 'Evidence supporting the hypothesis' : 'Evidence challenging the hypothesis'}</h3>
+      {report.result.directions?.map((direction, index) => <section key={index} className="py-6 border-b border-gray-200">
+        <p className="text-xs font-medium text-teal-800">{index === 0 ? 'Explore first' : 'Another option'} · {({ observed: 'Observed problem · proposed solution unvalidated', exploratory: 'Exploratory idea · demand unverified', investigate: 'Evidence-gathering next step' })[direction.kind]}</p>
+        <h3 className="mt-2 text-lg font-semibold break-words">{direction.title}</h3>
+        <p className="mt-3 text-sm break-words">{direction.proposal}</p>
+        <dl className="grid md:grid-cols-2 gap-4 mt-4 text-sm"><div><dt className="font-medium">Possible user &amp; scenario</dt><dd className="mt-1 text-gray-700 break-words">{direction.scenario}</dd></div><div><dt className="font-medium">Problem to address</dt><dd className="mt-1 text-gray-700 break-words">{direction.problem}</dd></div></dl>
+        <p className="mt-4 text-sm break-words"><span className="font-medium">Why this priority: </span>{direction.rationale}</p>
+        <Citations keys={direction.evidenceKeys} evidence={report.evidence} />
+        {!direction.evidenceKeys.length && <p className="mt-3 text-xs text-amber-800">No supporting review citations for this suggestion.</p>}
+        <p className="mt-4 text-sm text-gray-600 break-words"><span className="font-medium">Limits &amp; fit: </span>{direction.uncertainty}</p>
+        <div className="border-l-2 border-teal-700 pl-3 mt-4 text-sm"><h4 className="font-medium">Smallest next step</h4><p className="mt-1 break-words">{direction.action}</p><p className="mt-3 text-gray-600 break-words"><span className="font-medium">What would change this direction: </span>{direction.changeMind}</p></div>
+      </section>)}
+      {report.result.originalIdea && report.result.originalIdea.status !== 'not_provided' && <section className="mt-6"><h3 className="font-semibold">Your original idea · {({ retain: 'keep exploring', adjust: 'adjust', set_aside: 'set aside for now', undetermined: 'still open' })[report.result.originalIdea.status]}</h3><p className="mt-2 text-sm break-words">{report.result.originalIdea.assessment}</p><Citations keys={report.result.originalIdea.evidenceKeys} evidence={report.evidence} /></section>}
+      <details className="mt-6" open={!report.result.directions}><summary className="text-sm text-teal-800 cursor-pointer">Supporting analysis &amp; remaining questions</summary>
+      {report.result.originalIdea?.status !== 'not_provided' && <div className="grid md:grid-cols-2 gap-6 mt-6">{(['supports', 'counters'] as const).map(side => <section key={side}><h3 className="font-semibold">{side === 'supports' ? 'Evidence supporting the hypothesis' : 'Evidence challenging the hypothesis'}</h3>
         {!report.result[side].length && <p className="text-sm text-gray-500 mt-3">No direct evidence identified in these excerpts. This is not proof of absence.</p>}
         {report.result[side].map((claim, i) => <div key={i} className="mt-4 text-sm"><p className="break-words">{claim.text}</p><Citations keys={claim.evidenceKeys} evidence={report.evidence} /></div>)}
-      </section>)}</div>
+      </section>)}</div>}
       <section className="mt-6 border-t border-gray-200 pt-5"><h3 className="font-semibold">What remains unknown</h3><ul className="mt-3 list-disc pl-5 space-y-2 text-sm">{report.result.unknowns.map((item, i) => <li key={i} className="break-words">{item}</li>)}</ul></section>
       <section className="mt-6 border-l-2 border-teal-700 pl-4"><h3 className="font-semibold">Next validation</h3><p className="mt-2 text-sm break-words">{report.result.nextStep.action}</p><dl className="mt-4 grid md:grid-cols-2 gap-4 text-sm"><div><dt className="font-medium">Finding that would support it</dt><dd className="mt-1 break-words">{report.result.nextStep.success}</dd></div><div><dt className="font-medium">Finding that would change the decision</dt><dd className="mt-1 break-words">{report.result.nextStep.changeMind}</dd></div></dl></section>
-      <p className="mt-6 text-xs text-gray-500">{new Set(report.evidence.map(item => item.reviewKey)).size} reviews considered · {report.appKeys.length} selected apps · last {report.days} days · public review sample, not market validation</p>
+      </details>
+      <p className="mt-6 text-xs text-gray-500">{report.basis === 'context' ? 'Based on your description only. No market evidence or user demand established.' : `${new Set(report.evidence.map(item => item.reviewKey)).size} reviews considered · ${report.appKeys.length} selected apps · last ${report.days} days · public review sample, not market validation`}</p>
       <details className="mt-3 text-xs text-gray-500"><summary className="cursor-pointer">Scope &amp; usage</summary><p className="mt-2">{report.evidence.some(item => item.partial || item.source !== 'review-feed') ? 'Limited or unverified samples included. ' : ''}Only classified excerpts were considered. Growth analytics, interviews and brand effects were not checked.</p><p className="mt-2">{report.model} · synthesis and evidence-check tokens: {report.usage?.totalTokenCount ?? 'unavailable'}. Understanding, discovery and classification are additional.</p></details>
       <button onClick={onOpenSources} className="mt-4 text-sm text-teal-800">Review collected sources</button>
     </article>}

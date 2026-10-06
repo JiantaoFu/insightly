@@ -363,7 +363,7 @@ const MarketDashboard: React.FC = () => {
         </div>
         <p className="mt-2 text-sm text-gray-500">{watchlist.some(app => app.sample) && !realApps.length ? 'Sample market · illustrative reviews' : 'Research saved in this browser'}</p>
         <div className="flex flex-wrap items-end gap-3 mt-5 pb-4 border-b border-gray-200">
-          <label className="text-sm text-gray-600 min-w-0 flex-1 max-w-md">Research direction
+          <label className="text-sm text-gray-600 min-w-0 flex-1 max-w-md">Saved explorations
             <select aria-label="Research direction" disabled={busy} value={project.id} onChange={event => {
               persistProjects({ ...projectsRef.current, activeId: event.target.value });
               setError(null); setNotice(null); setClassificationError(null); setUrl('');
@@ -380,10 +380,10 @@ const MarketDashboard: React.FC = () => {
         {storageError && <p role="alert" className="text-sm text-red-700 mt-3">{storageError}</p>}
 
         <div className={sourcesOpen ? 'hidden' : ''}>
-          <div role="tablist" aria-label="Research starting point" className="flex gap-5 border-b border-gray-200 mt-3">
+          <details className="mt-3 text-sm text-gray-600"><summary className="cursor-pointer">More research options</summary><div role="tablist" aria-label="Research starting point" className="flex gap-5 border-b border-gray-200 mt-3">
             {(['decision', 'apps'] as const).map(mode => <button key={mode} role="tab" aria-selected={workflow === mode} disabled={busy} onClick={() => updateProject({ workflow: mode })} className={`py-3 text-sm border-b-2 ${workflow === mode ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{mode === 'decision' ? 'Find next steps' : 'Explore apps'}</button>)}
           </div>
-          {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}
+          {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}</details>
           {workflow === 'decision' ? <DecisionWorkspace key={project.id} project={project} onChange={updateProject} apps={watchlist} profile={profile} checking={checkingModel} token={token} busy={busy}
             onBusyChange={setGeneratingOpportunities} onPrepare={prepareResearch} onOpenSources={() => setSourcesOpen(true)} /> : <OpportunityWorkspace key={project.id} project={project} onProjectChange={updateProject} apps={watchlist.filter(app => !app.sample || project.sample)} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
             onPrepare={prepareResearch}

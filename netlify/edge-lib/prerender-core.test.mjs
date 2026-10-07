@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   applyBody, applyHead, applyHeroCopy, extractSummary, hasMainMarkers, jsonForScript,
   mdToHtml, renderAppReportMain, renderInsightsMain, splitReport,
-  applyGoneHead, classifyReportLookup, isShareId, renderGoneMain, GONE, GONE_CSS, PAGE_CSS,
+  applyGoneHead, classifyReportLookup, backendHeaders, fetchFailure, fallbackReason, FALLBACK_CDN_CACHE, PRERENDER_KEY_HEADER, isShareId, renderGoneMain, GONE, GONE_CSS, PAGE_CSS,
 } from './prerender-core.js';
 
 const shell = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
@@ -159,4 +159,37 @@ test('gone page: own title, noindex, no canonical, no hero, data for the SPA', (
   assert.match(html, /competitor comparison/);
   assert.match(html, /data-prerendered/);
   assert.match(html, /id="__INSIGHTLY_DATA__">\{"kind":"report-gone"/);
+});
+
+test('backend auth header only when a secret is configured', () => {
+  assert.deepEqual(backendHeaders(undefined), {});
+  assert.deepEqual(backendHeaders(''), {});
+  assert.deepEqual(backendHeaders('   '), {});
+  assert.deepEqual(backendHeaders(' s3cret '), { [PRERENDER_KEY_HEADER]: 's3cret' });
+  assert.equal(PRERENDER_KEY_HEADER, 'x-insightly-prerender-key');
+});
+
+test('fallback reason names the backend failure, never cached at the CDN', () => {
+  const timeout = Object.assign(new Error('t'), { name: 'TimeoutError' });
+  assert.equal(fetchFailure(timeout), 'timeout');
+  assert.equal(fetchFailure(Object.assign(new Error('a'), { name: 'AbortError' })), 'timeout');
+  assert.equal(fetchFailure(new TypeError('fetch failed')), 'network');
+  assert.equal(fallbackReason({ status: 0, body: null, failure: 'timeout' }), 'timeout');
+  assert.equal(fallbackReason({ status: 0, body: null, failure: 'network' }), 'network');
+  assert.equal(fallbackReason({ status: 429, body: null }), 'backend-429');
+  assert.equal(fallbackReason({ status: 503, body: { code: 'unavailable' } }), 'backend-503');
+  assert.equal(fallbackReason({ status: 404, body: { error: 'legacy' } }), 'backend-404');
+  assert.equal(fallbackReason({ status: 200, body: { error: 'x' } }), 'bad-payload');
+  assert.equal(fallbackReason(null), 'network');
+  assert.equal(FALLBACK_CDN_CACHE, 'no-store');
+});
+
+test('edge function wiring: header sent, reasons set, fallbacks not cached (static check)', () => {
+  const src = readFileSync(new URL('../edge-functions/prerender.ts', import.meta.url), 'utf8');
+  assert.match(src, /Netlify\.env\.get\("PRERENDER_SHARED_SECRET"\)/);
+  assert.match(src, /headers: backendHeaders\(PRERENDER_SECRET\)/);
+  assert.doesNotMatch(src, /console\.\w+\([^)]*PRERENDER_SECRET/); // never logged
+  assert.equal((src.match(/passthrough\(origin, html, fallbackReason\(api\)\)/g) || []).length, 2);
+  assert.match(src, /"x-insightly-fallback-reason", fallbackReason\(api\)/); // /app-insights
+  assert.match(src, /cdnCache \|\| FALLBACK_CDN_CACHE/);
 });

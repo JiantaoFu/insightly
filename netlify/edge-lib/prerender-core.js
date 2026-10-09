@@ -463,3 +463,40 @@ export function renderGoneMain({ reportType }) {
 }
 
 export const GONE_CSS = '.ipr-gone{max-width:36rem;margin:2rem auto;text-align:center;padding:2.5rem 2rem}.ipr-gone h1{font-size:1.5rem}.ipr-gone p{color:#4B5563;margin-top:.75rem}';
+
+// ------------------------------------------------- backend auth + diag ----
+
+// Must match server/utils/prerenderRateLimit.js. The value comes from the
+// PRERENDER_SHARED_SECRET env var (set on both Netlify and Render); it gives
+// the edge a separate rate-limit budget so crawler traffic through Netlify's
+// shared egress IPs doesn't hit the per-IP limit (429 -> home-shell fallback).
+export const PRERENDER_KEY_HEADER = 'x-insightly-prerender-key';
+
+/** Request headers for backend calls. No secret configured -> no header (old behaviour). */
+export function backendHeaders(secret) {
+  const s = typeof secret === 'string' ? secret.trim() : '';
+  return s ? { [PRERENDER_KEY_HEADER]: s } : {};
+}
+
+/** fetch() rejection -> 'timeout' | 'network'. */
+export function fetchFailure(err) {
+  const name = err && err.name;
+  return name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'network';
+}
+
+/**
+ * Value for the x-insightly-fallback-reason header on a fallback response:
+ * 'timeout' | 'network' | 'backend-<status>' (e.g. backend-429, backend-503)
+ * | 'bad-payload' (200 without usable data). Never contains secrets.
+ * @param {{status:number, body:any, failure?:string} | null} api
+ */
+export function fallbackReason(api) {
+  if (!api) return 'network';
+  if (api.failure) return api.failure;
+  if (api.status === 200) return 'bad-payload';
+  return `backend-${api.status}`;
+}
+
+// Fallbacks are never cached at the CDN: a transient 429/5xx/timeout must not
+// pin the home shell for a day. (Rendered pages are cached; see prerender.ts.)
+export const FALLBACK_CDN_CACHE = 'no-store';

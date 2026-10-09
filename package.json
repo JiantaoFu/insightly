@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "mocha",
     "test:prerender": "node --test netlify/edge-lib/",
-    "test:server": "mocha server/tests/reportLookup.test.js server/tests/sitemap.test.js",
+    "test:server": "mocha server/tests/reportLookup.test.js server/tests/sitemap.test.js server/tests/prerenderRateLimit.test.js",
     "test:watch": "mocha --watch",
     "test:google-play:id": "mocha server/googlePlayScraper.test.js -g 'extractGooglePlayId'",
     "test:google-play:details": "mocha server/googlePlayScraper.test.js -g 'fetchAppDetails'",

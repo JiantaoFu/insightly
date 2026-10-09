@@ -14,6 +14,7 @@ import {
 import { processGooglePlayUrl } from './googlePlayScraper.js';
 import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
+import { createApiRateLimit, prerenderLimit } from './utils/prerenderRateLimit.js';
 import { LLM_PROVIDERS } from './llmProviders.js';
 import { LRUCache } from 'lru-cache';
 import { generateUrlHash } from './utils.js';
@@ -366,20 +367,18 @@ const verifyMathChallenge = (req, res, next) => {
   }
 };
 
-// Apply rate limiter to all routes
-app.use('/api', (req, res, next) => {
-  const origin = req.headers.origin || '';
-  const userAgent = req.headers['user-agent'] || '';
-
-  // Check if request is from GitHub Actions
-  if (origin.includes('github.com')) {
-    console.log('Bypassing rate limit for GitHub Actions request');
-    return next();
-  }
-
-  // Apply rate limiter for all other requests
-  return apiLimiter(req, res, next);
+// Separate global budget for the Netlify edge prerender (see server/utils/prerenderRateLimit.js).
+const prerenderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: prerenderLimit(),
+  keyGenerator: () => 'edge-prerender', // one shared bucket for all edge traffic
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
+
+// Apply rate limiter to all routes
+app.use('/api', createApiRateLimit({ apiLimiter, prerenderLimiter }));
 
 // App Store Routes
 app.get('/app-store/search', async (req, res) => {

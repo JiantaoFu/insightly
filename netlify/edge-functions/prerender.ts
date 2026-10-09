@@ -6,8 +6,12 @@ import {
   applyHead,
   applyGoneHead,
   applyHeroCopy,
+  backendHeaders,
   classifyReportLookup,
   extractSummary,
+  FALLBACK_CDN_CACHE,
+  fallbackReason,
+  fetchFailure,
   GONE_CSS,
   firstHeading,
   hasMainMarkers,
@@ -43,6 +47,10 @@ import {
 
 const BACKEND = Netlify.env.get("PRERENDER_BACKEND") || "https://insightly-5iyw.onrender.com"; // keep in sync with netlify.toml redirects
 const BACKEND_TIMEOUT_MS = 10000;
+// Shared with Render (server/utils/prerenderRateLimit.js): gives these backend
+// calls their own rate-limit budget. Unset -> no header, same as before.
+// Never log this value.
+const PRERENDER_SECRET = Netlify.env.get("PRERENDER_SHARED_SECRET") || "";
 
 // CDN cache for successful renders (`cache: "manual"` below). Netlify purges
 // these on every deploy, so a new index.html / asset hashes always win.
@@ -88,15 +96,23 @@ const ANALYZE = {
     "Paste any App Store or Google Play link and get an AI report of user pain points, requested features, and startup opportunities in minutes.",
 };
 
-async function backendJson(path: string): Promise<{ status: number; body: any } | null> {
+type BackendResult = { status: number; body: any; failure?: "timeout" | "network" };
+
+async function backendJson(path: string): Promise<BackendResult> {
   try {
-    const res = await fetch(`${BACKEND}${path}`, { signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS) });
+    const res = await fetch(`${BACKEND}${path}`, {
+      headers: backendHeaders(PRERENDER_SECRET),
+      signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
+    });
     const body = await res.json().catch(() => null);
     return { status: res.status, body };
-  } catch {
-    return null; // network error / timeout
+  } catch (err) {
+    return { status: 0, body: null, failure: fetchFailure(err) as "timeout" | "network" };
   }
 }
+
+// classifyReportLookup() takes null for "no response".
+const responded = (api: BackendResult | null) => (api && !api.failure ? api : null);
 
 function respond(html: string, origin: Response, cdnCache: string | null, status = 200): Response {
   const headers = new Headers(origin.headers);
@@ -104,13 +120,17 @@ function respond(html: string, origin: Response, cdnCache: string | null, status
   headers.delete("etag");
   headers.set("content-type", "text/html; charset=utf-8");
   headers.set("cache-control", "public, max-age=0, must-revalidate");
-  headers.set("netlify-cdn-cache-control", cdnCache || "no-store");
+  headers.set("netlify-cdn-cache-control", cdnCache || FALLBACK_CDN_CACHE);
   headers.set("x-insightly-prerender", cdnCache ? "rendered" : "fallback");
   return new Response(html, { status, headers });
 }
 
-function passthrough(origin: Response, html: string): Response {
-  return respond(html, origin, null, origin.status);
+// reason: why we fell back (x-insightly-fallback-reason), e.g. backend-429,
+// backend-503, timeout, network, bad-payload, no-match, unexpected-shell, error.
+function passthrough(origin: Response, html: string, reason = "no-match"): Response {
+  const res = respond(html, origin, null, origin.status);
+  res.headers.set("x-insightly-fallback-reason", reason);
+  return res;
 }
 
 function gone(shareId: string, reportType: "app" | "competitor", reason: string, origin: Response, html: string): Response {
@@ -131,9 +151,9 @@ async function renderAppReport(shareId: string, origin: Response, html: string) 
   const api = isShareId(shareId)
     ? await backendJson(`/api/shared-app-report?shareId=${encodeURIComponent(shareId)}`)
     : null;
-  const lookup = classifyReportLookup(shareId, api, (b: any) => !!b.appDetails);
+  const lookup = classifyReportLookup(shareId, responded(api), (b: any) => !!b.appDetails);
   if (lookup.result === "gone") return gone(shareId, "app", lookup.reason!, origin, html);
-  if (lookup.result !== "ok") return passthrough(origin, html);
+  if (lookup.result !== "ok") return passthrough(origin, html, fallbackReason(api));
   const { appDetails, report } = api!.body;
   const appName = appDetails.title || "App";
   // Same title/description rule as ShareReportView.tsx (updateMetadata).
@@ -178,9 +198,9 @@ async function renderCompetitorReport(shareId: string, origin: Response, html: s
   const api = isShareId(shareId)
     ? await backendJson(`/api/shared-competitor-report?shareId=${encodeURIComponent(shareId)}`)
     : null;
-  const lookup = classifyReportLookup(shareId, api, (b: any) => !!b.report);
+  const lookup = classifyReportLookup(shareId, responded(api), (b: any) => !!b.report);
   if (lookup.result === "gone") return gone(shareId, "competitor", lookup.reason!, origin, html);
-  if (lookup.result !== "ok") return passthrough(origin, html);
+  if (lookup.result !== "ok") return passthrough(origin, html, fallbackReason(api));
   const report = String(api!.body.report);
   const heading = firstHeading(report) || "Competitor Analysis Report";
   const title = `${heading} | Insightly Competitor Analysis`;
@@ -213,9 +233,11 @@ async function renderInsights(origin: Response, html: string) {
   const api = await backendJson(
     `/api/db-analyses?page=1&limit=${INSIGHTS.pageSize}&sortBy=timestamp&sortOrder=desc`,
   );
-  if (!api || api.status !== 200 || !Array.isArray(api.body?.results)) {
+  if (api.failure || api.status !== 200 || !Array.isArray(api.body?.results)) {
     // Head is still right; body falls back to the nav-only shell.
-    return respond(html, origin, null, 200);
+    const res = respond(html, origin, null, 200);
+    res.headers.set("x-insightly-fallback-reason", fallbackReason(api));
+    return res;
   }
   const results = api.body.results.filter((r: any) => r?.appDetails && r?.metadata?.hashUrl);
   const items = results.map((r: any) => ({
@@ -263,7 +285,7 @@ export default async (request: Request, context: Context) => {
   const type = origin.headers.get("content-type") || "";
   if (!type.includes("text/html")) return origin;
   let html = await origin.text();
-  if (!hasMainMarkers(html)) return passthrough(origin, html); // unexpected shell: leave it alone
+  if (!hasMainMarkers(html)) return passthrough(origin, html, "unexpected-shell"); // leave it alone
 
   try {
     if (path === "/") {
@@ -295,6 +317,7 @@ export default async (request: Request, context: Context) => {
     if (section === "shared-competitor-report") return await renderCompetitorReport(id, origin, html);
   } catch (err) {
     console.error("prerender failed", path, err);
+    return passthrough(origin, html, "error");
   }
   return passthrough(origin, html);
 };

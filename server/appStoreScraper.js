@@ -79,19 +79,20 @@ export async function getAppReviews(appId, country, options = {}) {
 
     while (allReviews.length < maxReviews && page < 10) {
       try {
-        // Apple review RSS is flaky (2026-10-01): sometimes returns an empty
-        // feed even when reviews exist. Retry empty page-1 a few times.
+        // Apple review RSS is flaky (2026-10-01, 2026-10-09): sometimes returns an empty
+        // feed even when reviews exist, due to sticky routing to a bad backend instance.
+        // Retry empty page-1 with different country codes to hit different instances.
         let reviews = [];
-        const maxAttempts = page === 1 ? 3 : 1;
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const countries = page === 1 ? [country, 'gb', 'ca'] : [country];
+        for (let attempt = 0; attempt < countries.length; attempt++) {
           reviews = await store.reviews({
             id: appId,
             page: page,
-            country: country
+            country: countries[attempt]
           });
-          if (reviews.length > 0 || attempt === maxAttempts) break;
-          console.log(`[getAppReviews] page ${page} empty, retry ${attempt}/${maxAttempts - 1} after ${(attempt * 2)}s`);
-          await new Promise(r => setTimeout(r, attempt * 2000));
+          if (reviews.length > 0 || attempt === countries.length - 1) break;
+          console.log(`[getAppReviews] page ${page} empty via ${countries[attempt]}, retry with ${countries[attempt + 1]} after 2s`);
+          await new Promise(r => setTimeout(r, 2000));
         }
 
         if (reviews.length === 0) {

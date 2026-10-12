@@ -10,6 +10,15 @@ import {
   classifyReportLookup,
   extractSummary,
   FALLBACK_CDN_CACHE,
+  FALLBACK_RETRY_AFTER,
+  FALLBACK_STATUS,
+  NOINDEX_PAGES,
+  NOT_FOUND,
+  normalizeUrl,
+  renderBlogListMain,
+  renderBlogPostMain,
+  renderNotFoundMain,
+  STATIC_PAGES,
   fallbackReason,
   fetchFailure,
   GONE_CSS,
@@ -22,6 +31,7 @@ import {
   renderInsightsMain,
   renderSignInMain,
 } from "../edge-lib/prerender-core.js";
+import { BLOG_LIST, BLOG_POSTS } from "../edge-lib/blog-posts.js";
 
 // Per-request "prerender" for SEO-critical routes.
 //
@@ -133,6 +143,31 @@ function passthrough(origin: Response, html: string, reason = "no-match"): Respo
   return res;
 }
 
+// Backend could not answer for a report page (429 / 5xx / timeout / bad
+// payload): 503 + Retry-After + no-store, self canonical. Never a 200 copy of
+// the home page (GSC "Soft 404" / "Duplicate without user-selected canonical").
+function reportUnavailable(canonicalPath: string, origin: Response, html: string, reason: string): Response {
+  html = applyHead(html, {
+    title: "Report temporarily unavailable | Insightly",
+    description: "This report is temporarily unavailable. Please try again in a moment.",
+    canonical: `${SITE}${canonicalPath}`,
+    jsonLd: null,
+  });
+  const res = respond(html, origin, null, FALLBACK_STATUS);
+  res.headers.set("x-insightly-fallback-reason", reason);
+  res.headers.set("retry-after", FALLBACK_RETRY_AFTER);
+  return res;
+}
+
+function notFound(origin: Response, html: string): Response {
+  html = applyHead(html, { ...NOT_FOUND, canonical: null, robots: "noindex", jsonLd: null });
+  html = applyBody(html, { main: renderNotFoundMain(), css: PAGE_CSS + GONE_CSS });
+  const res = respond(html, origin, CACHE_GONE, 404);
+  res.headers.set("x-insightly-prerender", "not-found");
+  res.headers.set("x-robots-tag", "noindex");
+  return res;
+}
+
 function gone(shareId: string, reportType: "app" | "competitor", reason: string, origin: Response, html: string): Response {
   html = applyGoneHead(html);
   html = applyBody(html, {
@@ -153,7 +188,7 @@ async function renderAppReport(shareId: string, origin: Response, html: string) 
     : null;
   const lookup = classifyReportLookup(shareId, responded(api), (b: any) => !!b.appDetails);
   if (lookup.result === "gone") return gone(shareId, "app", lookup.reason!, origin, html);
-  if (lookup.result !== "ok") return passthrough(origin, html, fallbackReason(api));
+  if (lookup.result !== "ok") return reportUnavailable(`/shared-app-report/${shareId}`, origin, html, fallbackReason(api));
   const { appDetails, report } = api!.body;
   const appName = appDetails.title || "App";
   // Same title/description rule as ShareReportView.tsx (updateMetadata).
@@ -200,7 +235,7 @@ async function renderCompetitorReport(shareId: string, origin: Response, html: s
     : null;
   const lookup = classifyReportLookup(shareId, responded(api), (b: any) => !!b.report);
   if (lookup.result === "gone") return gone(shareId, "competitor", lookup.reason!, origin, html);
-  if (lookup.result !== "ok") return passthrough(origin, html, fallbackReason(api));
+  if (lookup.result !== "ok") return reportUnavailable(`/shared-competitor-report/${shareId}`, origin, html, fallbackReason(api));
   const report = String(api!.body.report);
   const heading = firstHeading(report) || "Competitor Analysis Report";
   const title = `${heading} | Insightly Competitor Analysis`;
@@ -279,7 +314,15 @@ async function renderInsights(origin: Response, html: string) {
 export default async (request: Request, context: Context) => {
   if (request.method !== "GET" && request.method !== "HEAD") return;
   const url = new URL(request.url);
-  const path = url.pathname.replace(/\/+$/, "") || "/";
+  // One URL per page: 301 trailing slash / upper-case share id / utm_* etc.
+  const preferred = normalizeUrl(request.url);
+  if (preferred) {
+    return new Response(null, {
+      status: 301,
+      headers: { location: preferred, "cache-control": "public, max-age=3600", "x-insightly-prerender": "redirect" },
+    });
+  }
+  const path = url.pathname || "/";
 
   const origin = await context.next();
   const type = origin.headers.get("content-type") || "";
@@ -307,12 +350,41 @@ export default async (request: Request, context: Context) => {
     if (path === "/app-insights") {
       return await renderInsights(origin, html);
     }
+    if (path === "/blog") {
+      html = applyHead(html, { title: BLOG_LIST.title, description: BLOG_LIST.description, canonical: `${SITE}/blog`, jsonLd: null });
+      html = applyBody(html, { main: renderBlogListMain({ ...BLOG_LIST, posts: BLOG_POSTS }), css: PAGE_CSS });
+      return respond(html, origin, CACHE_STATIC);
+    }
+    if (path.startsWith("/blog/")) {
+      const post = BLOG_POSTS.find((p) => `/blog/${p.slug}` === path);
+      if (!post) return notFound(origin, html); // was a 200 home shell (soft 404)
+      html = applyHead(html, {
+        title: `${post.title} | Insightly Blog`,
+        description: post.description,
+        canonical: `${SITE}/blog/${post.slug}`,
+        ogType: "article",
+        image: `${SITE}${post.banner}`,
+        jsonLd: null,
+      });
+      html = applyBody(html, { main: renderBlogPostMain(post), css: PAGE_CSS });
+      return respond(html, origin, CACHE_STATIC);
+    }
+    if (STATIC_PAGES[path]) {
+      html = applyHead(html, { ...STATIC_PAGES[path], canonical: `${SITE}${path}`, jsonLd: null });
+      return respond(html, origin, CACHE_STATIC);
+    }
+    if (NOINDEX_PAGES[path]) {
+      html = applyHead(html, { title: NOINDEX_PAGES[path], description: HOME.description, canonical: null, robots: "noindex", jsonLd: null });
+      const res = respond(html, origin, CACHE_STATIC);
+      res.headers.set("x-robots-tag", "noindex");
+      return res;
+    }
 
     const [section, id, ...rest] = path.split("/").filter(Boolean);
     // Single path segment only. Ids that are not md5 share ids (e.g. the
     // Feb-2025 /share/<url-encoded store URL> links) never reach the backend:
     // classifyReportLookup() reports them as gone.
-    if (!id || rest.length) return passthrough(origin, html);
+    if (!id || rest.length) return notFound(origin, html);
     if (section === "shared-app-report" || section === "share") return await renderAppReport(id, origin, html);
     if (section === "shared-competitor-report") return await renderCompetitorReport(id, origin, html);
   } catch (err) {
@@ -323,6 +395,12 @@ export default async (request: Request, context: Context) => {
 };
 
 export const config: Config = {
-  path: ["/", "/for-teams", "/app", "/app-insights", "/shared-app-report/*", "/shared-competitor-report/*", "/share/*"],
+  path: [
+    "/", "/for-teams", "/app", "/app-insights", "/shared-app-report/*", "/shared-competitor-report/*", "/share/*",
+    "/blog", "/blog/*", "/privacy", "/terms", "/refund",
+    "/login", "/account", "/chat", "/competitor-insights", "/payment-success", "/payment-cancel",
+    // trailing-slash variants (Netlify matches paths exactly) so they get the 301
+    "/for-teams/", "/app/", "/app-insights/", "/blog/", "/privacy/", "/terms/", "/refund/",
+  ],
   cache: "manual",
 };

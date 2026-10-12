@@ -189,7 +189,58 @@ test('edge function wiring: header sent, reasons set, fallbacks not cached (stat
   assert.match(src, /Netlify\.env\.get\("PRERENDER_SHARED_SECRET"\)/);
   assert.match(src, /headers: backendHeaders\(PRERENDER_SECRET\)/);
   assert.doesNotMatch(src, /console\.\w+\([^)]*PRERENDER_SECRET/); // never logged
-  assert.equal((src.match(/passthrough\(origin, html, fallbackReason\(api\)\)/g) || []).length, 2);
+  // report pages: backend failure -> 503 + Retry-After (never a 200 home shell)
+  assert.equal((src.match(/return reportUnavailable\(`\/shared-(app|competitor)-report\/\$\{shareId\}`, origin, html, fallbackReason\(api\)\)/g) || []).length, 2);
+  assert.match(src, /respond\(html, origin, null, FALLBACK_STATUS\)/);
+  assert.match(src, /"retry-after", FALLBACK_RETRY_AFTER/);
   assert.match(src, /"x-insightly-fallback-reason", fallbackReason\(api\)/); // /app-insights
   assert.match(src, /cdnCache \|\| FALLBACK_CDN_CACHE/);
+});
+
+// ---------------------------------------------------- GSC: soft 404 / dup ----
+import * as core2 from './prerender-core.js';
+import { BLOG_POSTS } from './blog-posts.js';
+
+test('normalizeUrl: 301 targets for trailing slash, upper-case ids, tracking params', () => {
+  const n = core2.normalizeUrl;
+  const id = '43a8e5966f03ea57575c8a55f4eb7397';
+  assert.equal(n(`https://insightly.top/shared-app-report/${id}`), null);
+  assert.equal(n('https://insightly.top/'), null);
+  assert.equal(n('https://insightly.top/app-insights?page=2'), null);
+  assert.equal(n(`https://insightly.top/shared-app-report/${id}/`), `https://insightly.top/shared-app-report/${id}`);
+  assert.equal(n(`https://insightly.top/shared-app-report/${id.toUpperCase()}`), `https://insightly.top/shared-app-report/${id}`);
+  assert.equal(n(`https://insightly.top/shared-competitor-report/${id.toUpperCase()}/`), `https://insightly.top/shared-competitor-report/${id}`);
+  assert.equal(n(`https://insightly.top/share/${id}?utm_source=x&utm_medium=y`), `https://insightly.top/share/${id}`);
+  assert.equal(n('https://insightly.top/?ref=ph&fbclid=abc'), 'https://insightly.top/?ref=ph');
+  assert.equal(n('https://insightly.top/for-teams/'), 'https://insightly.top/for-teams');
+  // non-md5 legacy ids are left alone (they 410 as before)
+  assert.equal(n('https://insightly.top/share/SomeThing'), null);
+});
+
+test('blog-posts.js mirrors src/blog/Posts.ts', () => {
+  const src = readFileSync(new URL('../../src/blog/Posts.ts', import.meta.url), 'utf8');
+  const slugs = [...src.matchAll(/slug:\s*'([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(BLOG_POSTS.map((p) => p.slug), slugs);
+  for (const p of BLOG_POSTS) {
+    assert.ok(src.includes(`title: '${p.title}'`), `title drift: ${p.slug}`);
+    assert.ok(src.includes(`description: '${p.description}'`), `description drift: ${p.slug}`);
+    assert.ok(src.includes(`banner: '${p.banner}'`), `banner drift: ${p.slug}`);
+  }
+});
+
+test('blog / not-found renderers produce distinct, non-home content', () => {
+  const list = core2.renderBlogListMain({ heading: 'Insightly Blog', intro: 'x', posts: BLOG_POSTS });
+  for (const p of BLOG_POSTS) assert.ok(list.includes(`href="/blog/${p.slug}"`));
+  const post = core2.renderBlogPostMain(BLOG_POSTS[0]);
+  assert.match(post, /<h1>How to Find App Ideas/);
+  assert.match(core2.renderNotFoundMain(), /Page not found/);
+  assert.equal(core2.FALLBACK_STATUS, 503);
+  assert.equal(core2.FALLBACK_CDN_CACHE, 'no-store');
+});
+
+test('applyHead: noindex page drops canonical and sets robots', () => {
+  const shell = '<head><title>Home</title><meta name="description" content="h"><link rel="canonical" href="https://insightly.top/"></head>';
+  const out = core2.applyHead(shell, { ...core2.NOT_FOUND, canonical: null, robots: 'noindex' });
+  assert.ok(!out.includes('rel="canonical"'));
+  assert.match(out, /<meta name="robots" content="noindex">/);
 });

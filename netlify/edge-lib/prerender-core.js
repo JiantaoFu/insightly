@@ -500,3 +500,107 @@ export function fallbackReason(api) {
 // Fallbacks are never cached at the CDN: a transient 429/5xx/timeout must not
 // pin the home shell for a day. (Rendered pages are cached; see prerender.ts.)
 export const FALLBACK_CDN_CACHE = 'no-store';
+
+// ------------------------------------------------- URL normalisation ----
+
+// Tracking params Google may pick up from shared links. Dropping them with a
+// 301 (rather than relying on the canonical alone) collapses the variants
+// before they are counted as "Duplicate without user-selected canonical".
+const TRACKING_PARAM_RE = /^(utm_[a-z_]+|fbclid|gclid|msclkid|mc_cid|mc_eid|ref_src)$/i;
+const REPORT_SECTION_RE = /^\/(shared-app-report|shared-competitor-report|share)\/([^/]+)$/;
+
+/**
+ * The single preferred URL for a request handled by the edge, or null when
+ * the request URL already is it. Rules (301):
+ *  - trailing slash removed (except "/"): /for-teams/ -> /for-teams
+ *  - share ids lower-cased (md5 hex; the backend only knows lower case)
+ *  - tracking query params (utm_*, fbclid, gclid, ...) removed; other params kept
+ */
+export function normalizeUrl(href) {
+  const url = new URL(href);
+  let path = url.pathname.replace(/\/+$/, '') || '/';
+  const m = path.match(REPORT_SECTION_RE);
+  if (m && isShareId(m[2])) path = `/${m[1]}/${m[2].toLowerCase()}`;
+  const params = new URLSearchParams(url.search);
+  let changed = false;
+  for (const key of [...params.keys()]) {
+    if (TRACKING_PARAM_RE.test(key)) { params.delete(key); changed = true; }
+  }
+  if (path === url.pathname && !changed) return null;
+  const qs = params.toString();
+  return `${url.origin}${path}${qs ? `?${qs}` : ''}`;
+}
+
+// -------------------------------------------------- static/SPA pages ----
+
+// Indexable SPA pages that had no prerender: before this, their raw HTML was
+// the home page (home title, no canonical) = "Duplicate without
+// user-selected canonical". Copy mirrors the updateMetadata() calls in
+// src/pages/{Privacy,Terms,Refund}Page.tsx.
+export const STATIC_PAGES = {
+  '/privacy': {
+    title: 'Privacy Policy | Insightly',
+    description: 'How Insightly collects, uses, and protects your data — including Google account info, analytics, session replay, and Stripe payments.',
+  },
+  '/terms': {
+    title: 'Terms of Service | Insightly',
+    description: 'The terms governing your use of Insightly: accounts, credits, subscriptions, acceptable use, and liability.',
+  },
+  '/refund': {
+    title: 'Refund Policy | Insightly',
+    description: 'How refunds work at Insightly: Starter Pack credits and monthly subscriptions.',
+  },
+};
+
+// App-only / transactional routes: no content of their own for a crawler
+// (logged-out they show a sign-in view or a payment status), so keep them out
+// of the index instead of letting them duplicate the home page.
+export const NOINDEX_PAGES = {
+  '/login': 'Sign in | Insightly',
+  '/account': 'Account | Insightly',
+  '/chat': 'Chat | Insightly',
+  '/competitor-insights': 'Competitor Insights | Insightly',
+  '/payment-success': 'Payment Successful | Insightly',
+  '/payment-cancel': 'Payment Canceled | Insightly',
+};
+
+export function renderBlogListMain({ heading, intro, posts }) {
+  const cards = posts.map((p) => `<li class="ipr-card"><a href="/blog/${esc(p.slug)}"><h2>${esc(p.title)}</h2></a>`
+    + `<p class="ipr-muted">${esc(p.date)}</p><p>${esc(p.description)}</p></li>`).join('');
+  return `<main class="ipr" id="ipr-main" data-prerendered>
+          <h1>${esc(heading)}</h1><p>${esc(intro)}</p>
+          <ul class="ipr-list">${cards}</ul>
+        </main>`;
+}
+
+export function renderBlogPostMain(post) {
+  return `<main class="ipr" id="ipr-main" data-prerendered>
+          <article class="ipr-card">
+            <p class="ipr-muted"><a href="/blog">Insightly Blog</a> · ${esc(post.date)}</p>
+            <h1>${esc(post.title)}</h1>
+            <img src="${esc(post.banner)}" alt="${esc(post.title)} banner" width="1536" height="1024">
+            <p>${esc(post.description)}</p>
+          </article>
+        </main>`;
+}
+
+export const NOT_FOUND = {
+  title: 'Page Not Found | Insightly',
+  description: 'This page does not exist.',
+};
+
+export function renderNotFoundMain() {
+  return `<main class="ipr" id="ipr-main" data-prerendered>
+          <section class="ipr-gone"><h1>Page not found</h1>
+            <p>The page you are looking for does not exist.</p>
+            <p><a class="ipr-btn" href="/blog">Browse the blog</a> <a class="ipr-btn" href="/">Go to Insightly</a></p>
+          </section>
+        </main>`;
+}
+
+// A backend failure (429 / 5xx / timeout) on a report page must not look like
+// a real page: answer 503 + Retry-After so Google retries later instead of
+// indexing the home-page shell as a soft 404 / duplicate. Users still get the
+// SPA, which fetches the report client-side.
+export const FALLBACK_STATUS = 503;
+export const FALLBACK_RETRY_AFTER = '120';

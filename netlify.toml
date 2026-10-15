@@ -8,7 +8,12 @@
 # Edge function netlify/edge-functions/prerender.ts serves crawlable HTML
 # (own <title>, description, canonical, OG/Twitter tags and main content) for
 # /, /for-teams, /app, /app-insights, /shared-app-report/*,
-# /shared-competitor-report/* and the legacy /share/*. Its paths and
+# /shared-competitor-report/* and the legacy /share/*, plus /blog, /blog/*,
+# /privacy, /terms, /refund (canonical + own title) and app-only routes
+# (/login, /account, /chat, ... -> noindex). It also 301s trailing-slash,
+# upper-case share id and utm_* variants, answers unknown /blog/* slugs with a
+# real 404, and returns 503 + Retry-After (not a 200 home shell) when the
+# backend cannot serve a report. Its paths and
 # `cache: "manual"` are declared in the function's own `config` export.
 
 [[redirects]]

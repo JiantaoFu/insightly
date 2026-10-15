@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import {
-  PRERENDER_KEY_HEADER, MIN_SECRET_LENGTH, configuredSecret, isValidPrerenderKey,
+  PRERENDER_KEY_HEADER, BYPASS_HEADER, MIN_SECRET_LENGTH, configuredSecret, isValidPrerenderKey,
   prerenderLimit, createApiRateLimit,
 } from '../utils/prerenderRateLimit.js';
 
@@ -9,21 +9,21 @@ const SECRET = 'test-secret-'.padEnd(MIN_SECRET_LENGTH + 8, 'x');
 const silent = { log() {}, warn() {}, error() {} };
 
 /** Real express + express-rate-limit, tiny limits, routes mirroring the backend. */
-async function startApp({ secret, apiMax = 2, prerenderMax = 5, logs = [] }) {
+async function startApp({ secret, bypassSecret = null, apiMax = 2, prerenderMax = 5, logs = [] }) {
   const app = express();
   app.set('trust proxy', 1);
   const apiLimiter = rateLimit({ windowMs: 60_000, max: apiMax, standardHeaders: true, legacyHeaders: false, message: 'Too many requests, please try again later.' });
   const prerenderLimiter = rateLimit({ windowMs: 60_000, max: prerenderMax, keyGenerator: () => 'edge-prerender', standardHeaders: true, legacyHeaders: false });
   const log = { log: (m) => logs.push(m), warn: (m) => logs.push(m), error: (m) => logs.push(m) };
-  app.use('/api', createApiRateLimit({ apiLimiter, prerenderLimiter, getSecret: () => secret, log }));
+  app.use('/api', createApiRateLimit({ apiLimiter, prerenderLimiter, getSecret: () => secret, getBypassSecret: () => bypassSecret, log }));
   app.get('/api/shared-app-report', (req, res) => res.json({ ok: true, edge: !!req.isEdgePrerender }));
   app.get('/api/shared-competitor-report', (req, res) => res.json({ ok: true, edge: !!req.isEdgePrerender }));
   app.get('/api/db-analyses', (req, res) => res.json({ ok: true, edge: !!req.isEdgePrerender }));
   app.post('/api/analyze', (req, res) => res.json({ ok: true, edge: !!req.isEdgePrerender }));
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
-  const call = async (path, { key, method = 'GET', ip = '203.0.113.7' } = {}) => {
-    const headers = { 'x-forwarded-for': ip };
+  const call = async (path, { key, method = 'GET', ip = '203.0.113.7', extra = {} } = {}) => {
+    const headers = { 'x-forwarded-for': ip, ...extra };
     if (key !== undefined) headers[PRERENDER_KEY_HEADER] = key;
     const res = await fetch(base + path, { method, headers });
     const text = await res.text();
@@ -106,5 +106,32 @@ describe('prerender rate limit', () => {
       expect(logs.join('\n')).to.match(/enabled/);
       expect(logs.join('\n')).to.not.include(SECRET);
     } finally { await app.close(); }
+  });
+
+  it('spoofed Origin: github.com no longer bypasses the per-IP limit', async () => {
+    const app = await startApp({ secret: null, bypassSecret: SECRET });
+    const extra = { origin: 'https://github.com', referer: 'https://github.com/' };
+    try {
+      expect((await app.call('/api/analyze', { method: 'POST', extra })).status).to.equal(200);
+      expect((await app.call('/api/analyze', { method: 'POST', extra })).status).to.equal(200);
+      expect((await app.call('/api/analyze', { method: 'POST', extra })).status).to.equal(429);
+    } finally { await app.close(); }
+  });
+
+  it('valid bypass secret header passes beyond the limit; wrong/unset secret does not', async () => {
+    const app = await startApp({ secret: null, bypassSecret: SECRET });
+    try {
+      for (let i = 0; i < 5; i++) {
+        expect((await app.call('/api/analyze', { method: 'POST', extra: { [BYPASS_HEADER]: SECRET } })).status).to.equal(200);
+      }
+      expect((await app.call('/api/analyze', { method: 'POST' })).status).to.equal(200);
+      expect((await app.call('/api/analyze', { method: 'POST', extra: { [BYPASS_HEADER]: SECRET + 'x' } })).status).to.equal(200);
+      expect((await app.call('/api/analyze', { method: 'POST', extra: { [BYPASS_HEADER]: 'wrong' } })).status).to.equal(429);
+    } finally { await app.close(); }
+    const off = await startApp({ secret: null, bypassSecret: null });
+    try {
+      for (let i = 0; i < 2; i++) await off.call('/api/analyze', { method: 'POST', extra: { [BYPASS_HEADER]: SECRET } });
+      expect((await off.call('/api/analyze', { method: 'POST', extra: { [BYPASS_HEADER]: SECRET } })).status).to.equal(429);
+    } finally { await off.close(); }
   });
 });

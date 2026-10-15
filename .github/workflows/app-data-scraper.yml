@@ -56,6 +56,7 @@ jobs:
           API_BASE_URL: 'https://insightly-5iyw.onrender.com'
           LLM_PROVIDER: 'gemini'
           LLM_MODEL: 'gemini-2.0-flash'
+          RATE_LIMIT_BYPASS_SECRET: ${{ secrets.RATE_LIMIT_BYPASS_SECRET }}
         run: |
           # Build the command with conditional flags
           CMD="node scripts/run-batch-scraper.js \

@@ -188,36 +188,64 @@ export const LLM_PROVIDERS = {
   gemini: {
     url: process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/models',
     apiKey: process.env.GEMINI_API_KEY,
-    defaultModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
-    // Models Google shut down (e.g. gemini-2.0-flash retired 2026-06-01) are
-    // remapped so old frontend builds keep working without a redeploy.
+    defaultModel: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+    // Used once if the primary model fails before any output is streamed.
+    fallbackModel: process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash-lite',
+    // Models Google shut down or deprecated are remapped so old frontend builds
+    // keep working without a redeploy (gemini-3.5-flash is deprecated and only
+    // works via Google's auto-redirect to 3.6).
     retiredModelMap: {
-      'gemini-2.0-flash': 'gemini-3.5-flash',
+      'gemini-3.5-flash': 'gemini-3.6-flash',
+      'gemini-2.0-flash': 'gemini-3.6-flash',
       'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite',
-      'gemini-1.5-flash': 'gemini-3.5-flash',
-      'gemini-1.5-pro': 'gemini-3.5-flash',
-      'gemini-pro': 'gemini-3.5-flash',
-      'gemini-pro-vision': 'gemini-3.5-flash',
+      'gemini-1.5-flash': 'gemini-3.6-flash',
+      'gemini-1.5-pro': 'gemini-3.6-flash',
+      'gemini-pro': 'gemini-3.6-flash',
+      'gemini-pro-vision': 'gemini-3.6-flash',
+    },
+    // Overridable in tests.
+    createClient(apiKey) {
+      return new GoogleGenerativeAI(apiKey);
     },
     resolveModel(model) {
       const requested = model || this.defaultModel;
       return this.retiredModelMap[requested] || requested;
     },
-    async generateResponse(model, prompt, options = {}) {
-      const genAI = new GoogleGenerativeAI(this.apiKey);
-      const generativeModel = genAI.getGenerativeModel({ model: this.resolveModel(model) });
-      
+    // Runs fn(modelName, state) with the primary model; if it throws before any
+    // output was produced (state.started === false), retries once with the
+    // fallback model. Never retries after output has started.
+    async withFallback(model, label, fn) {
+      const primary = this.resolveModel(model);
+      const fallback = this.resolveModel(this.fallbackModel);
+      const state = { started: false };
       try {
-        const result = await generativeModel.generateContent(prompt);
-        return result.response.text();
+        const out = await fn(primary, state);
+        console.log(`[gemini] ${label} model used: ${primary}`);
+        return out;
+      } catch (error) {
+        if (state.started || !fallback || fallback === primary) throw error;
+        console.warn(`[gemini] ${label} primary model ${primary} failed before output (${String(error && error.message || error).slice(0, 200)}); retrying once with fallback ${fallback}`);
+        const out = await fn(fallback, state);
+        console.log(`[gemini] ${label} model used: ${fallback} (fallback)`);
+        return out;
+      }
+    },
+    async generateResponse(model, prompt, options = {}) {
+      const genAI = this.createClient(this.apiKey);
+      try {
+        return await this.withFallback(model, 'generate', async (modelName) => {
+          const generativeModel = genAI.getGenerativeModel({ model: modelName });
+          const result = await generativeModel.generateContent(prompt);
+          return result.response.text();
+        });
       } catch (error) {
         console.error('Gemini API Error:', error);
         throw error;
       }
     },
     async streamResponse(model, prompt, onChunk, options = {}) {
-      const genAI = new GoogleGenerativeAI(this.apiKey);
-      
+      const genAI = this.createClient(this.apiKey);
+
       // Extract options with sensible defaults
       const {
         maxTokens = 16384,  // Default max tokens
@@ -235,22 +263,23 @@ export const LLM_PROVIDERS = {
         ...otherOptions
       };
 
-      const generativeModel = genAI.getGenerativeModel({ 
-        model: this.resolveModel(model),
-        generationConfig
-      });
-      
       try {
-        const result = await generativeModel.generateContentStream(prompt);
-        
-        let fullResponse = '';
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          onChunk(chunkText);
-          fullResponse += chunkText;
-        }
-        
-        return fullResponse;
+        return await this.withFallback(model, 'stream', async (modelName, state) => {
+          const generativeModel = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig
+          });
+          const result = await generativeModel.generateContentStream(prompt);
+
+          let fullResponse = '';
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            state.started = true;
+            onChunk(chunkText);
+            fullResponse += chunkText;
+          }
+          return fullResponse;
+        });
       } catch (error) {
         console.error('Gemini Streaming API Error:', error);
         throw error;

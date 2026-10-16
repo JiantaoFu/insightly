@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
@@ -929,6 +930,80 @@ ${promptConfig.format}
     res.end();
   }
 });
+
+// ---------------------------------------------------------------------------
+// TEMPORARY, ADMIN-ONLY: prompt A/B preview. Remove after the prompt test.
+// Runs the same LLM path as /api/analyze but does NOT read/write cache or DB,
+// does NOT touch public reports, and does NOT check/deduct credits.
+// Disabled (404) unless ADMIN_PROMPT_OVERRIDE_SECRET is set; caller must send
+// it in the `x-admin-secret` header.
+// ---------------------------------------------------------------------------
+function adminPreviewGate(req, res, next) {
+  const secret = process.env.ADMIN_PROMPT_OVERRIDE_SECRET;
+  if (!secret || secret.length < 16) return res.status(404).json({ error: 'Not found' });
+  const given = Buffer.from(String(req.headers['x-admin-secret'] || ''));
+  const expected = Buffer.from(secret);
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+}
+
+app.post('/api/admin/analyze-preview', adminPreviewGate, async (req, res) => {
+  const { url = '', customPrompt, fullPrompt, appData, provider, model, options = {} } = req.body || {};
+  const selectedProvider = LLM_PROVIDERS[provider || process.env.LLM_PROVIDER || 'gemini'];
+  if (!selectedProvider) return res.status(400).json({ error: 'Invalid LLM provider' });
+
+  let prompt = fullPrompt;
+  if (!prompt) {
+    if (!appData?.reviews?.reviews || !appData?.details) {
+      return res.status(400).json({ error: 'appData.details and appData.reviews.reviews are required (or pass fullPrompt)' });
+    }
+    // Same construction as /api/analyze
+    const reviewsText = appData.reviews.reviews
+      .map(review => `Review (Score: ${review.score}): ${review.text}`)
+      .join('\n');
+    prompt = `You are an expert app review analyzer. Analyze the app at the following URL: ${url}. App information provided below:
+
+App Details:
+- Title: ${appData.details.title}
+- Description: ${appData.details.description}
+- Developer: ${appData.details.developer}
+
+Reviews Summary:
+- Total Reviews: ${appData.reviews.total}
+- Score Distribution: ${JSON.stringify(appData.reviews.scoreDistribution)} (Interpret this as the breakdown percentages for each star rating, e.g., percentage of 5-star, 4-star, etc.)
+
+Detailed Reviews:
+${reviewsText}
+
+${customPrompt || promptConfig.appReviewAnalysis}
+
+${promptConfig.format}
+`;
+  }
+
+  const genOptions = {};
+  if (Number.isFinite(options.temperature)) genOptions.temperature = options.temperature;
+  if (Number.isFinite(options.maxTokens)) genOptions.maxTokens = Math.min(options.maxTokens, 16384);
+
+  const started = Date.now();
+  try {
+    let report = '';
+    await selectedProvider.streamResponse(model, prompt, (chunk) => { report += chunk; }, genOptions);
+    res.json({
+      report,
+      model: selectedProvider.resolveModel ? selectedProvider.resolveModel(model) : (model || selectedProvider.defaultModel),
+      ms: Date.now() - started,
+      promptChars: prompt.length,
+      persisted: false
+    });
+  } catch (e) {
+    console.error('analyze-preview error:', e.message);
+    res.status(500).json({ error: 'Failed to generate response', details: String(e.message).slice(0, 300) });
+  }
+});
+// --------------------------- END TEMPORARY ---------------------------------
 
 app.post('/api/compare-competitors',
   ENABLE_MATH_CHALLENGE ? verifyMathChallenge : (req, res, next) => next(),

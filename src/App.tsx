@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -72,7 +72,27 @@ const LoadingFallback = () => (
 
 // Friendly client-side 404. Netlify serves the app shell with HTTP 404 for
 // unknown URLs (see netlify.toml); this renders something useful in it.
-const NotFound: React.FC = () => (
+const NotFound: React.FC = () => {
+  // Own title + noindex also for client-side navigation to an unknown route.
+  useEffect(() => {
+    const prevTitle = document.title;
+    document.title = 'Page Not Found | Insightly';
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const created = !robots;
+    const prevRobots = robots?.getAttribute('content') ?? null;
+    if (!robots) {
+      robots = document.createElement('meta');
+      robots.setAttribute('name', 'robots');
+      document.head.appendChild(robots);
+    }
+    robots.setAttribute('content', 'noindex');
+    return () => {
+      document.title = prevTitle;
+      if (created) robots?.remove();
+      else if (prevRobots !== null) robots?.setAttribute('content', prevRobots);
+    };
+  }, []);
+  return (
   <div className="min-h-screen bg-gray-50">
     <Navigation />
     <div className="flex flex-col items-center justify-center px-4 pt-32 pb-16 text-center">
@@ -90,6 +110,7 @@ const NotFound: React.FC = () => (
     <Footer />
   </div>
 );
+};
 
 const App: React.FC = () => {
   return (

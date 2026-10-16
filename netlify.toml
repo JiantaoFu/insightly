@@ -168,12 +168,13 @@
   to = "/index.html"
   status = 200
 
-# Unknown URLs: still serve the app shell (so the client-side 404 page
-# renders) but return HTTP 404, so search engines stop treating bogus
-# URLs as real pages.
+# Unknown URLs: serve the app shell with a 404 head (dist/404.html, built by
+# scripts/build-404.mjs: own title + robots noindex, no canonical) and HTTP
+# 404, so the client-side 404 page renders and search engines neither index
+# bogus URLs nor see the home page's title on them.
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/404.html"
   status = 404
 
 # Vite content-hashes everything under /assets, so it's safe to cache

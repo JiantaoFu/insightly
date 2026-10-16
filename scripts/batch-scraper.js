@@ -21,12 +21,15 @@ dotenv.config();
 function createApiClient() {
   const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000';
 
+  const headers = { 'Content-Type': 'application/json' };
+  // Exempts this trusted job from the backend's /api rate limit (see server/utils/prerenderRateLimit.js).
+  if (process.env.RATE_LIMIT_BYPASS_SECRET) {
+    headers['X-Insightly-RateLimit-Bypass'] = process.env.RATE_LIMIT_BYPASS_SECRET;
+  }
+
   return axios.create({
     baseURL: apiUrl,
-    headers: {
-      'Content-Type': 'application/json',
-      'Origin': 'github.com'
-    }
+    headers
   });
 }
 

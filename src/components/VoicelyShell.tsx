@@ -21,6 +21,16 @@ export default function VoicelyShell({ children, view, onNavigate, busy, savedCo
 }) {
   const [menu, setMenu] = useState(false);
   useEffect(() => {
+    const search = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        if (!busy && !document.querySelector('dialog[open]')) onAnalyze();
+      }
+    };
+    window.addEventListener('keydown', search);
+    return () => window.removeEventListener('keydown', search);
+  }, [busy, onAnalyze]);
+  useEffect(() => {
     const previous = document.title;
     document.title = `${BRAND.name} | ${BRAND.tagline}`;
     return () => { document.title = previous; };

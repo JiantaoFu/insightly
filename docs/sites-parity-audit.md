@@ -6,6 +6,30 @@ Baseline: Sites commit `5594f0720eff21bff01a5f310d4a2573e71bbae9`, read-only sib
 
 ## Product Contract
 
+### Follow-up: Decision Loop and Monitoring Preview Implemented
+
+- New opportunity generation asks for proposed success criteria, scope boundaries and falsification findings in the existing model call. Optional bounded fields keep older stored reports readable; generated criteria are proposals, not validated outcomes. Existing reports are not silently regenerated.
+- New-flow decisions now support editable experiment, success, scope boundary, falsification and notes, plus a user-assessed validated stage. Fields survive reload, explicit snapshot updates and export. A saved brief opens its original evidence, not a later app analysis.
+- Board now offers all-app export and an empty-state action, without repeated per-group export toolbars. App headings remain for provenance.
+- Opportunity drawers expose all classified reviews in the cited themes within the same app/period. This broader set is labeled related-theme evidence, not proof of every opportunity claim. Interview questions no longer masquerade as falsification criteria.
+- Review explorer has independent theme/rating filters and persistent reset access. Filters, pagination and export share the same result set.
+- Signal table adds coverage-gated 14-day sample-share changes. Comparison adds low-star share, collection context and an explicit research question; it does not claim a proven competitive gap.
+- Watchlist has confirm/cancel setup, persisted global sample-share thresholds, local weekly signal previews and Markdown brief exports. Sparse, incomplete, stale or otherwise non-comparable samples withhold change judgments. Threshold units are percentage points, deliberately not the prototype's raw mention-growth percentage.
+- Workspace adds hash navigation/history, Ctrl/Cmd+K search and actual local usage counts. No simulated paid activation, Stripe changes or email delivery were added.
+- Verified: 82 unit tests pass; production build passes; changed-file lint passes. Browser regression passes seven destinations at 390/768/1355px, confirmation/Back/cancel, scoped evidence filters, saved-field reload, original-brief revisit, global export, monitor setup/cancel/persistence/export, history, keyboard search, empty workspace and prior analysis retry/cancel behavior. Screenshots inspected.
+- Repository-wide lint still reports the existing 45 errors / 13 warnings. App TypeScript check reports errors in legacy modules, not changed files. Root `tsc --noEmit` alone does not check referenced app files; the app config was checked explicitly.
+- Local backend restarted after observing the user's local page was idle. Health reports configured Gemini and batch size 24. Verification used model fixtures, not a new paid live-model run.
+
+### Remaining Gaps (Not Claimed Complete)
+
+- Cross-store product identity and Both-platform analysis.
+- Effort-based opportunity prioritization/filtering with defensible estimates, plus smaller metadata/visual differences and save/unsave parity.
+- Full plan feature matrix and any genuine billing entitlement flow.
+- Cloud persistence, scheduled collection, alert delivery and real email.
+- Stronger multi-app evidence synthesis: current comparison takeaway is a bounded research question, not a model-validated recommendation or proof of differentiation.
+
+The inventory below records the original audit baseline; follow-ups above describe subsequent changes.
+
 ### Follow-up: Scope Confirmation Implemented
 
 - Search results, resolved store links and suggested comparison apps now open a separate confirmation dialog before collection or model work.

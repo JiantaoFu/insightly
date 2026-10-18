@@ -22,6 +22,7 @@ export interface OpportunityReport {
 export interface SavedOpportunity {
   opportunity: Opportunity; report: OpportunityReport; savedAt: string;
   stage: 'saved' | 'interview' | 'prototype' | 'archived';
+  notes?: string;
 }
 
 export function selectOpportunityEvidence(apps: WatchApp[], context: ResearchContext, days = 30, now = new Date(), balanced = false): OpportunityEvidence[] {
@@ -105,7 +106,7 @@ export function loadSavedOpportunities(value: unknown): SavedOpportunity[] {
       || !Number.isFinite(new Date(item.savedAt).getTime()) || !item.opportunity
       || !item.report.opportunities.some((opportunity: Opportunity) => JSON.stringify(opportunity) === JSON.stringify(item.opportunity)) || seen.has(item.opportunity.id)) return false;
     seen.add(item.opportunity.id); return true;
-  }).slice(0, 50);
+  }).slice(0, 50).map(item => ({ ...item, notes: typeof item.notes === 'string' ? item.notes.slice(0, 4000) : '' }));
 }
 
 export function saveOpportunitySnapshot(saved: SavedOpportunity[], opportunity: Opportunity, report: OpportunityReport, now = new Date()): SavedOpportunity[] {
@@ -147,6 +148,7 @@ export function opportunityMarkdown(item: SavedOpportunity): string {
     '', '## Possible scenario', op.scenario, '', '## Reported obstacle', op.obstacle, '', '## Consequence to verify', op.consequence,
     '', '## Why investigate (hypothesis)', op.hypothesis, '', '## Unknowns', ...op.unknowns.map(text => '- ' + text),
     '', '## Next validation', `Who: ${op.nextWho}`, `Ask: ${op.nextQuestion}`, `Experiment: ${op.nextExperiment}`,
+    '', '## Findings & notes', item.notes || 'No findings recorded.',
     '', '## Original evidence', ...report.evidence.filter(ref => op.evidenceKeys.includes(ref.key)).flatMap(ref => [
       '', `${ref.appName} | ${ref.date} | ${ref.country} | ${ref.source}${ref.partial ? ' | partial sample' : ''}`,
       ...ref.quote.split('\n').map(line => '> ' + line),

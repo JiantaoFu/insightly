@@ -16,6 +16,7 @@ export interface ResearchProject {
   workflow?: 'decision' | 'apps';
   decision?: DecisionState;
   decisionPlans?: DecisionPlan[];
+  analysisApp?: WatchApp;
 }
 export interface ResearchProjects { activeId: string; projects: ResearchProject[] }
 
@@ -54,6 +55,9 @@ export function loadResearchProjects(storage: Pick<Storage, 'getItem'>, apps: Wa
       days: [7, 30, 90].includes(item.days) ? item.days : 90, sample: item.sample === true,
       workflow: item.workflow === 'decision' ? 'decision' as const : item.workflow === 'apps' ? 'apps' as const : undefined, decision: item.decision ? loadDecision(item.decision) : undefined,
       decisionPlans: loadDecisionPlans(item.decisionPlans),
+      analysisApp: item.analysisApp && typeof item.analysisApp.name === 'string' && typeof item.analysisApp.id === 'string' &&
+        storeAppKey(item.analysisApp.url) && Array.isArray(item.analysisApp.reviews) && item.analysisApp.reviews.every(review => review && typeof review.text === 'string')
+        ? item.analysisApp : undefined,
       roles: Object.fromEntries(Object.entries(item.roles || {}).filter(([, role]) => role === 'my-app' || role === 'competitor')) as ResearchProject['roles'],
     }));
     if (projects.length) return { projects, activeId: projects.some(item => item.id === stored.activeId) ? stored.activeId : projects[0].id };

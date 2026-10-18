@@ -12,9 +12,11 @@ The green sidebar, workspace hierarchy, review exploration, and decision-board i
 
 - `/market` uses the Voicely shell and centralized `src/config/brand.ts` identity.
 - Sites navigation is retained: Overview, Review explorer, Opportunities, Compare apps, Decision board, Watchlist, Plans & usage.
-- The default is app-first: Analyze an app opens source discovery and research in a drawer. Describe a situation is an auxiliary entry, not the default page.
-- Overview combines app-scoped review metrics, observed theme shares and research-wide opportunity snapshots. Opportunity briefs open in a drawer and save into the decision board.
-- Compare apps uses collected samples from the current research only. Theme charts do not claim market growth or statistical confidence.
+- The only analysis entry is app-first: search (with pagination) or resolve a store link, select the app, then automatically collect, classify and generate opportunities. Completion opens Overview without a second submit or report screen.
+- The former project selector, narrative workflow, research setup, manual classification controls and source/evidence sub-pages are no longer mounted in the workspace. Existing public routes are unaffected.
+- Overview, reviews and opportunities share one completed app/time snapshot. Changing the period runs analysis again; failure or cancellation keeps the prior completed scope. Intermediate collection is retained separately for retry.
+- Opportunity briefs open in a drawer and save into the decision board. Previously saved decisions retain their evidence, status and notes, without exposing the old workflow.
+- Compare apps automatically suggests related apps and permits manual selection. Comparison analyses are separate, use matching periods and do not replace the primary app. Theme charts do not claim market growth or statistical confidence.
 - Prototype plan prices are labeled proposed and unavailable for purchase; monitoring remains explicitly manual.
 - Real research, review collection, classification, citations, and legacy analysis remain available.
 - Review explorer filters current-project sources, paginates locally, and exports the filtered collection, not just the visible page.
@@ -31,6 +33,6 @@ Background monitoring, new subscription plans, and first-party analytics are not
 
 ## Verification
 
-The 68 regression tests and production build pass. The isolated browser flow covers both research entries, source citations, opportunity drawers, proposed plans, review export, saved decisions, legacy saved opportunities, project isolation and mobile layout. Test model responses are fixtures; no live model calls are needed for these checks.
+The 76 regression tests and production build pass. The isolated browser flow covers search pagination, store URL resolution, automatic analysis, scope changes, citations, opportunity drawers, saved decisions and notes, app isolation, comparison, cancellation/retry and mobile layout. Test model responses are fixtures; no live model calls are needed for these checks.
 
 Edited TypeScript files pass targeted ESLint. Repository-wide lint still reports 45 pre-existing errors and 13 warnings; TypeScript reports 53 errors in legacy components outside this migration. These are not represented as a clean full-repository check.

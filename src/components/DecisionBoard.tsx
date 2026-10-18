@@ -2,7 +2,6 @@ import { Bookmark, Download, Trash2 } from 'lucide-react';
 import { decisionPlanMarkdown, type DecisionPlan } from '../utils/decisionResearch';
 import { downloadFile } from '../utils/download';
 import { opportunityMarkdown, type SavedOpportunity } from '../utils/marketOpportunities';
-import { OpportunityRow } from './OpportunityWorkspace';
 
 export default function DecisionBoard({ plans, onChange, busy, legacy, onLegacyChange }: { plans: DecisionPlan[]; onChange: (plans: DecisionPlan[]) => void; busy: boolean; legacy: SavedOpportunity[]; onLegacyChange: (saved: SavedOpportunity[]) => void }) {
   const update = (id: string, patch: Partial<DecisionPlan>) => onChange(plans.map(plan => plan.id === id ? { ...plan, ...patch } : plan));
@@ -27,8 +26,11 @@ export default function DecisionBoard({ plans, onChange, busy, legacy, onLegacyC
         </details>
       </article>;
     })}
-    {!!legacy.length && <section className="mt-6"><h2 className="voicely-panel-title">Saved app research</h2>{legacy.map(item => <OpportunityRow key={item.opportunity.id} opportunity={item.opportunity} report={item.report} saved={item}
-      onStage={busy ? undefined : stage => onLegacyChange(legacy.map(other => other.opportunity.id === item.opportunity.id ? { ...other, stage } : other))}
-      onRemove={() => { if (!busy && window.confirm('Remove this saved direction? The original research remains.')) onLegacyChange(legacy.filter(other => other.opportunity.id !== item.opportunity.id)); }} />)}</section>}
+    {legacy.map(item => <article className="voicely-plan" key={item.opportunity.id}>
+      <div className="voicely-toolbar"><h3>{item.opportunity.title}</h3><button className="voicely-button" disabled={busy} title="Remove decision" aria-label={`Remove decision ${item.opportunity.title}`} onClick={() => { if (window.confirm('Remove this saved decision and its notes?')) onLegacyChange(legacy.filter(other => other.opportunity.id !== item.opportunity.id)); }}><Trash2 /></button></div>
+      <p className="mt-3">{item.opportunity.hypothesis}</p><p className="voicely-muted mt-2">Next test: {item.opportunity.nextExperiment}</p>
+      <div className="voicely-plan-fields"><label>Status<select disabled={busy} aria-label={`Decision status for ${item.opportunity.title}`} value={item.stage} onChange={event => onLegacyChange(legacy.map(other => other.opportunity.id === item.opportunity.id ? { ...other, stage: event.target.value as SavedOpportunity['stage'] } : other))}><option value="saved">To investigate</option><option value="interview">Interview planned</option><option value="prototype">Testing a prototype</option><option value="archived">Set aside</option></select></label><label>Findings &amp; notes<textarea disabled={busy} maxLength={4000} value={item.notes || ''} onChange={event => onLegacyChange(legacy.map(other => other.opportunity.id === item.opportunity.id ? { ...other, notes: event.target.value } : other))} /></label></div>
+      <details className="mt-4 text-sm"><summary className="cursor-pointer text-teal-800">Saved evidence &amp; decision limits</summary><p className="voicely-muted mt-3">Saved {new Date(item.savedAt).toLocaleDateString()} · last {item.report.days} days · {item.opportunity.unknowns.join(' ')}</p>{item.report.evidence.filter(ref => item.opportunity.evidenceKeys.includes(ref.key)).map(ref => <blockquote key={ref.key} className="lab-quote"><p>{ref.quote}</p><small>{ref.appName} · {ref.country.toUpperCase()} · {ref.date}</small></blockquote>)}</details>
+    </article>)}
   </section>;
 }

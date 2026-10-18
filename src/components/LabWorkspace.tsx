@@ -12,22 +12,28 @@ import ReviewExplorer from './ReviewExplorer';
 interface LabOpportunity { id: string; title: string; proposal: string; scenario: string; rationale: string; uncertainty: string; action: string; changeMind: string; evidence: OpportunityEvidence[]; saved: boolean; save: () => void; exportBrief: () => void }
 export function LabDialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { const dialog = ref.current; dialog?.showModal(); return () => { dialog?.close(); }; }, []);
+  useEffect(() => { const dialog = ref.current, overflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; dialog?.showModal(); return () => { dialog?.close(); document.body.style.overflow = overflow; }; }, []);
   return <dialog ref={ref} onCancel={event => { event.preventDefault(); onClose(); }} aria-label={title} className="lab-dialog"><header><h2>{title}</h2><button className="voicely-button" title="Close dialog" aria-label="Close dialog" onClick={onClose}><X /></button></header><div className="lab-dialog-body">{children}</div></dialog>;
 }
 
-export default function LabWorkspace({ view, project, apps, onChange, onAnalyze, onNavigate, busy }: {
+export default function LabWorkspace({ view, project, apps, comparisonApps, comparisonUrl, onDaysChange, onChange, onAnalyze, onCompare, onNavigate, busy }: {
   view: WorkspaceView; project: ResearchProject; apps: WatchApp[]; onChange: (patch: Partial<ResearchProject>) => void;
-  onAnalyze: () => void; onNavigate: (view: WorkspaceView) => void; busy: boolean;
+  comparisonApps: WatchApp[]; onDaysChange: (days: number) => void;
+  comparisonUrl: string;
+  onAnalyze: () => void; onCompare: () => void; onNavigate: (view: WorkspaceView) => void; busy: boolean;
 }) {
-  const [appId, setAppId] = useState(''), [platform, setPlatform] = useState('all'), [days, setDays] = useState(90);
+  const platform = 'all', days = project.days;
   const [theme, setTheme] = useState(''), [kind, setKind] = useState('complaint'), [opFilter, setOpFilter] = useState('all');
   const [detailId, setDetailId] = useState<string | null>(null), [compareId, setCompareId] = useState('');
   const [annual, setAnnual] = useState(false), [evidenceTopic, setEvidenceTopic] = useState('');
-  const real = apps.filter(app => !app.sample), active = real.find(app => app.id === appId) || real[0];
-  const comparison = real.find(app => app.id === compareId && app.id !== active?.id) || real.find(app => app.id !== active?.id);
+  const requestedComparison = comparisonApps.find(app => app.url === comparisonUrl)?.id || '';
+  useEffect(() => { setCompareId(requestedComparison); }, [requestedComparison]);
+  const active = apps.find(app => !app.sample);
+  const real = [active, ...comparisonApps].filter((app): app is WatchApp => !!app && !app.sample);
+  const comparison = comparisonApps.find(app => app.id === compareId) || comparisonApps[comparisonApps.length - 1];
   const filters = { appId: 'all', platform, days, query: '', intent: 'all' };
-  const rows = filterReviews(active ? [active] : [], filters);
+  const asOf = Date.parse(active?.syncedAt || project.report?.generatedAt || '') || Date.now();
+  const rows = filterReviews(active ? [active] : [], filters, asOf);
   const classified = rows.filter(row => row.analysis);
   const themes = useMemo(() => {
     const grouped = new Map<string, { id: string; name: string; count: number; complaint: number; request: number; praise: number }>();
@@ -56,14 +62,14 @@ export default function LabWorkspace({ view, project, apps, onChange, onAnalyze,
     const from = project.report;
     opportunities.push({ id: op.id, title: op.title, proposal: op.hypothesis, scenario: op.scenario, rationale: op.obstacle,
       uncertainty: op.unknowns.join(' '), action: op.nextExperiment, changeMind: op.nextQuestion,
-      evidence: from.evidence.filter(ref => op.evidenceKeys.includes(ref.key)), saved: project.saved.some(item => item.opportunity.id === op.id),
+      evidence: from.evidence.filter(ref => op.evidenceKeys.includes(ref.key)), saved: project.saved.some(item => item.opportunity.id === op.id && item.report.inputKey === from.inputKey),
       save: () => onChange({ saved: saveOpportunitySnapshot(project.saved, op, from) }),
       exportBrief: () => downloadFile('voicely-opportunity.md', opportunityMarkdown(saveOpportunitySnapshot([], op, from)[0]), 'text/markdown;charset=utf-8') });
   }
   const priority = opportunities[0], detail = opportunities.find(op => op.id === detailId);
   const chosenTheme = themes.find(item => item.id === theme) || themes[0];
   const series = Array.from({ length: 6 }, (_, index) => {
-    const end = Date.now() - (5 - index) * 7 * 86400000, start = end - 7 * 86400000;
+    const end = asOf - (5 - index) * 7 * 86400000, start = end - 7 * 86400000;
     const week = classified.filter(({ review }) => { const date = Date.parse(review.date || review.timestamp || ''); return date > start && date <= end; });
     const mentions = week.filter(row => row.analysis?.labels.some(label => label.topic.id === chosenTheme?.id)).length;
     return { label: new Date(end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), count: week.length, share: week.length ? mentions / week.length * 100 : null };
@@ -74,13 +80,13 @@ export default function LabWorkspace({ view, project, apps, onChange, onAnalyze,
   </article>;
   const appStrip = <section className="lab-app-strip" aria-label="Analysis scope">
     <div className="flex items-center gap-3 min-w-0">{active?.icon ? <img src={active.icon} alt="" className="w-11 h-11 rounded-lg" /> : <MessageSquare className="w-8 h-8 text-teal-800 shrink-0" />}
-      {active ? <label className="min-w-0"><span className="voicely-muted">Selected app</span><select aria-label="Analysis app" value={active.id} onChange={event => { setAppId(event.target.value); setTheme(''); setEvidenceTopic(''); }}>{real.map(app => <option key={app.id} value={app.id}>{app.name}</option>)}</select></label> : <button onClick={onAnalyze} className="voicely-button">Choose an app <Plus /></button>}</div>
-    <div className="flex flex-wrap gap-3"><label>Source<select aria-label="Review platform" value={platform} onChange={event => setPlatform(event.target.value)}><option value="all">Both stores</option><option value="ios">App Store</option><option value="android">Google Play</option></select></label><label>Time range<select aria-label="Time range" value={days} onChange={event => setDays(Number(event.target.value))}><option value={90}>Last 90 days</option><option value={30}>Last 30 days</option></select></label></div>
+      {active ? <button disabled={busy} onClick={onAnalyze} className="text-left min-w-0" aria-label="Change app"><strong className="block break-words">{active.name}</strong><span className="voicely-muted">{active.developer} · {active.platform === 'ios' ? 'App Store' : 'Google Play'} · {active.reviewCountry?.toUpperCase()}</span></button> : <button disabled={busy} onClick={onAnalyze} className="voicely-button">Choose an app <Plus /></button>}</div>
+    <div className="flex flex-wrap gap-3"><label>Time range<select aria-label="Time range" disabled={busy || !active} value={days} onChange={event => onDaysChange(Number(event.target.value))}><option value={90}>Last 90 days</option><option value={30}>Last 30 days</option></select></label>{project.report && <span className="voicely-muted self-end">Analyzed {new Date(project.report.generatedAt).toLocaleDateString()}</span>}</div>
   </section>;
   return <>
     {['next', 'reviews', 'opportunities', 'compare'].includes(view) && appStrip}
     {view === 'next' && <>
-      {opportunities.length > 0 && <p className="voicely-muted mt-4">Opportunities reflect the saved research across its related apps. Review metrics below reflect the selected app and time range.</p>}
+      {opportunities.length > 0 && <p className="voicely-muted mt-4">{active?.name} · last {days} days · opportunities and evidence from the same completed analysis.</p>}
       <section className="voicely-metrics"><div><p>Reviews in scope</p><strong>{rows.length}</strong><small>Collected sample</small></div><div><p>Sample average</p><strong>{rows.some(row => row.review.score) ? (rows.reduce((n, row) => n + (row.review.score || 0), 0) / rows.filter(row => row.review.score).length).toFixed(1) : '—'}</strong><small>Out of 5</small></div><div><p>Pain-point reviews</p><strong>{classified.filter(row => row.analysis?.labels.some(label => label.intent === 'complaint')).length}</strong><small>{classified.length} classified in scope</small></div><div><p>Product opportunities</p><strong>{opportunities.length}</strong><small>Saved research snapshot</small></div></section>
       <div className="lab-dashboard-grid"><section className="lab-priority"><span className="lab-eyebrow"><Sparkles />Your priority to investigate</span><h2>{priority?.title || 'Your next move starts with a real signal.'}</h2><p>{priority?.proposal || 'No research result yet.'}</p>{priority && <p className="voicely-muted mt-4">{priority.evidence.length ? `${new Set(priority.evidence.map(ref => ref.reviewKey)).size} cited reviews · proposed solution unvalidated` : 'Exploratory suggestion · demand unverified'}</p>}<div className="voicely-toolbar"><button className="voicely-button primary" onClick={() => priority ? setDetailId(priority.id) : onAnalyze()}>{priority ? 'Explore the opportunity' : 'Analyze an app'}<ArrowRight /></button>{priority && <button disabled={busy || priority.saved} className="voicely-button" aria-label="Save priority opportunity" title="Save priority opportunity" onClick={priority.save}>{priority.saved ? <Check /> : <Bookmark />}</button>}</div></section>
       <section className="lab-signal"><h2>A signal worth watching</h2><p className="voicely-muted">Weekly share of classified reviews mentioning a theme</p><div className="lab-theme-tabs">{themes.slice(0, 3).map(item => <button key={item.id} aria-pressed={chosenTheme?.id === item.id} onClick={() => setTheme(item.id)}>{item.name}</button>)}</div>
@@ -93,10 +99,10 @@ export default function LabWorkspace({ view, project, apps, onChange, onAnalyze,
         <div className="overflow-x-auto"><table className="lab-table"><thead><tr><th>Theme</th><th>Mentions</th><th>Classified sample share</th><th>Evidence</th></tr></thead><tbody>{themes.filter(item => item[kind as 'complaint' | 'request' | 'praise'] > 0).map(item => <tr key={item.id}><td>{item.name}</td><td>{item[kind as 'complaint' | 'request' | 'praise']}</td><td>{Math.round(item[kind as 'complaint' | 'request' | 'praise'] / classified.length * 100)}%</td><td><button className="text-teal-800 underline" onClick={() => { setEvidenceTopic(item.id); onNavigate('reviews'); }}>See evidence</button></td></tr>)}</tbody></table></div>{!themes.length && <p className="voicely-muted py-4">No classified evidence yet.</p>}
       </section>
     </>}
-    {view === 'opportunities' && <><p className="lab-notice">Research snapshot. App and time filters change the evidence view, not previously generated recommendations. Relevance and outcomes still require validation.</p><div className="lab-theme-tabs" role="group" aria-label="Opportunity type">{[['all', 'All opportunities'], ['backed', 'Review-backed'], ['exploratory', 'Exploratory']].map(([id, label]) => <button key={id} aria-pressed={opFilter === id} onClick={() => setOpFilter(id)}>{label}</button>)}</div><div className="lab-opportunity-grid">{opportunities.filter(op => opFilter === 'all' || (opFilter === 'backed' ? op.evidence.length > 0 : !op.evidence.length)).map(card)}</div>{!opportunities.length && <div className="voicely-empty"><Sparkles /><h2>No researched opportunities yet.</h2><button className="voicely-button primary mt-4" onClick={onAnalyze}>Analyze an app <ArrowRight /></button></div>}</>}
+    {view === 'opportunities' && <><p className="lab-notice">{active ? `${active.name} · last ${days} days. ` : ''}Evidence-backed problems, proposed solutions. Demand and outcomes still need validation.</p><div className="lab-theme-tabs" role="group" aria-label="Opportunity type">{[['all', 'All opportunities'], ['backed', 'Review-backed'], ['exploratory', 'Exploratory']].map(([id, label]) => <button key={id} aria-pressed={opFilter === id} onClick={() => setOpFilter(id)}>{label}</button>)}</div><div className="lab-opportunity-grid">{opportunities.filter(op => opFilter === 'all' || (opFilter === 'backed' ? op.evidence.length > 0 : !op.evidence.length)).map(card)}</div>{!opportunities.length && <div className="voicely-empty"><Sparkles /><h2>No researched opportunities yet.</h2><button className="voicely-button primary mt-4" onClick={onAnalyze}>Analyze an app <ArrowRight /></button></div>}</>}
     {view === 'reviews' && <>{evidenceTopic && <div className="voicely-toolbar"><p className="voicely-muted">Theme: {themes.find(item => item.id === evidenceTopic)?.name || 'Selected theme'}</p><button className="voicely-button" onClick={() => setEvidenceTopic('')}>Clear theme filter<X /></button></div>}<ReviewExplorer key={`${active?.id}-${platform}-${days}-${evidenceTopic}`} apps={active ? [{ ...active, reviews: rows.map(row => row.review).filter(review => !evidenceTopic || getReviewAnalysis(review)?.labels.some(label => label.topic.id === evidenceTopic)) }] : []} /></>}
-    {view === 'compare' && <><div className="voicely-controls"><label>Compare with<select aria-label="Choose comparison app" value={comparison?.id || ''} onChange={event => setCompareId(event.target.value)}><option value="" disabled>Select another collected app</option>{real.filter(app => app.id !== active?.id).map(app => <option key={app.id} value={app.id}>{app.name}</option>)}</select></label><button className="voicely-button" onClick={onAnalyze}>Add an app <Plus /></button></div><p className="lab-notice">Compare sample patterns, not market share. App cohorts can differ in size, region and collection coverage.</p><div className="lab-dashboard-grid">{[active, comparison].filter((app): app is WatchApp => !!app).map(app => {
-      const cohort = filterReviews([app], filters), analyzed = cohort.filter(row => row.analysis), counts = new Map<string, number>();
+    {view === 'compare' && <><div className="voicely-controls"><label>Compare with<select aria-label="Choose comparison app" value={comparison?.id || ''} onChange={event => setCompareId(event.target.value)}><option value="" disabled>Select another collected app</option>{real.filter(app => app.id !== active?.id).map(app => <option key={app.id} value={app.id}>{app.name}</option>)}</select></label><button className="voicely-button" onClick={onCompare}>Add an app <Plus /></button></div><p className="lab-notice">Compare sample patterns, not market share. App cohorts can differ in size, region and collection coverage.</p><div className="lab-dashboard-grid">{[active, comparison].filter((app): app is WatchApp => !!app).map(app => {
+      const cohort = filterReviews([app], filters, asOf), analyzed = cohort.filter(row => row.analysis), counts = new Map<string, number>();
       for (const row of analyzed) for (const name of new Set(row.analysis!.labels.map(label => label.topic.name))) counts.set(name, (counts.get(name) || 0) + 1);
       return <section className="lab-compare" key={app.id}><div className="flex gap-3 items-center">{app.icon && <img src={app.icon} alt="" className="w-11 h-11 rounded-lg" />}<h2>{app.name}</h2></div><div className="voicely-metrics"><div><strong>{cohort.length}</strong><small>Sample reviews</small></div><div><strong>{analyzed.length}</strong><small>Classified</small></div></div>{[...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name, count]) => <div className="lab-comparison-topic" key={name}><div className="voicely-toolbar"><span>{name}</span><span>{Math.round(count / analyzed.length * 100)}%</span></div><div className="lab-bar"><div style={{ width: `${count / analyzed.length * 100}%` }} /></div></div>)}{!analyzed.length && <p className="voicely-muted mt-4">No classified evidence in this scope.</p>}</section>;
     })}</div>{!comparison && <p className="voicely-muted mt-5">Collect another related app to compare.</p>}</>}

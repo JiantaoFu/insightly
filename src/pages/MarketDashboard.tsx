@@ -1,499 +1,128 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Loader2, Plus, Radar, Search, Settings2 } from 'lucide-react';
-
+import { useEffect, useRef, useState } from 'react';
+import { Bell, Loader2, Plus, RefreshCw, Square, Trash2 } from 'lucide-react';
 import VoicelyShell, { type WorkspaceView } from '../components/VoicelyShell';
-import LabWorkspace, { LabDialog } from '../components/LabWorkspace';
+import LabWorkspace from '../components/LabWorkspace';
+import AnalyzeAppDialog from '../components/AnalyzeAppDialog';
 import DecisionBoard from '../components/DecisionBoard';
-import { SERVER_URL } from '../components/Constants';
-import { appendSyncObservation, classifiedReviewCount, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, MarketReview, WatchApp } from '../utils/marketIntelligence';
-import { classifyResearchReviews, parseResearchApp, storeAppKey, type ResearchApp } from '../utils/marketResearchFlow';
-import { changeResearchProject, loadResearchProjects, newResearchProject, PROJECTS_STORAGE, projectSources, type ResearchProject, type ResearchProjects } from '../utils/researchProjects';
-import MarketInsights from '../components/MarketInsights';
-import OpportunityWorkspace from '../components/OpportunityWorkspace';
-import DecisionWorkspace from '../components/DecisionWorkspace';
-import DecisionEvidence from '../components/DecisionEvidence';
-import MarketModelControls, { ClassifierProfile } from '../components/MarketModelControls';
 import { useAuth } from '../components/AuthContext';
+import { SERVER_URL } from '../components/Constants';
+import { analyzeApplication, analysisId, marketRequest } from '../utils/appAnalysis';
+import { parseResearchApp, storeAppKey, type ResearchApp } from '../utils/marketResearchFlow';
+import { loadResearchProjects, newResearchProject, PROJECTS_STORAGE, type ResearchProject, type ResearchProjects } from '../utils/researchProjects';
+import type { WatchApp } from '../utils/marketIntelligence';
 
+const WATCH_STORAGE = 'insightly_market_watchlist_v1';
+const MONITOR_STORAGE = 'voicely_monitored_apps_v1';
+function readApps(): WatchApp[] {
+  try { const value = JSON.parse(localStorage.getItem(WATCH_STORAGE) || '[]'); return Array.isArray(value) ? value.filter(app => app && !app.sample && typeof app.name === 'string' && storeAppKey(app.url) && Array.isArray(app.reviews)) : []; }
+  catch { return []; }
+}
+function readMonitors(): string[] {
+  try { const value = JSON.parse(localStorage.getItem(MONITOR_STORAGE) || '[]'); return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === 'string'))] : []; }
+  catch { return []; }
+}
+const titles: Record<WorkspaceView, string> = { next: 'From reviews to your next move.', reviews: 'Review explorer', opportunities: 'Find your next opportunity.', compare: 'Compare apps', board: 'Your decision board', sources: 'Watchlist', plans: 'Plans & usage' };
 
-const STORAGE_KEY = 'insightly_market_watchlist_v1';
-
-const loadWatchlist = (): WatchApp[] => {
-  try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    return Array.isArray(value) ? value.filter(app => app && Array.isArray(app.reviews) && typeof app.name === 'string') : [];
-  } catch {
-    return [];
-  }
-};
-
-const processAppUrl = async (url: string, signal?: AbortSignal) => {
-  const endpoint = url.includes('apps.apple.com')
-    ? `${SERVER_URL}/app-store/process-url`
-    : `${SERVER_URL}/google-play/process-url`;
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, maxReviews: 500, months: 0 }),
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000),
-  });
-
-  if (!response.ok) {
-    throw new Error('Could not sync this app. Check the store URL and API connection.');
-  }
-
-  const data = await response.json();
-  if (!data.details || !Array.isArray(data.reviews?.reviews)) throw new Error('The review service returned an invalid response. Previous data retained.');
-  return data;
-};
-
-const MarketDashboard: React.FC = () => {
-  const [watchlist, setWatchlist] = useState<WatchApp[]>(loadWatchlist);
-  const watchlistRef = useRef(watchlist);
-  const [projects, setProjects] = useState(() => loadResearchProjects(localStorage, watchlist));
-  const projectsRef = useRef(projects);
-  const project = projects.projects.find(item => item.id === projects.activeId)!;
-  const research = project.research;
-  const workflow = project.workflow || (project.scope.apps.length || project.scope.query || project.report || project.saved.length || project.sample ? 'apps' : 'decision');
-  const scopedApps = projectSources(project, watchlist);
-  const [storageError, setStorageError] = useState<string | null>(null);
-  const persistProjects = (next: ResearchProjects) => {
-    projectsRef.current = next;
-    setProjects(next);
-    try { localStorage.setItem(PROJECTS_STORAGE, JSON.stringify(next)); setStorageError(null); }
-    catch { setStorageError('Research changes could not be saved. Keep this page open; browser storage is full or unavailable.'); }
-  };
-  const updateProject = (patch: Partial<ResearchProject>) => {
-    const current = projectsRef.current;
-    persistProjects(changeResearchProject(current, project.id, patch));
-  };
-  useEffect(() => {
-    try { localStorage.setItem(PROJECTS_STORAGE, JSON.stringify(projectsRef.current)); }
-    catch { setStorageError('Research migration could not be saved. Existing data has been retained.'); }
-  }, []);
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('next');
-  const [researchOpen, setResearchOpen] = useState(false);
-  const [sourceView, setSourceView] = useState<'evidence' | 'manage'>('evidence');
-  const [generatingOpportunities, setGeneratingOpportunities] = useState(false);
+export default function MarketDashboard() {
   const { token } = useAuth();
-  const [profile, setProfile] = useState<ClassifierProfile | null>(null);
-  const [checkingModel, setCheckingModel] = useState(true);
-  const [modelCheck, setModelCheck] = useState(0);
-  const [classifying, setClassifying] = useState(false);
-  const [classificationProgress, setClassificationProgress] = useState<string | null>(null);
-  const [classificationError, setClassificationError] = useState<string | null>(null);
-  const [syncingAll, setSyncingAll] = useState(false);
-  const [url, setUrl] = useState('');
-  const [role, setRole] = useState<WatchApp['role']>(watchlist.some(app => app.role === 'my-app') ? 'competitor' : 'my-app');
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
-  const [isAdding, setIsAdding] = useState(false);
-  const [syncingId, setSyncingId] = useState<string | null>(null);
-
-  const [suggestions, setSuggestions] = useState<{ title: string; appUrl: string; icon?: string; developer?: string; platform: string }[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [activeSuggestion, setActiveSuggestion] = useState(-1);
-
+  const [apps, setApps] = useState(readApps), appsRef = useRef(apps);
+  const [projects, setProjects] = useState(() => loadResearchProjects(localStorage, apps)), projectsRef = useRef(projects);
+  const [view, setView] = useState<WorkspaceView>('next'), [chooser, setChooser] = useState(false);
+  const [comparisonPicker, setComparisonPicker] = useState(false);
+  const [monitors, setMonitors] = useState(readMonitors);
+  const [progress, setProgress] = useState(''), [error, setError] = useState(''), [storageError, setStorageError] = useState('');
+  const [running, setRunning] = useState(false), [retry, setRetry] = useState<{ app: ResearchApp; days: number; compare: boolean } | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  const [related, setRelated] = useState<ResearchApp[]>([]), [relatedStatus, setRelatedStatus] = useState('');
+  const [relatedRetry, setRelatedRetry] = useState(0);
+  const [comparisonUrl, setComparisonUrl] = useState('');
+  const completed = projects.projects.filter(project => project.id.startsWith('analysis:') && project.report && project.analysisApp);
+  const selected = completed.find(project => project.id === projects.activeId) || null;
+  const empty = useRef(newResearchProject()).current;
+  const project = selected || empty;
+  const primary = selected?.scope.apps[0];
+  const persist = (key: string, value: unknown) => {
+    try { localStorage.setItem(key, JSON.stringify(value)); }
+    catch { setStorageError('Browser storage is full or unavailable. Keep this page open; changes are not saved.'); }
+  };
+  const saveProjects = (next: ResearchProjects) => { projectsRef.current = next; setProjects(next); persist(PROJECTS_STORAGE, next); };
+  const patch = (id: string, changes: Partial<ResearchProject>) => saveProjects({ ...projectsRef.current, projects: projectsRef.current.projects.map(item => item.id === id ? { ...item, ...changes } : item) });
+  const retain = (app: WatchApp) => {
+    const next = [...appsRef.current.filter(item => storeAppKey(item.url) !== storeAppKey(app.url)), app];
+    appsRef.current = next; setApps(next); persist(WATCH_STORAGE, next);
+  };
+  useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
-    const controller = new AbortController();
-    setCheckingModel(true);
-    fetch(`${SERVER_URL}/api/market/classifier`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) throw new Error('Model service unavailable. Sign in if this backend requires an account.');
-        const data = await response.json();
-        if (data.version !== MODEL_CLASSIFIER_VERSION || typeof data.configured !== 'boolean' || typeof data.model !== 'string') throw new Error('Model service version is incompatible.');
-        setProfile(data);
-      }).catch(error => { if (!controller.signal.aborted) { setProfile(null); setClassificationError(error.message || 'Model service unavailable.'); } })
-      .finally(() => { if (!controller.signal.aborted) setCheckingModel(false); });
-    return () => controller.abort();
-  }, [token, modelCheck]);
-
-  const classifyReviews = async () => {
-    if (!profile?.configured || classifying) return;
-    setClassifying(true); setClassificationError(null);
-    try {
-      const result = await classifyResearchReviews({ apps: projectSources(project, watchlistRef.current), profile, marketId: marketId(), serverUrl: SERVER_URL, token,
-        onProgress: setClassificationProgress, onUpdate: mergeResearchApps });
-      setNotice(`${result.completed} reviews classified by Gemini. Completed reviews are retained.`);
-    } catch (error) {
-      setClassificationError(`${error instanceof Error ? error.message : 'Classification failed.'} Completed reviews retained.`);
-    } finally { setClassifying(false); setClassificationProgress(null); }
-  };
-
-  useEffect(() => {
-    const query = url.trim();
-    setSuggestions([]);
-    setActiveSuggestion(-1);
-    setSearchError('');
-    setSearching(false);
-    if (query.length < 2 || /^https?:\/\//i.test(query)) return;
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const response = await fetch(`${SERVER_URL}/api/search-apps?query=${encodeURIComponent(query)}`, { signal: controller.signal });
-        if (!response.ok) throw new Error('Search unavailable. Paste a store URL or try again.');
-        const data = await response.json();
-        if (!controller.signal.aborted) {
-          setSuggestions(data.results || []);
-          setSearchError(data.results?.length ? '' : 'No matching apps found.');
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) setSearchError(err instanceof Error ? err.message : 'Search unavailable.');
-      } finally {
-        if (!controller.signal.aborted) setSearching(false);
+    setRelated([]); setRelatedStatus('');
+    if (view !== 'compare' || !primary) return;
+    const abort = new AbortController(); setRelatedStatus('Finding related apps...');
+    marketRequest(SERVER_URL, '/api/market/discover', token, abort.signal, { query: primary.appUrl, country: primary.key.split(':')[1] }).then(data => {
+      if (!Array.isArray(data.apps)) throw new Error('Related-app search returned invalid results.');
+      if (!abort.signal.aborted) {
+        const matches = data.apps.map(parseResearchApp).filter((app: ResearchApp | null): app is ResearchApp => !!app && app.key !== primary.key);
+        setRelated(matches); setRelatedStatus(data.partial ? 'Some stores are unavailable. Available suggestions are below.' : matches.length ? '' : 'No related apps found. You can choose one by name or store link.');
       }
-    }, 350);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [url]);
+    }).catch(e => { if (!abort.signal.aborted) setRelatedStatus(e.message || 'Related-app search unavailable.'); });
+    return () => abort.abort();
+  }, [view, primary, token, relatedRetry]);
 
-  const pickSuggestion = (appUrl: string) => {
-    setUrl(appUrl);
-    setShowSuggestions(false);
-    setSuggestions([]);
-    setError(null);
-  };
-
-  const loadSample = () => {
-    const date = (days: number) => new Date(Date.now() - days * 86400000).toISOString();
-    persistWatchlist(['Focus Notes', 'Quick Notes', 'Team Notes'].map((name, appIndex) => ({
-      id: 'sample-' + appIndex, name, role: appIndex === 0 ? 'my-app' : 'competitor',
-      url: '', platform: 'ios', syncedAt: date(0), sample: true,
-      reviews: [0, 1, 2].flatMap(period => Array.from({ length: 12 }, (_, index) => ({
-        id: 'sample-' + appIndex + '-' + period + '-' + index,
-        userName: 'Sample reviewer ' + (index + 1),
-        text: index < (period === 0 ? 7 - appIndex : 2)
-          ? 'App crashes while loading my notebook.'
-          : index < 9 ? 'Please add offline export. This feature is missing.'
-          : 'Great design and helpful support.',
-        score: index < 9 ? 2 : 5,
-        date: date((period === 0 ? 1 : period === 1 ? 8 : 31) + index % 6),
-        analysis: {
-          version: MODEL_CLASSIFIER_VERSION, provider: 'sample', model: 'illustrative', source: 'illustrative', analyzedAt: date(0),
-          sourceText: index < (period === 0 ? 7 - appIndex : 2) ? 'App crashes while loading my notebook.' : index < 9 ? 'Please add offline export. This feature is missing.' : 'Great design and helpful support.',
-          labels: [{ topic: { id: 'topic-' + (index < (period === 0 ? 7 - appIndex : 2) ? '0000000000000001' : index < 9 ? '0000000000000002' : '0000000000000003'),
-            name: index < (period === 0 ? 7 - appIndex : 2) ? 'Notebook loading reliability' : index < 9 ? 'Offline export' : 'Support experience',
-            description: 'Illustrative theme for the sample market' },
-            polarity: index < 9 ? 'negative' : 'positive', intent: index < (period === 0 ? 7 - appIndex : 2) ? 'complaint' : index < 9 ? 'request' : 'praise',
-            issue: index < (period === 0 ? 7 - appIndex : 2) ? 'Notebook crashes during loading' : index < 9 ? 'Offline export requested' : 'Helpful support',
-            evidence: index < (period === 0 ? 7 - appIndex : 2) ? 'App crashes while loading my notebook.' : index < 9 ? 'Please add offline export.' : 'helpful support' }],
-        },
-      }))),
-    })));
-    setRole('competitor');
-    updateProject({ sample: true, workflow: 'apps' });
-  };
-
-  const refreshApp = async (app: WatchApp, signal?: AbortSignal) => {
-    const startedAt = new Date().toISOString();
-    let returnedCountry: string | undefined;
-    setSyncingId(app.id);
-    setError(null);
-    setSyncErrors(previous => ({ ...previous, [app.id]: '' }));
+  const run = async (app: ResearchApp, days = 90, compare = false, force = false) => {
+    if (controller.current) return;
+    setChooser(false); setError(''); setRetry(null);
+    const previous = projectsRef.current.projects.find(item => item.id === analysisId(app));
+    if (!force && previous?.report && previous.days === days && previous.analysisApp) {
+      if (compare) setComparisonUrl(app.appUrl);
+      if (!compare) { saveProjects({ ...projectsRef.current, activeId: previous.id }); setView('next'); }
+      return;
+    }
+    const abort = new AbortController(); controller.current = abort; setRunning(true);
     try {
-      const data = await processAppUrl(app.url, signal);
-      returnedCountry = data.reviews.country;
-      const incoming: MarketReview[] = data.reviews?.reviews || [];
-      const current = watchlistRef.current.find(item => item.id === app.id) || app;
-      if (data.reviews.country && data.reviews.country !== (current.reviewCountry || requestedCountry(app.url))) {
-        throw new Error(`Review region changed to ${data.reviews.country.toUpperCase()}. Existing region data retained; use a separate regional watchlist entry.`);
-      }
-      const source = data.reviews.source || (app.platform === 'android' ? 'review-feed' : undefined);
-      const { reviews, observation } = observeReviewSync(current.reviews, incoming, {
-        startedAt, finishedAt: new Date().toISOString(), url: app.url, kind: 'refresh',
-        country: data.reviews.country, source, partial: data.reviews.partial, limitReached: data.reviews.limitReached,
-      });
-      persistWatchlist(watchlistRef.current.map(item => item.id === app.id ? {
-        ...item, reviews, syncedAt: observation.finishedAt,
-        reviewSource: source, reviewCountry: data.reviews.country || item.reviewCountry,
-        lastFetchedCount: incoming.length, lastAddedCount: observation.discovered, partial: !!data.reviews?.partial,
-        syncHistory: appendSyncObservation(item.syncHistory, observation),
-      } : item));
-      setNotice(app.name + ': ' + incoming.length + ' fetched, ' + observation.discovered + ' first discovered, ' + observation.updated + ' updated. ' + (source === 'store-page-sample' ? 'Limited sample; trend comparison withheld.' : 'Previously saved reviews retained.'));
-      return true;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Sync failed.';
-      setError(app.name + ': ' + message);
-      setSyncErrors(previous => ({ ...previous, [app.id]: message }));
-      persistWatchlist(watchlistRef.current.map(item => item.id === app.id ? {
-        ...item, syncHistory: appendSyncObservation(item.syncHistory, {
-          startedAt, finishedAt: new Date().toISOString(), kind: 'refresh', status: 'failed',
-          requestedCountry: requestedCountry(app.url), country: returnedCountry, fetched: 0, discovered: 0, updated: 0,
-          undated: 0, futureDated: 0, oldestDate: null, newestDate: null,
-          partial: false, limitReached: false, error: message,
-        }),
-      } : item));
-      return false;
-    } finally {
-      setSyncingId(null);
-    }
+      const result = await analyzeApplication({ app, days, previous, savedApps: appsRef.current, server: SERVER_URL, token, signal: abort.signal, progress: setProgress, retain });
+      const state = projectsRef.current;
+      saveProjects({ activeId: compare && selected ? state.activeId : result.id, projects: [...state.projects.filter(item => item.id !== result.id), result] });
+      if (compare) setComparisonUrl(app.appUrl);
+      setView(compare ? 'compare' : force ? view : 'next');
+    } catch (e) {
+      setError(abort.signal.aborted ? 'Analysis stopped. Completed collection is saved; the last completed analysis is unchanged.' : e instanceof Error ? e.message : 'Analysis failed.');
+      setRetry({ app, days, compare });
+    } finally { controller.current = null; setRunning(false); setProgress(''); }
   };
+  const navigate = (next: WorkspaceView) => { setView(next); setError(''); };
+  const openChooser = () => { if (!controller.current) { setComparisonPicker(false); setChooser(true); } };
+  const openComparison = () => { if (!controller.current) { setComparisonPicker(true); setChooser(true); } };
+  const recent = [...new Map(apps.map(app => {
+    const parsed = parseResearchApp({ title: app.name, appUrl: app.url, icon: app.icon, developer: app.developer });
+    return [parsed?.key, parsed] as const;
+  }).filter((entry): entry is [string, ResearchApp] => !!entry[0] && !!entry[1])).values()];
+  const saveMonitor = (id: string) => { const next = [...new Set([...monitors, id])]; setMonitors(next); persist(MONITOR_STORAGE, next); setView('sources'); };
+  const savedCount = projects.projects.reduce((sum, item) => sum + item.saved.length + (item.decisionPlans?.length || 0), 0);
 
-  const syncAll = async () => {
-    setSyncingAll(true);
-    setNotice(null);
-    const apps = projectSources(project, watchlistRef.current);
-    let successful = 0;
-    try {
-      for (const app of apps) {
-        if (await refreshApp(app)) successful++;
-      }
-      setNotice('Sync complete: ' + successful + ' of ' + apps.length + ' apps updated. ' + (successful < apps.length ? 'Failed apps retain their previous reviews; see Watchlist.' : ''));
-    } finally {
-      setSyncingAll(false);
-    }
-  };
-
-  const persistWatchlist = (next: WatchApp[]) => {
-    watchlistRef.current = next;
-    setWatchlist(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      setError('Browser storage is full or unavailable. Changes are available until you close this page.');
-    }
-  };
-
-  const marketId = () => project.id;
-
-  const mergeResearchApps = (updated: WatchApp[]) => {
-    const byId = new Map(updated.map(app => [app.id, app]));
-    persistWatchlist(watchlistRef.current.map(app => byId.has(app.id) ? { ...byId.get(app.id)!, role: app.role } : app));
-  };
-
-  const collectApp = async (appUrl: string, appRole: WatchApp['role'], signal?: AbortSignal) => {
-    const startedAt = new Date().toISOString();
-    const data = await processAppUrl(appUrl, signal);
-    const source = data.reviews.source || (appUrl.includes('play.google.com') ? 'review-feed' : undefined);
-    const observed = observeReviewSync([], data.reviews.reviews, {
-      startedAt, finishedAt: new Date().toISOString(), url: appUrl, kind: 'baseline',
-      country: data.reviews.country, source, partial: data.reviews.partial, limitReached: data.reviews.limitReached,
-    });
-    const nextApp: WatchApp = {
-      id: crypto.randomUUID(), role: appRole, url: appUrl, name: data.details.title || 'Untitled app', icon: data.details.icon, developer: data.details.developer,
-      platform: appUrl.includes('apps.apple.com') ? 'ios' : 'android', reviews: observed.reviews, reviewSource: source, reviewCountry: data.reviews.country,
-      syncHistory: [observed.observation], lastFetchedCount: data.reviews.reviews.length, lastAddedCount: 0, partial: !!data.reviews.partial, syncedAt: observed.observation.finishedAt,
-    };
-    persistWatchlist([...watchlistRef.current, nextApp]);
-    return nextApp;
-  };
-
-  const prepareResearch = async (selected: ResearchApp[], days: number, progress: (text: string) => void, signal: AbortSignal) => {
-    if (!profile?.configured) throw new Error('Research service unavailable.');
-    const warnings: string[] = [];
-    for (const [index, app] of selected.entries()) {
-      signal.throwIfAborted();
-      progress(`Collecting reviews: ${app.title} (${index + 1}/${selected.length})`);
-      const existing = watchlistRef.current.find(item => !item.sample && storeAppKey(item.url) === app.key);
-      try {
-        // Reuse a successful recent collection when retrying a later research step.
-        if (existing) {
-          const recent = existing.reviews.length && Date.now() - new Date(existing.syncedAt).getTime() < 3600000 && existing.syncHistory?.at(-1)?.status !== 'failed';
-          if (!recent && !await refreshApp(existing, signal)) warnings.push(`${app.title}: update failed; saved reviews retained.`);
-        } else await collectApp(app.appUrl, 'competitor', signal);
-      } catch (error) {
-        signal.throwIfAborted();
-        warnings.push(`${app.title}: ${error instanceof Error ? error.message : 'Collection failed.'}`);
-      }
-    }
-    signal.throwIfAborted();
-    const keys = new Set(selected.map(app => app.key));
-    const scoped = watchlistRef.current.filter(app => !app.sample && keys.has(storeAppKey(app.url)));
-    for (const app of scoped) if (!app.reviews.length) warnings.push(`${app.name}: the store returned no reviews.`);
-    const result = await classifyResearchReviews({ apps: scoped, profile, marketId: marketId(), serverUrl: SERVER_URL, token, days, signal,
-      onProgress: progress, onUpdate: mergeResearchApps });
-    return { apps: result.apps, warnings };
-  };
-
-  const handleAdd = async () => {
-    if (!url.trim()) {
-      setError('Paste an App Store or Google Play URL first.');
-      return;
-    }
-    let parsed: URL;
-    try { parsed = new URL(url.trim()); } catch { setError('Use a valid store URL.'); return; }
-    if (parsed.protocol !== 'https:' || !['apps.apple.com', 'play.google.com'].includes(parsed.hostname)) {
-      setError('Use a valid App Store or Google Play URL.');
-      return;
-    }
-    if (project.scope.apps.length >= 5) {
-      setError('This research already has five apps. Remove one before adding another.');
-      return;
-    }
-    if (project.scope.apps.some(app => app.key === storeAppKey(url.trim()))) {
-      setError('This app is already in this research.');
-      return;
-    }
-    if (role === 'my-app' && scopedApps.some(app => app.role === 'my-app')) {
-      setError('A My App is already assigned. This app can be added as a competitor.');
-      return;
-    }
-
-    try {
-      setIsAdding(true);
-      setError(null);
-      setNotice(null);
-      const nextApp = watchlistRef.current.find(app => !app.sample && storeAppKey(app.url) === storeAppKey(url.trim())) || await collectApp(url.trim(), 'competitor');
-      const selected = parseResearchApp({ title: nextApp.name, appUrl: nextApp.url, icon: nextApp.icon, developer: nextApp.developer });
-      if (!selected) throw new Error('This store URL cannot be added to research.');
-      updateProject({ scope: { ...project.scope, apps: [...project.scope.apps, selected] }, roles: { ...project.roles, [selected.key]: role } });
-      setRole('competitor');
-      setNotice(nextApp.reviews.length ? `${nextApp.name} added with ${nextApp.reviews.length} reviews. Your market results are below.` : `${nextApp.name} added, but its public store feed returned no reviews. Try another store region or platform.`);
-      setUrl('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add app.');
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
-  const busy = isAdding || syncingId !== null || syncingAll || classifying || generatingOpportunities;
-  const navigate = (view: WorkspaceView) => {
-    setWorkspaceView(view);
-    setSourcesOpen(view === 'sources');
-    if (view === 'sources') setSourceView('manage');
-  };
-  const analyze = () => { updateProject({ workflow: 'apps' }); setResearchOpen(true); };
-  const realApps = scopedApps.filter(app => !app.sample);
-  const currentModelCount = profile?.configured ? realApps.reduce((sum, app) => sum + app.reviews.filter(review => {
-    const analysis = getReviewAnalysis(review); return analysis?.provider === profile.provider && analysis.model === profile.model;
-  }).length, 0) : classifiedReviewCount(realApps);
-
-  return (
-    <VoicelyShell view={sourcesOpen ? 'sources' : workspaceView} onNavigate={navigate} onAnalyze={analyze} busy={busy} savedCount={(project.decisionPlans?.length || 0) + project.saved.length}>
-      <main id="voicely-main" className="voicely-main">
-        <div className="flex items-center gap-2 text-teal-800 text-xs font-medium"><Radar className="w-4 h-4" />Product Decision Intelligence</div>
-        <div className="flex flex-wrap justify-between items-center gap-3 mt-2">
-          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Watchlist & evidence' : ({ next: 'From reviews to your next move.', reviews: 'Review explorer', opportunities: 'Find your next opportunity.', compare: 'Compare apps', board: 'Your decision board', plans: 'Plans & usage', sources: 'Watchlist' })[workspaceView]}</h1>
-          <div className="flex flex-wrap gap-2">
-            <button disabled={busy} onClick={() => { setSourcesOpen(value => !value); setSourceView('evidence'); setWorkspaceView('next'); }} className="voicely-button">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to overview' : `Evidence & sources (${scopedApps.length})`}</button>
-            {!sourcesOpen && <button disabled={busy} onClick={analyze} className="voicely-button primary"><Plus className="w-4 h-4" />Analyze an app</button>}
-          </div>
-        </div>
-        {watchlist.some(app => app.sample) && !realApps.length && <p className="mt-2 text-sm text-amber-800">Sample market · illustrative reviews</p>}
-        <div className="voicely-scope">
-          <label className="text-sm text-gray-600 min-w-0 flex-1 max-w-md">Saved explorations
-            <select aria-label="Research direction" disabled={busy} value={project.id} onChange={event => {
-              persistProjects({ ...projectsRef.current, activeId: event.target.value });
-              setError(null); setNotice(null); setClassificationError(null); setUrl('');
-            }} className="block w-full mt-1 border border-gray-300 rounded px-3 py-2 text-gray-900">
-              {projects.projects.map(item => <option key={item.id} value={item.id}>{item.scope.title}</option>)}
-            </select>
-          </label>
-          <button disabled={busy} onClick={() => {
-            const next = newResearchProject();
-            persistProjects({ activeId: next.id, projects: [...projectsRef.current.projects, next] });
-            setSourcesOpen(false); setWorkspaceView('next'); setError(null); setNotice(null); setClassificationError(null); setUrl('');
-          }} className="inline-flex items-center gap-2 py-2 px-3 text-sm text-teal-800 disabled:opacity-40"><Plus className="w-4 h-4" />New research</button>
-        </div>
-        {storageError && <p role="alert" className="text-sm text-red-700 mt-3">{storageError}</p>}
-
-        <div hidden={sourcesOpen || workspaceView === 'board'}><LabWorkspace key={project.id} view={sourcesOpen ? 'sources' : workspaceView} project={project} apps={scopedApps} onChange={updateProject} onAnalyze={analyze} onNavigate={navigate} busy={busy} /></div>
-        {!sourcesOpen && workspaceView === 'next' && <div className="voicely-toolbar"><button disabled={busy} className="voicely-button" onClick={() => navigate('sources')}><Radar />Set up monitor</button><button disabled={busy} className="voicely-button" onClick={() => { updateProject({ workflow: 'decision' }); setResearchOpen(true); }}>Describe a situation</button></div>}
-        {!sourcesOpen && workspaceView === 'board' && <DecisionBoard plans={project.decisionPlans || []} busy={busy} onChange={decisionPlans => updateProject({ decisionPlans })} legacy={project.saved} onLegacyChange={saved => updateProject({ saved })} />}
-        {researchOpen && <LabDialog title={workflow === 'apps' ? 'Analyze an app' : 'Explore your next direction'} onClose={() => { if (!busy) setResearchOpen(false); }}>
-          {busy && <p role="status" className="lab-notice">Research is running. Cancel the research before closing.</p>}
-          {workflow === 'decision' ? <DecisionWorkspace key={project.id} project={project} onChange={updateProject} apps={watchlist} profile={profile} checking={checkingModel} token={token} busy={busy}
-            onBusyChange={setGeneratingOpportunities} onPrepare={prepareResearch} onOpenSources={() => { setResearchOpen(false); setSourcesOpen(true); }} /> : <OpportunityWorkspace key={project.id} project={project} onProjectChange={updateProject} apps={watchlist.filter(app => !app.sample || project.sample)} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
-            onPrepare={prepareResearch}
-            onBusyChange={setGeneratingOpportunities} onOpenSources={() => { setResearchOpen(false); navigate('sources'); }} onResearchSave={next => {
-              updateProject({ research: next });
-            }} />}
-          <details className="mt-6 pt-4 border-t border-gray-200 text-sm text-gray-600"><summary className="cursor-pointer">More research options</summary><div role="tablist" aria-label="Research starting point" className="flex gap-5 border-b border-gray-200 mt-3">
-            {(['decision', 'apps'] as const).map(mode => <button key={mode} role="tab" aria-selected={workflow === mode} disabled={busy} onClick={() => updateProject({ workflow: mode })} className={`py-3 text-sm border-b-2 ${workflow === mode ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{mode === 'decision' ? 'Find next steps' : 'Explore apps'}</button>)}
-          </div>
-          {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}</details>
-          <button disabled={busy} className="voicely-button mt-5" onClick={() => { setResearchOpen(false); navigate('next'); }}>View overview<ArrowLeft /></button>
-        </LabDialog>}
-        <div className={sourcesOpen ? '' : 'hidden'}>
-        <div role="tablist" aria-label="Evidence and sources" className="flex flex-wrap gap-5 border-b border-gray-200 mt-4">
-          {(['evidence', 'manage'] as const).map(tab => <button key={tab} id={`source-tab-${tab}`} role="tab" aria-selected={sourceView === tab} aria-controls={`source-panel-${tab}`} onClick={() => setSourceView(tab)} className={`py-3 text-sm border-b-2 ${sourceView === tab ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{tab === 'evidence' ? 'Evidence details' : 'Source management'}</button>)}
-        </div>
-        <p className="mt-4 text-sm text-amber-800">Saved suggestions are a snapshot. Collecting or classifying more reviews does not update them automatically.</p>
-        <div id="source-panel-evidence" role="tabpanel" aria-labelledby="source-tab-evidence" hidden={sourceView !== 'evidence'}><DecisionEvidence report={project.decision?.report || null} /></div>
-        <div id="source-panel-manage" role="tabpanel" aria-labelledby="source-tab-manage" hidden={sourceView !== 'manage'}>
-        <section className="mt-5 border-b border-gray-200 pb-5">
-          <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_auto] gap-3">
-            <select
-              aria-label="New app role"
-              disabled={busy}
-              value={role}
-              onChange={(event) => setRole(event.target.value as WatchApp['role'])}
-              className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="my-app">My App</option>
-              <option value="competitor">Competitor</option>
-            </select>
-            <div className="relative" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setShowSuggestions(false); }}>
-              <Search className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-              <input
-                disabled={busy}
-                value={url}
-                onChange={(event) => { setUrl(event.target.value); setShowSuggestions(true); }}
-                onFocus={() => setShowSuggestions(true)}
-                role="combobox"
-                aria-label="Search apps or paste a store URL"
-                aria-expanded={showSuggestions && (searching || suggestions.length > 0 || !!searchError)}
-                aria-controls="market-app-suggestions"
-                aria-autocomplete="list"
-                aria-activedescendant={activeSuggestion >= 0 ? `market-suggestion-${activeSuggestion}` : undefined}
-                onKeyDown={event => {
-                  if (event.key === 'Escape') setShowSuggestions(false);
-                  if (event.key === 'ArrowDown' && suggestions.length) { event.preventDefault(); setShowSuggestions(true); setActiveSuggestion(index => Math.min(index + 1, suggestions.length - 1)); }
-                  if (event.key === 'ArrowUp') { event.preventDefault(); setActiveSuggestion(index => Math.max(index - 1, 0)); }
-                  if (event.key === 'Enter' && showSuggestions && activeSuggestion >= 0 && suggestions[activeSuggestion]) { event.preventDefault(); pickSuggestion(suggestions[activeSuggestion].appUrl); }
-                }}
-                placeholder="Search an app name or paste a store URL..."
-                className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {showSuggestions && (searching || suggestions.length > 0 || searchError) && (
-                <div id="market-app-suggestions" role="listbox" className="absolute z-50 mt-1 w-full max-h-72 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg">
-                  {searching && <p role="status" className="p-3 text-sm text-gray-500">Searching...</p>}
-                  {!searching && searchError && <p role="status" className="p-3 text-sm text-gray-500">{searchError}</p>}
-                  {!searching && suggestions.map((app, index) => (
-                    <button key={`${app.platform}-${app.appUrl}`} id={`market-suggestion-${index}`} role="option" aria-selected={activeSuggestion === index} type="button"
-                      onMouseDown={event => event.preventDefault()} onClick={() => pickSuggestion(app.appUrl)}
-                      className={`flex items-center gap-3 w-full text-left p-3 hover:bg-blue-50 ${activeSuggestion === index ? 'bg-blue-50' : ''}`}>
-                      {app.icon && <img src={app.icon} alt="" className="w-9 h-9 rounded shrink-0" />}
-                      <span className="min-w-0"><span className="block truncate font-medium">{app.title}</span><span className="block text-xs text-gray-500 truncate">{app.developer} · {app.platform === 'app-store' ? 'App Store' : 'Google Play'}</span></span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={handleAdd}
-              disabled={busy}
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-60"
-            >
-              {isAdding ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-              {isAdding ? 'Syncing reviews...' : 'Track app'}
-            </button>
-          </div>
-          {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-          {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
-          {isAdding && <p role="status" className="mt-3 text-sm text-gray-500">Fetching app details and recent reviews...</p>}
-        </section>
-
-        <details className="mt-4"><summary className="text-sm text-gray-600 cursor-pointer">Analysis coverage &amp; model settings</summary><MarketModelControls profile={profile} checking={checkingModel} busy={busy} progress={classificationProgress}
-          classified={currentModelCount} total={realApps.reduce((total, app) => total + app.reviews.length, 0)}
-          error={classificationError} onCheck={() => { setClassificationError(null); setModelCheck(value => value + 1); }} onClassify={classifyReviews} /></details>
-        <MarketInsights key={project.id} apps={scopedApps} research={research} busy={busy} syncingId={syncingId} syncErrors={syncErrors}
-          onSync={refreshApp} onSyncAll={syncAll}
-          onRemove={id => updateProject({ scope: { ...project.scope, apps: project.scope.apps.filter(app => app.key !== storeAppKey(watchlist.find(item => item.id === id)?.url || '')) } })}
-          onRoleChange={(id, nextRole) => updateProject({ roles: Object.fromEntries(project.scope.apps.map(app => [app.key,
-            app.key === storeAppKey(watchlist.find(item => item.id === id)?.url || '') ? nextRole : nextRole === 'my-app' ? 'competitor' : project.roles[app.key] || 'competitor'])) })}
-        />
-        </div>
-        </div>
-      </main>
-    </VoicelyShell>
-  );
-};
-
-export default MarketDashboard;
+  return <VoicelyShell view={view} onNavigate={navigate} onAnalyze={openChooser} busy={running} savedCount={savedCount}>
+    <main id="voicely-main" className="voicely-main">
+      <div className="flex flex-wrap items-center justify-between gap-4"><h1>{titles[view]}</h1><div className="flex flex-wrap gap-2">
+        {primary && view === 'next' && <button disabled={running} className="voicely-button" onClick={() => saveMonitor(project.id)}><Bell />{monitors.includes(project.id) ? 'View monitor' : 'Set up monitor'}</button>}
+        {primary && view === 'next' && <button disabled={running} className="voicely-button" aria-label="Refresh analysis" title="Refresh analysis" onClick={() => void run(primary, project.days, false, true)}><RefreshCw /></button>}
+        <button disabled={running} className="voicely-button primary" onClick={openChooser}><Plus />Analyze an app</button>
+      </div></div>
+      {storageError && <p role="alert" className="lab-notice text-red-700">{storageError}</p>}
+      {running && <section className="lab-notice" aria-live="polite"><div className="flex items-center justify-between gap-3"><p role="status" className="flex items-center gap-2"><Loader2 className="animate-spin shrink-0" />{progress}</p><button className="voicely-button" onClick={() => controller.current?.abort()}><Square />Stop analysis</button></div></section>}
+      {error && <div className="lab-notice"><p role="alert" className="text-red-700">{error}</p>{retry && <button className="voicely-button mt-3" onClick={() => void run(retry.app, retry.days, retry.compare, true)}><RefreshCw />Retry analysis</button>}</div>}
+      {['next','reviews','opportunities','compare','plans'].includes(view) && <LabWorkspace key={project.id} view={view} project={project} apps={selected?.analysisApp ? [selected.analysisApp] : []}
+        comparisonApps={completed.filter(item => item.id !== project.id && item.days === project.days).map(item => item.analysisApp!)}
+        comparisonUrl={comparisonUrl}
+        onDaysChange={days => { if (primary) void run(primary, days, false, true); }}
+        onChange={changes => patch(project.id, changes)} onAnalyze={openChooser} onCompare={openComparison} onNavigate={navigate} busy={running} />}
+      {view === 'compare' && <section className="lab-signals"><div className="voicely-toolbar"><h2 className="voicely-panel-title">Related apps</h2><button className="voicely-button" disabled={running} onClick={openComparison}><Plus />Choose another app</button></div>
+        {relatedStatus && <p role="status" className="voicely-muted">{relatedStatus}</p>}
+        {primary && <button className="voicely-button mt-3" disabled={running || relatedStatus === 'Finding related apps...'} onClick={() => setRelatedRetry(value => value + 1)} title="Refresh suggestions" aria-label="Refresh suggestions"><RefreshCw /></button>}
+        <div className="divide-y">{related.map(app => <div key={app.key} className="flex gap-3 py-4 items-center">{app.icon && <img src={app.icon} alt="" className="w-10 h-10 rounded" />}<div className="flex-1 min-w-0"><h3 className="font-medium">{app.title}</h3><p className="voicely-muted">{app.reason}</p></div><button disabled={running} className="voicely-button" onClick={() => void run(app, project.days, true)}>Analyze for comparison</button></div>)}</div>
+      </section>}
+      {view === 'board' && <>{!savedCount && <p className="voicely-empty">No decisions saved yet.</p>}{projects.projects.filter(item => item.saved.length || item.decisionPlans?.length).map(item => <section key={item.id}><h2 className="voicely-panel-title">{item.scope.title}</h2><DecisionBoard busy={running} plans={item.decisionPlans || []} onChange={decisionPlans => patch(item.id, { decisionPlans })} legacy={item.saved} onLegacyChange={saved => patch(item.id, { saved })} /></section>)}</>}
+      {view === 'sources' && <section><p className="lab-notice">Manual monitoring · saved in this browser · automatic refresh and email delivery are not scheduled.</p>
+        {!monitors.length && <div className="voicely-empty"><p>No monitored apps yet.</p>{primary && <button className="voicely-button mt-4" onClick={() => saveMonitor(project.id)}><Bell />Monitor {primary.title}</button>}</div>}
+        {monitors.map(id => projects.projects.find(item => item.id === id)).filter((item): item is ResearchProject => !!item).map(item => <article key={item.id} className="voicely-review"><div className="voicely-toolbar"><div><h2 className="font-semibold">{item.scope.title}</h2><p className="voicely-muted">Last completed analysis: {item.report ? new Date(item.report.generatedAt).toLocaleString() : 'None'} · last {item.days} days</p></div><div className="flex gap-2"><button disabled={running} className="voicely-button" onClick={() => { saveProjects({ ...projectsRef.current, activeId: item.id }); setView('next'); }}>View analysis</button><button disabled={running} className="voicely-button" title={`Refresh ${item.scope.title}`} aria-label={`Refresh ${item.scope.title}`} onClick={() => void run(item.scope.apps[0], item.days, false, true)}><RefreshCw /></button><button disabled={running} className="voicely-button" title="Stop monitoring" aria-label={`Stop monitoring ${item.scope.title}`} onClick={() => { const next = monitors.filter(value => value !== item.id); setMonitors(next); persist(MONITOR_STORAGE, next); }}><Trash2 /></button></div></div></article>)}
+      </section>}
+      {chooser && <AnalyzeAppDialog token={token} recent={recent} initialDays={project.days} onClose={() => setChooser(false)} onSelect={(app, days) => void run(app, days, comparisonPicker && !!primary)} />}
+    </main>
+  </VoicelyShell>;
+}

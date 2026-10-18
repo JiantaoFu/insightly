@@ -1,9 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Bookmark, LayoutDashboard, Bell, Sparkles, GitCompare, CreditCard, Search, FileText, Menu, MessageSquare, X } from 'lucide-react';
+import { Bookmark, LayoutDashboard, Bell, Sparkles, GitCompare, CreditCard, Search, Menu, MessageSquare, X } from 'lucide-react';
 import { BRAND } from '../config/brand';
 import UserMenu from './UserMenu';
-import { PROTECTED_ROUTES } from './Constants';
 import '../styles/voicely.css';
 
 export type WorkspaceView = 'next' | 'reviews' | 'opportunities' | 'compare' | 'board' | 'sources' | 'plans';
@@ -35,7 +34,6 @@ export default function VoicelyShell({ children, view, onNavigate, busy, savedCo
       <nav aria-label="Product research">{sections.map(({ id, label, icon: Icon }) => <button key={id} disabled={busy} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon aria-hidden="true" /><span>{label}</span>{id === 'board' && savedCount > 0 && <span className="voicely-count">{savedCount}</span>}</button>)}</nav>
       <div className="voicely-sidebar-bottom">
         <p className="voicely-local-status">Browser workspace<span>Saved on this device</span></p>
-        <details><summary>More tools</summary><div className="voicely-tools"><Link to={PROTECTED_ROUTES.ANALYZE}><ArrowUpRight />Single app report</Link><Link to={PROTECTED_ROUTES.COMPETITORS}><ArrowUpRight />Competitor analysis</Link><Link to="/blog"><FileText />Research library</Link></div></details>
       </div>
     </aside>
     <div className="voicely-content">

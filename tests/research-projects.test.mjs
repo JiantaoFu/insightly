@@ -14,7 +14,7 @@ function compile(name) {
   return url;
 }
 const { loadResearchProjects, newResearchProject, projectSources, changeResearchProject, PROJECTS_STORAGE } = await import(compile('researchProjects'));
-const { parseDecisionReport } = await import(compile('decisionResearch'));
+const { parseDecisionReport, saveDecisionPlan, loadDecisionPlans, decisionPlanMarkdown } = await import(compile('decisionResearch'));
 const app = (id, name) => ({ id, name, url: `https://apps.apple.com/us/app/id${id}`, platform: 'ios', role: 'my-app', reviews: [{ text: 'Original review' }] });
 const selected = item => ({ key: `ios:us:${item.id}`, title: item.name, appUrl: item.url, platform: 'ios', reason: 'Selected' });
 const scope = (query, item) => ({ query, title: query, country: 'us', apps: [selected(item)] });
@@ -90,4 +90,16 @@ test('legacy reports remain readable while v2 requires directions and honest con
   const project = { ...newResearchProject(), workflow: 'decision', decision: { input: report.input, briefInput: report.input, brief, report: updated } };
   const restored = loadResearchProjects(storage({ [PROJECTS_STORAGE]: { activeId: project.id, projects: [project] } }), []);
   assert.equal(restored.projects[0].decision.report.result.directions[0].title, 'Observe completion');
+  const plans = saveDecisionPlan([], updated, 0);
+  assert.equal(plans.length, 1);
+  assert.equal(plans[0].success, '', 'Do not invent a success threshold');
+  assert.equal(saveDecisionPlan(plans, updated, 0).length, 1, 'Saving again must not duplicate a direction');
+  const edited = [{ ...plans[0], stage: 'testing', notes: 'Interview scheduled', success: 'User completes backup' }];
+  project.decisionPlans = edited;
+  const reloaded = loadResearchProjects(storage({ [PROJECTS_STORAGE]: { activeId: project.id, projects: [project] } }), []);
+  assert.equal(reloaded.projects[0].decisionPlans[0].notes, 'Interview scheduled');
+  assert.equal(reloaded.projects[0].decisionPlans[0].stage, 'testing');
+  assert.match(decisionPlanMarkdown(edited[0]), /User completes backup/);
+  assert.match(decisionPlanMarkdown(edited[0]), /No supporting review citations/);
+  assert.deepEqual(loadDecisionPlans([{ ...plans[0], directionIndex: 99 }, { ...plans[0], notes: null }]), []);
 });

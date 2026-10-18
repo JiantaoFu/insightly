@@ -28,6 +28,7 @@ export default function MarketDashboard() {
   const [apps, setApps] = useState(readApps), appsRef = useRef(apps);
   const [projects, setProjects] = useState(() => loadResearchProjects(localStorage, apps)), projectsRef = useRef(projects);
   const [view, setView] = useState<WorkspaceView>('next'), [chooser, setChooser] = useState(false);
+  const [suggestedApp, setSuggestedApp] = useState<ResearchApp | null>(null);
   const [comparisonPicker, setComparisonPicker] = useState(false);
   const [monitors, setMonitors] = useState(readMonitors);
   const [progress, setProgress] = useState(''), [error, setError] = useState(''), [storageError, setStorageError] = useState('');
@@ -88,8 +89,8 @@ export default function MarketDashboard() {
     } finally { controller.current = null; setRunning(false); setProgress(''); }
   };
   const navigate = (next: WorkspaceView) => { setView(next); setError(''); };
-  const openChooser = () => { if (!controller.current) { setComparisonPicker(false); setChooser(true); } };
-  const openComparison = () => { if (!controller.current) { setComparisonPicker(true); setChooser(true); } };
+  const openChooser = () => { if (!controller.current) { setSuggestedApp(null); setComparisonPicker(false); setChooser(true); } };
+  const openComparison = () => { if (!controller.current) { setSuggestedApp(null); setComparisonPicker(true); setChooser(true); } };
   const recent = [...new Map(apps.map(app => {
     const parsed = parseResearchApp({ title: app.name, appUrl: app.url, icon: app.icon, developer: app.developer });
     return [parsed?.key, parsed] as const;
@@ -115,14 +116,14 @@ export default function MarketDashboard() {
       {view === 'compare' && <section className="lab-signals"><div className="voicely-toolbar"><h2 className="voicely-panel-title">Related apps</h2><button className="voicely-button" disabled={running} onClick={openComparison}><Plus />Choose another app</button></div>
         {relatedStatus && <p role="status" className="voicely-muted">{relatedStatus}</p>}
         {primary && <button className="voicely-button mt-3" disabled={running || relatedStatus === 'Finding related apps...'} onClick={() => setRelatedRetry(value => value + 1)} title="Refresh suggestions" aria-label="Refresh suggestions"><RefreshCw /></button>}
-        <div className="divide-y">{related.map(app => <div key={app.key} className="flex gap-3 py-4 items-center">{app.icon && <img src={app.icon} alt="" className="w-10 h-10 rounded" />}<div className="flex-1 min-w-0"><h3 className="font-medium">{app.title}</h3><p className="voicely-muted">{app.reason}</p></div><button disabled={running} className="voicely-button" onClick={() => void run(app, project.days, true)}>Analyze for comparison</button></div>)}</div>
+        <div className="divide-y">{related.map(app => <div key={app.key} className="flex gap-3 py-4 items-center">{app.icon && <img src={app.icon} alt="" className="w-10 h-10 rounded" />}<div className="flex-1 min-w-0"><h3 className="font-medium">{app.title}</h3><p className="voicely-muted">{app.reason}</p></div><button disabled={running} className="voicely-button" onClick={() => { setSuggestedApp(app); setComparisonPicker(true); setChooser(true); }}>Analyze for comparison</button></div>)}</div>
       </section>}
       {view === 'board' && <>{!savedCount && <p className="voicely-empty">No decisions saved yet.</p>}{projects.projects.filter(item => item.saved.length || item.decisionPlans?.length).map(item => <section key={item.id}><h2 className="voicely-panel-title">{item.scope.title}</h2><DecisionBoard busy={running} plans={item.decisionPlans || []} onChange={decisionPlans => patch(item.id, { decisionPlans })} legacy={item.saved} onLegacyChange={saved => patch(item.id, { saved })} /></section>)}</>}
       {view === 'sources' && <section><p className="lab-notice">Manual monitoring · saved in this browser · automatic refresh and email delivery are not scheduled.</p>
         {!monitors.length && <div className="voicely-empty"><p>No monitored apps yet.</p>{primary && <button className="voicely-button mt-4" onClick={() => saveMonitor(project.id)}><Bell />Monitor {primary.title}</button>}</div>}
         {monitors.map(id => projects.projects.find(item => item.id === id)).filter((item): item is ResearchProject => !!item).map(item => <article key={item.id} className="voicely-review"><div className="voicely-toolbar"><div><h2 className="font-semibold">{item.scope.title}</h2><p className="voicely-muted">Last completed analysis: {item.report ? new Date(item.report.generatedAt).toLocaleString() : 'None'} · last {item.days} days</p></div><div className="flex gap-2"><button disabled={running} className="voicely-button" onClick={() => { saveProjects({ ...projectsRef.current, activeId: item.id }); setView('next'); }}>View analysis</button><button disabled={running} className="voicely-button" title={`Refresh ${item.scope.title}`} aria-label={`Refresh ${item.scope.title}`} onClick={() => void run(item.scope.apps[0], item.days, false, true)}><RefreshCw /></button><button disabled={running} className="voicely-button" title="Stop monitoring" aria-label={`Stop monitoring ${item.scope.title}`} onClick={() => { const next = monitors.filter(value => value !== item.id); setMonitors(next); persist(MONITOR_STORAGE, next); }}><Trash2 /></button></div></div></article>)}
       </section>}
-      {chooser && <AnalyzeAppDialog token={token} recent={recent} initialDays={project.days} onClose={() => setChooser(false)} onSelect={(app, days) => void run(app, days, comparisonPicker && !!primary)} />}
+      {chooser && <AnalyzeAppDialog token={token} recent={recent} initialApp={suggestedApp} initialDays={project.days} onClose={() => setChooser(false)} onSelect={(app, days) => void run(app, days, comparisonPicker && !!primary)} />}
     </main>
   </VoicelyShell>;
 }

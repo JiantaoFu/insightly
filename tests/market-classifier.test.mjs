@@ -35,6 +35,15 @@ test('model input is bounded and duplicate review keys are rejected', () => {
   assert.throws(() => validateClassificationInput(long));
 });
 
+test('larger batches accept 24 reviews while retaining character and row limits', () => {
+  const body = input();
+  body.reviews = Array.from({ length: 24 }, (_, index) => ({ key: `r${index}`, appName: 'Photos', text: 'Backup stops.' }));
+  assert.equal(validateClassificationInput(body).reviews.length, 24);
+  assert.throws(() => validateClassificationInput({ ...body, reviews: [...body.reviews, { ...body.reviews[0], key: 'r24' }] }));
+  body.reviews = body.reviews.map(review => ({ ...review, text: 'x'.repeat(2501) }));
+  assert.throws(() => validateClassificationInput(body), /60,000/);
+});
+
 test('distinct aspects can share a theme without accepting identical duplicate assignments', () => {
   const body = input(); body.reviews[0].text = 'Import duplicates transactions. Please add undo.';
   const raw = output();

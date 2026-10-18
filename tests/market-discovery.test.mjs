@@ -97,3 +97,31 @@ test('failed classification retains completed batches and retries only unfinishe
     assert.equal(pendingResearchReviews(retained, { provider: 'gemini', model: 'fixture' }).length, 68);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+test('advertised batch capacity halves calls for 120 short reviews without reducing coverage', async t => {
+  const originalFetch = globalThis.fetch; t.after(() => { globalThis.fetch = originalFetch; });
+  const sizes = [], progress = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body); sizes.push(body.reviews.length);
+    return Response.json({ version: 'market-semantic-v1', provider: 'gemini', model: 'fixture', analyzedAt: now.toISOString(), classifications: body.reviews.map(review => ({ key: review.key, labels: [] })) });
+  };
+  const result = await classifyResearchReviews({ apps: [app(1), app(2)], profile: { provider: 'gemini', model: 'fixture', maxBatchSize: 24 }, marketId: 'test', serverUrl: '', token: null, onProgress: text => progress.push(text), onUpdate: () => {} });
+  assert.deepEqual(sizes, [24, 24, 24, 24, 24]);
+  assert.equal(result.completed, 120);
+  assert.match(progress[0], /batch 1, 24 reviews/);
+  assert.match(progress.at(-1), /120 \/ 120 reviews completed/);
+  assert.equal(pendingResearchReviews(result.apps, { provider: 'gemini', model: 'fixture' }).length, 40);
+});
+
+test('character-limited batches finish the selected budget even beyond ten requests', async t => {
+  const originalFetch = globalThis.fetch; t.after(() => { globalThis.fetch = originalFetch; });
+  const long = app(1); long.reviews = long.reviews.slice(0, 33).map(review => ({ ...review, text: review.text.padEnd(16000, '.') }));
+  let calls = 0;
+  globalThis.fetch = async (_url, options) => {
+    calls++; const body = JSON.parse(options.body);
+    assert.ok(body.reviews.reduce((sum, review) => sum + review.text.length, 0) <= 60000);
+    return Response.json({ version: 'market-semantic-v1', provider: 'gemini', model: 'fixture', analyzedAt: now.toISOString(), classifications: body.reviews.map(review => ({ key: review.key, labels: [] })) });
+  };
+  const result = await classifyResearchReviews({ apps: [long], profile: { provider: 'gemini', model: 'fixture', maxBatchSize: 24 }, marketId: 'test', serverUrl: '', token: null, onProgress: () => {}, onUpdate: () => {} });
+  assert.equal(calls, 11); assert.equal(result.completed, 33);
+});

@@ -5,6 +5,7 @@ export interface ClassifierProfile {
   provider: string;
   model: string;
   configured: boolean;
+  maxBatchSize?: number;
   message: string | null;
 }
 

@@ -65,26 +65,36 @@ export function pendingResearchReviews(apps: WatchApp[], profile: { provider: st
 }
 
 export async function classifyResearchReviews(options: {
-  apps: WatchApp[]; profile: { provider: string; model: string }; marketId: string; serverUrl: string; token: string | null;
+  apps: WatchApp[]; profile: { provider: string; model: string; maxBatchSize?: number }; marketId: string; serverUrl: string; token: string | null;
   days?: number; signal?: AbortSignal; onProgress: (text: string) => void; onUpdate: (apps: WatchApp[]) => void;
 }) {
   let apps = options.apps, completed = 0, batches = 0;
   const pending = pendingResearchReviews(apps, options.profile, options.days);
-  while (completed < pending.length && batches < 10) {
+  // Older backends advertise no capacity and still accept only twelve reviews.
+  const advertised = options.profile.maxBatchSize;
+  const batchSize = Number.isInteger(advertised) && advertised! > 0 ? Math.min(advertised!, 24) : 12;
+  while (completed < pending.length) {
     options.signal?.throwIfAborted();
     const batch: typeof pending = [];
     let characters = 0;
-    for (const item of pending.slice(completed, completed + 12)) {
+    for (const item of pending.slice(completed, completed + batchSize)) {
       if (characters + item.review.text.length > 60000) break;
       batch.push(item); characters += item.review.text.length;
     }
-    options.onProgress(`Reading feedback: ${completed} / ${pending.length} reviews`);
-    const response = await fetch(`${options.serverUrl}/api/market/classify`, {
+    const started = Date.now();
+    const updateProgress = () => options.onProgress(`Reading feedback: ${completed} / ${pending.length} reviews · batch ${batches + 1}, ${batch.length} reviews · ${Math.floor((Date.now() - started) / 1000)}s`);
+    updateProgress();
+    const timer = setInterval(updateProgress, 1000);
+    let response: Response;
+    let result;
+    try {
+      response = await fetch(`${options.serverUrl}/api/market/classify`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) },
       body: JSON.stringify({ marketId: options.marketId, topics: getMarketTopics(apps), reviews: batch.map(({ review, appName }, index) => ({ key: 'r' + index, text: review.text, appName })) }),
       signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(100000)]) : AbortSignal.timeout(100000),
-    });
-    const result = await response.json();
+      });
+      result = await response.json();
+    } finally { clearInterval(timer); }
     if (!response.ok) throw new Error(result.error || 'Could not read app feedback.');
     if (result.version !== MODEL_CLASSIFIER_VERSION || result.provider !== options.profile.provider || result.model !== options.profile.model || !Array.isArray(result.classifications) || result.classifications.length !== batch.length) throw new Error('Research returned incomplete review evidence.');
     const analyses = new Map<MarketReview, ReviewAnalysis>();
@@ -98,6 +108,7 @@ export async function classifyResearchReviews(options: {
     apps = apps.map(app => ({ ...app, reviews: app.reviews.map(review => analyses.has(review) ? { ...review, analysis: analyses.get(review) } : review) }));
     options.onUpdate(apps);
     completed += batch.length; batches++;
+    options.onProgress(`Reading feedback: ${completed} / ${pending.length} reviews completed`);
   }
   return { apps, completed };
 }

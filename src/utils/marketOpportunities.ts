@@ -11,6 +11,7 @@ export interface OpportunityEvidence {
 export interface Opportunity {
   id: string; title: string; scenario: string; obstacle: string; consequence: string; hypothesis: string;
   nextWho: string; nextQuestion: string; nextExperiment: string; unknowns: string[]; evidenceKeys: string[];
+  success?: string; scopeLimit?: string; changeMind?: string;
 }
 export interface OpportunityReport {
   version: string; inputKey: string; provider: string; model: string; generatedAt: string;
@@ -21,8 +22,12 @@ export interface OpportunityReport {
 }
 export interface SavedOpportunity {
   opportunity: Opportunity; report: OpportunityReport; savedAt: string;
-  stage: 'saved' | 'interview' | 'prototype' | 'archived';
+  stage: 'saved' | 'interview' | 'prototype' | 'validated' | 'archived';
   notes?: string;
+  experiment?: string;
+  success?: string;
+  scopeLimit?: string;
+  changeMind?: string;
 }
 
 export function selectOpportunityEvidence(apps: WatchApp[], context: ResearchContext, days = 30, now = new Date(), balanced = false): OpportunityEvidence[] {
@@ -90,6 +95,7 @@ export function parseOpportunityReport(value: unknown): OpportunityReport | null
   for (const item of report.opportunities) {
     if (!item || !/^opportunity-[a-f0-9]{16}$/.test(item.id) || ids.has(item.id)
       || Object.entries(fields).some(([key, max]) => !bounded(item[key as keyof Opportunity], max))
+      || (['success', 'scopeLimit', 'changeMind'] as const).some(key => item[key] !== undefined && !bounded(item[key], 400))
       || !Array.isArray(item.unknowns) || item.unknowns.length < 1 || item.unknowns.length > 4 || item.unknowns.some(text => !bounded(text, 200))
       || !Array.isArray(item.evidenceKeys) || item.evidenceKeys.length < 1 || item.evidenceKeys.length > 6
       || new Set(item.evidenceKeys).size !== item.evidenceKeys.length || item.evidenceKeys.some(key => !refs.has(key))) return null;
@@ -102,18 +108,25 @@ export function loadSavedOpportunities(value: unknown): SavedOpportunity[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   return value.filter((item): item is SavedOpportunity => {
-    if (!item || !parseOpportunityReport(item.report) || !['saved', 'interview', 'prototype', 'archived'].includes(item.stage)
+    if (!item || !parseOpportunityReport(item.report) || !['saved', 'interview', 'prototype', 'validated', 'archived'].includes(item.stage)
       || !Number.isFinite(new Date(item.savedAt).getTime()) || !item.opportunity
       || !item.report.opportunities.some((opportunity: Opportunity) => JSON.stringify(opportunity) === JSON.stringify(item.opportunity)) || seen.has(item.opportunity.id)) return false;
     seen.add(item.opportunity.id); return true;
-  }).slice(0, 50).map(item => ({ ...item, notes: typeof item.notes === 'string' ? item.notes.slice(0, 4000) : '' }));
+  }).slice(0, 50).map(item => ({ ...item,
+    notes: typeof item.notes === 'string' ? item.notes.slice(0, 4000) : '',
+    experiment: typeof item.experiment === 'string' ? item.experiment.slice(0, 4000) : item.opportunity.nextExperiment,
+    success: typeof item.success === 'string' ? item.success.slice(0, 4000) : item.opportunity.success || '',
+    scopeLimit: typeof item.scopeLimit === 'string' ? item.scopeLimit.slice(0, 4000) : item.opportunity.scopeLimit || '',
+    changeMind: typeof item.changeMind === 'string' ? item.changeMind.slice(0, 4000) : item.opportunity.changeMind || '',
+  }));
 }
 
 export function saveOpportunitySnapshot(saved: SavedOpportunity[], opportunity: Opportunity, report: OpportunityReport, now = new Date()): SavedOpportunity[] {
   const existing = saved.find(item => item.opportunity.id === opportunity.id);
   if (existing) return saved.map(item => item.opportunity.id === opportunity.id ? { ...item, opportunity, report } : item);
   if (saved.length >= 50) throw new Error('Saved opportunity limit reached (50). Remove an older item before saving another.');
-  return [...saved, { opportunity, report, savedAt: now.toISOString(), stage: 'saved' }];
+  return [...saved, { opportunity, report, savedAt: now.toISOString(), stage: 'saved', experiment: opportunity.nextExperiment,
+    success: opportunity.success || '', scopeLimit: opportunity.scopeLimit || '', changeMind: opportunity.changeMind || '' }];
 }
 
 export function illustrativeOpportunityReport(evidence: OpportunityEvidence[], context: ResearchContext, days: number): OpportunityReport {
@@ -147,7 +160,10 @@ export function opportunityMarkdown(item: SavedOpportunity): string {
     `Research question: ${report.context.question || 'Not set'}`, `Task: ${report.context.mode || 'explore'}`, `Validation status: ${item.stage}`,
     '', '## Possible scenario', op.scenario, '', '## Reported obstacle', op.obstacle, '', '## Consequence to verify', op.consequence,
     '', '## Why investigate (hypothesis)', op.hypothesis, '', '## Unknowns', ...op.unknowns.map(text => '- ' + text),
-    '', '## Next validation', `Who: ${op.nextWho}`, `Ask: ${op.nextQuestion}`, `Experiment: ${op.nextExperiment}`,
+    '', '## Next validation', `Who: ${op.nextWho}`, `Ask: ${op.nextQuestion}`, `Experiment: ${item.experiment ?? op.nextExperiment}`,
+    '', '## Success criterion', item.success || 'Not defined yet.',
+    '', '## Keep scope small', item.scopeLimit || 'Not defined yet.',
+    '', '## What would change this direction', item.changeMind || 'Not defined yet.',
     '', '## Findings & notes', item.notes || 'No findings recorded.',
     '', '## Original evidence', ...report.evidence.filter(ref => op.evidenceKeys.includes(ref.key)).flatMap(ref => [
       '', `${ref.appName} | ${ref.date} | ${ref.country} | ${ref.source}${ref.partial ? ' | partial sample' : ''}`,

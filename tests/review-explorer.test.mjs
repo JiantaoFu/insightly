@@ -31,3 +31,13 @@ test('review CSV preserves provenance and neutralizes spreadsheet formulas', () 
   assert.match(csv, /unverified/);
   assert.match(csv, /app_url/);
 });
+
+test('rating filter composes with query and excludes unrated reviews from rated results', () => {
+  const rated = [{ ...apps[0], reviews: apps[0].reviews.map((review, index) => ({ ...review, score: index === 0 ? 2 : undefined })) }];
+  const matching = filterReviews(rated, { ...filters, rating: '2', query: 'backup' }, now);
+  assert.equal(matching.length, 1);
+  assert.equal(filterReviews(rated, { ...filters, rating: '5' }, now).length, 0);
+  assert.equal(filterReviews(rated, { ...filters, topic: 'missing' }, now).length, 0);
+  assert.match(reviewsCsv(matching), /Backup fails/);
+  assert.doesNotMatch(reviewsCsv(matching), /Older backup/);
+});

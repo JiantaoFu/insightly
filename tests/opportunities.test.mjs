@@ -117,3 +117,30 @@ test('explicit saved snapshot updates preserve validation stage and do not dupli
   assert.equal(saved[0].report.context.mode, 'improve');
   assert.equal(old.report.context.mode, 'explore');
 });
+
+test('decision experiment fields survive reload and snapshot refresh with bounded user input', () => {
+  const report = illustrativeOpportunityReport([{ ...evidence, sample: true }], context, 30);
+  const original = { opportunity: report.opportunities[0], report, savedAt: now.toISOString(), stage: 'validated',
+    experiment: 'Observe three backup sessions', success: 'All sessions finish without intervention',
+    scopeLimit: 'No photo editing', changeMind: 'Existing tools solve the task', notes: 'x'.repeat(4500) };
+  const [loaded] = loadSavedOpportunities([original]);
+  assert.equal(loaded.success, original.success);
+  assert.equal(loaded.stage, 'validated');
+  assert.equal(loaded.notes.length, 4000);
+  const [updated] = saveOpportunitySnapshot([loaded], report.opportunities[0], report);
+  assert.equal(updated.experiment, original.experiment);
+  assert.match(opportunityMarkdown(updated), /All sessions finish without intervention/);
+  assert.match(opportunityMarkdown(updated), /No photo editing/);
+  const [old] = loadSavedOpportunities([{ opportunity: original.opportunity, report, savedAt: original.savedAt, stage: 'saved' }]);
+  assert.equal(old.experiment, original.opportunity.nextExperiment);
+  assert.equal(old.success, '');
+});
+
+test('model validation criteria are bounded proposals, preserved without another model call', () => {
+  const op = { ...opportunity(), success: 'The user finishes the task independently', scopeLimit: 'Only the core task', changeMind: 'Users prefer their existing workaround' };
+  const [validated] = validateOpportunityOutput(JSON.stringify({ opportunities: [op] }), input());
+  assert.equal(validated.success, op.success);
+  assert.equal(validated.scopeLimit, op.scopeLimit);
+  assert.equal(validated.changeMind, op.changeMind);
+  assert.throws(() => validateOpportunityOutput(JSON.stringify({ opportunities: [{ ...op, success: 'x'.repeat(401) }] }), input()));
+});

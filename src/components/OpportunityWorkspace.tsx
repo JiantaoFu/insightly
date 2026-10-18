@@ -10,7 +10,7 @@ import type { ResearchProject } from '../utils/researchProjects';
 import { downloadFile } from '../utils/download';
 
 
-const OpportunityRow = ({ opportunity: op, report, saved, previouslySaved, onSave, onStage, onRemove }: {
+export const OpportunityRow = ({ opportunity: op, report, saved, previouslySaved, onSave, onStage, onRemove }: {
   opportunity: Opportunity; report: OpportunityReport; saved?: SavedOpportunity; onSave?: () => void;
   previouslySaved?: boolean; onStage?: (stage: SavedOpportunity['stage']) => void; onRemove?: () => void;
 }) => {
@@ -56,7 +56,7 @@ interface Props {
 export default function OpportunityWorkspace({ project, onProjectChange, apps, research, onResearchSave, profile, checking, token, busy, onBusyChange, onOpenSources, onPrepare }: Props) {
   const { scope, days, report, saved } = project;
   const [scopeDirty, setScopeDirty] = useState(false);
-  const [setupOpen, setSetupOpen] = useState(() => !project.report);
+  const [setupOpen, setSetupOpen] = useState(true);
   const [view, setView] = useState<'opportunities' | 'saved'>('opportunities');
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');

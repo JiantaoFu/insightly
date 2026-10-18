@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Loader2, Search, Square, X } from 'lucide-react';
+import { ArrowRight, Bookmark, Loader2, Search, Square, X } from 'lucide-react';
 import { DECISION_VERSION, parseDecisionBrief, type DecisionBrief } from '../../shared/decisionContract.js';
-import { decisionInputKey, emptyDecision, parseDecisionReport } from '../utils/decisionResearch';
+import { decisionInputKey, emptyDecision, parseDecisionReport, saveDecisionPlan } from '../utils/decisionResearch';
 import { getReviewAnalysis, type WatchApp } from '../utils/marketIntelligence';
 import { parseResearchApp, storeAppKey, type ResearchApp } from '../utils/marketResearchFlow';
 import { selectOpportunityEvidence, type OpportunityEvidence } from '../utils/marketOpportunities';
@@ -122,7 +122,7 @@ export default function DecisionWorkspace({ project, apps, onChange, profile, ch
     setEditing(false); setProgress('Research complete.');
   });
 
-  return <section className="mt-6 min-w-0">
+  return <section className="voicely-decision mt-6 min-w-0">
     {report && <div className="flex flex-wrap items-center justify-between gap-3 mb-4"><h2 className="text-lg font-semibold">Your next steps</h2><button disabled={busy} onClick={() => setEditing(value => !value)} className="text-sm text-teal-800">{editing ? 'Back to result' : 'Edit research'}</button></div>}
     {editing && <>
       <label className="block text-lg font-semibold" htmlFor="decision-input">What are you working on or exploring?</label>
@@ -157,17 +157,18 @@ export default function DecisionWorkspace({ project, apps, onChange, profile, ch
       </li>)}</ul></details>}
     </>}
     {!available && <p role="status" className="mt-4 text-sm text-amber-800">{checking ? 'Checking research service...' : profile?.message || 'Research service unavailable. Check the model connection in Sources.'}</p>}
-    <div role="status" className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">{controller.current && <Loader2 className="w-4 h-4 animate-spin" />}{progress}{controller.current && <button onClick={() => controller.current?.abort()} className="inline-flex items-center gap-2"><Square className="w-4 h-4" />Stop</button>}</div>
+    {(progress || controller.current) && <div role="status" className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">{controller.current && <Loader2 className="w-4 h-4 animate-spin" />}{progress}{controller.current && <button onClick={() => controller.current?.abort()} className="inline-flex items-center gap-2"><Square className="w-4 h-4" />Stop</button>}</div>}
     {error && <p role="alert" className="mt-3 text-sm text-red-700 break-words">{error}</p>}
     {!!warnings.length && <ul role="status" className="mt-3 text-sm text-amber-800 list-disc pl-5">{warnings.map((warning, i) => <li key={i}>{warning}</li>)}</ul>}
     {report && <article className="mt-6 border-t border-gray-200 pt-5">
       {stale && <p role="status" className="text-sm text-amber-800 mb-4">Previous result. The question, sources, feedback or model has changed.</p>}
       <p className="text-xs text-gray-500">{report.basis === 'context' ? 'Context-only suggestions · no reviews analyzed' : report.result.position === 'insufficient' ? 'Directions to explore · evidence is not yet sufficient to decide' : 'Evidence-informed directions · not validated solutions'}</p>
       <details className="mt-3"><summary className="text-sm text-gray-600 cursor-pointer">Overall assessment</summary><p className="mt-3 font-medium break-words">{report.brief.decision}</p><p className="mt-3 text-sm whitespace-pre-wrap break-words">{report.result.conclusion}</p><Citations keys={report.result.conclusionKeys} evidence={report.evidence} /></details>
-      {report.result.directions?.map((direction, index) => <details key={`${report.generatedAt}-${index}`} open={index === 0} className="py-6 border-b border-gray-200">
+      {report.result.directions?.map((direction, index) => <details key={`${report.generatedAt}-${index}`} open={index === 0} className="voicely-direction py-6 border-b border-gray-200">
         <summary className="cursor-pointer"><span className="text-xs text-teal-800">{index === 0 ? 'Explore first' : 'Alternative direction'}</span><h3 className="mt-2 text-lg font-semibold break-words">{direction.title}</h3></summary>
         <p className="text-xs font-medium text-teal-800">{index === 0 ? 'Explore first' : 'Another option'} · {({ observed: 'Observed problem · proposed solution unvalidated', exploratory: 'Exploratory idea · demand unverified', investigate: 'Evidence-gathering next step' })[direction.kind]}</p>
         <p className="mt-3 text-sm break-words">{direction.proposal}</p>
+        <button className="voicely-button mt-4" disabled={busy || project.decisionPlans?.some(plan => plan.report.inputKey === report.inputKey && plan.directionIndex === index)} onClick={() => onChange({ decisionPlans: saveDecisionPlan(project.decisionPlans || [], report, index) })}><Bookmark />{project.decisionPlans?.some(plan => plan.report.inputKey === report.inputKey && plan.directionIndex === index) ? 'Saved to board' : 'Save to decision board'}</button>
         <dl className="grid md:grid-cols-2 gap-4 mt-4 text-sm"><div><dt className="font-medium">Possible user &amp; scenario</dt><dd className="mt-1 text-gray-700 break-words">{direction.scenario}</dd></div><div><dt className="font-medium">Problem to address</dt><dd className="mt-1 text-gray-700 break-words">{direction.problem}</dd></div></dl>
         <p className="mt-4 text-sm break-words"><span className="font-medium">Why this priority: </span>{direction.rationale}</p>
         <Citations keys={direction.evidenceKeys} evidence={report.evidence} />

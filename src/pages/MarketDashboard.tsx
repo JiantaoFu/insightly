@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Plus, Radar, Search, Settings2 } from 'lucide-react';
 
-import Navigation from '../components/Navigation';
+import VoicelyShell, { type WorkspaceView } from '../components/VoicelyShell';
+import LabWorkspace, { LabDialog } from '../components/LabWorkspace';
+import DecisionBoard from '../components/DecisionBoard';
 import { SERVER_URL } from '../components/Constants';
 import { appendSyncObservation, classifiedReviewCount, getReviewAnalysis, MODEL_CLASSIFIER_VERSION, observeReviewSync, requestedCountry, MarketReview, WatchApp } from '../utils/marketIntelligence';
 import { classifyResearchReviews, parseResearchApp, storeAppKey, type ResearchApp } from '../utils/marketResearchFlow';
@@ -71,6 +73,8 @@ const MarketDashboard: React.FC = () => {
     catch { setStorageError('Research migration could not be saved. Existing data has been retained.'); }
   }, []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('next');
+  const [researchOpen, setResearchOpen] = useState(false);
   const [sourceView, setSourceView] = useState<'evidence' | 'manage'>('evidence');
   const [generatingOpportunities, setGeneratingOpportunities] = useState(false);
   const { token } = useAuth();
@@ -349,22 +353,30 @@ const MarketDashboard: React.FC = () => {
   };
 
   const busy = isAdding || syncingId !== null || syncingAll || classifying || generatingOpportunities;
+  const navigate = (view: WorkspaceView) => {
+    setWorkspaceView(view);
+    setSourcesOpen(view === 'sources');
+    if (view === 'sources') setSourceView('manage');
+  };
+  const analyze = () => { updateProject({ workflow: 'apps' }); setResearchOpen(true); };
   const realApps = scopedApps.filter(app => !app.sample);
   const currentModelCount = profile?.configured ? realApps.reduce((sum, app) => sum + app.reviews.filter(review => {
     const analysis = getReviewAnalysis(review); return analysis?.provider === profile.provider && analysis.model === profile.model;
   }).length, 0) : classifiedReviewCount(realApps);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
-        <div className="flex items-center gap-2 text-teal-800 text-sm font-medium"><Radar className="w-4 h-4" />Product intelligence</div>
+    <VoicelyShell view={sourcesOpen ? 'sources' : workspaceView} onNavigate={navigate} onAnalyze={analyze} busy={busy} savedCount={(project.decisionPlans?.length || 0) + project.saved.length}>
+      <main id="voicely-main" className="voicely-main">
+        <div className="flex items-center gap-2 text-teal-800 text-xs font-medium"><Radar className="w-4 h-4" />Product Decision Intelligence</div>
         <div className="flex flex-wrap justify-between items-center gap-3 mt-2">
-          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Evidence & sources' : 'Find your next product direction'}</h1>
-          <button onClick={() => setSourcesOpen(value => !value)} className="inline-flex items-center gap-2 text-sm text-gray-600 border border-gray-300 rounded px-3 py-2">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to next steps' : `Evidence & sources (${scopedApps.length})`}</button>
+          <h1 className="text-2xl font-semibold text-gray-950">{sourcesOpen ? 'Watchlist & evidence' : ({ next: 'From reviews to your next move.', reviews: 'Review explorer', opportunities: 'Find your next opportunity.', compare: 'Compare apps', board: 'Your decision board', plans: 'Plans & usage', sources: 'Watchlist' })[workspaceView]}</h1>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={busy} onClick={() => { setSourcesOpen(value => !value); setSourceView('evidence'); setWorkspaceView('next'); }} className="voicely-button">{sourcesOpen ? <ArrowLeft className="w-4 h-4" /> : <Settings2 className="w-4 h-4" />}{sourcesOpen ? 'Back to overview' : `Evidence & sources (${scopedApps.length})`}</button>
+            {!sourcesOpen && <button disabled={busy} onClick={analyze} className="voicely-button primary"><Plus className="w-4 h-4" />Analyze an app</button>}
+          </div>
         </div>
-        <p className="mt-2 text-sm text-gray-500">{watchlist.some(app => app.sample) && !realApps.length ? 'Sample market · illustrative reviews' : 'Research saved in this browser'}</p>
-        <div className="flex flex-wrap items-end gap-3 mt-5 pb-4 border-b border-gray-200">
+        {watchlist.some(app => app.sample) && !realApps.length && <p className="mt-2 text-sm text-amber-800">Sample market · illustrative reviews</p>}
+        <div className="voicely-scope">
           <label className="text-sm text-gray-600 min-w-0 flex-1 max-w-md">Saved explorations
             <select aria-label="Research direction" disabled={busy} value={project.id} onChange={event => {
               persistProjects({ ...projectsRef.current, activeId: event.target.value });
@@ -376,23 +388,28 @@ const MarketDashboard: React.FC = () => {
           <button disabled={busy} onClick={() => {
             const next = newResearchProject();
             persistProjects({ activeId: next.id, projects: [...projectsRef.current.projects, next] });
-            setSourcesOpen(false); setError(null); setNotice(null); setClassificationError(null); setUrl('');
+            setSourcesOpen(false); setWorkspaceView('next'); setError(null); setNotice(null); setClassificationError(null); setUrl('');
           }} className="inline-flex items-center gap-2 py-2 px-3 text-sm text-teal-800 disabled:opacity-40"><Plus className="w-4 h-4" />New research</button>
         </div>
         {storageError && <p role="alert" className="text-sm text-red-700 mt-3">{storageError}</p>}
 
-        <div className={sourcesOpen ? 'hidden' : ''}>
-          <details className="mt-3 text-sm text-gray-600"><summary className="cursor-pointer">More research options</summary><div role="tablist" aria-label="Research starting point" className="flex gap-5 border-b border-gray-200 mt-3">
+        <div hidden={sourcesOpen || workspaceView === 'board'}><LabWorkspace key={project.id} view={sourcesOpen ? 'sources' : workspaceView} project={project} apps={scopedApps} onChange={updateProject} onAnalyze={analyze} onNavigate={navigate} busy={busy} /></div>
+        {!sourcesOpen && workspaceView === 'next' && <div className="voicely-toolbar"><button disabled={busy} className="voicely-button" onClick={() => navigate('sources')}><Radar />Set up monitor</button><button disabled={busy} className="voicely-button" onClick={() => { updateProject({ workflow: 'decision' }); setResearchOpen(true); }}>Describe a situation</button></div>}
+        {!sourcesOpen && workspaceView === 'board' && <DecisionBoard plans={project.decisionPlans || []} busy={busy} onChange={decisionPlans => updateProject({ decisionPlans })} legacy={project.saved} onLegacyChange={saved => updateProject({ saved })} />}
+        {researchOpen && <LabDialog title={workflow === 'apps' ? 'Analyze an app' : 'Explore your next direction'} onClose={() => { if (!busy) setResearchOpen(false); }}>
+          {busy && <p role="status" className="lab-notice">Research is running. Cancel the research before closing.</p>}
+          {workflow === 'decision' ? <DecisionWorkspace key={project.id} project={project} onChange={updateProject} apps={watchlist} profile={profile} checking={checkingModel} token={token} busy={busy}
+            onBusyChange={setGeneratingOpportunities} onPrepare={prepareResearch} onOpenSources={() => { setResearchOpen(false); setSourcesOpen(true); }} /> : <OpportunityWorkspace key={project.id} project={project} onProjectChange={updateProject} apps={watchlist.filter(app => !app.sample || project.sample)} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
+            onPrepare={prepareResearch}
+            onBusyChange={setGeneratingOpportunities} onOpenSources={() => { setResearchOpen(false); navigate('sources'); }} onResearchSave={next => {
+              updateProject({ research: next });
+            }} />}
+          <details className="mt-6 pt-4 border-t border-gray-200 text-sm text-gray-600"><summary className="cursor-pointer">More research options</summary><div role="tablist" aria-label="Research starting point" className="flex gap-5 border-b border-gray-200 mt-3">
             {(['decision', 'apps'] as const).map(mode => <button key={mode} role="tab" aria-selected={workflow === mode} disabled={busy} onClick={() => updateProject({ workflow: mode })} className={`py-3 text-sm border-b-2 ${workflow === mode ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{mode === 'decision' ? 'Find next steps' : 'Explore apps'}</button>)}
           </div>
           {watchlist.length === 0 && <button onClick={loadSample} className="mt-4 text-sm text-teal-800 inline-flex items-center gap-2"><Radar className="w-4 h-4" />Explore a sample market</button>}</details>
-          {workflow === 'decision' ? <DecisionWorkspace key={project.id} project={project} onChange={updateProject} apps={watchlist} profile={profile} checking={checkingModel} token={token} busy={busy}
-            onBusyChange={setGeneratingOpportunities} onPrepare={prepareResearch} onOpenSources={() => setSourcesOpen(true)} /> : <OpportunityWorkspace key={project.id} project={project} onProjectChange={updateProject} apps={watchlist.filter(app => !app.sample || project.sample)} research={research} profile={profile} checking={checkingModel} token={token} busy={busy}
-            onPrepare={prepareResearch}
-            onBusyChange={setGeneratingOpportunities} onOpenSources={() => setSourcesOpen(true)} onResearchSave={next => {
-              updateProject({ research: next });
-            }} />}
-        </div>
+          <button disabled={busy} className="voicely-button mt-5" onClick={() => { setResearchOpen(false); navigate('next'); }}>View overview<ArrowLeft /></button>
+        </LabDialog>}
         <div className={sourcesOpen ? '' : 'hidden'}>
         <div role="tablist" aria-label="Evidence and sources" className="flex flex-wrap gap-5 border-b border-gray-200 mt-4">
           {(['evidence', 'manage'] as const).map(tab => <button key={tab} id={`source-tab-${tab}`} role="tab" aria-selected={sourceView === tab} aria-controls={`source-panel-${tab}`} onClick={() => setSourceView(tab)} className={`py-3 text-sm border-b-2 ${sourceView === tab ? 'border-teal-700 text-teal-900 font-medium' : 'border-transparent text-gray-500'}`}>{tab === 'evidence' ? 'Evidence details' : 'Source management'}</button>)}
@@ -475,7 +492,7 @@ const MarketDashboard: React.FC = () => {
         </div>
         </div>
       </main>
-    </div>
+    </VoicelyShell>
   );
 };
 

@@ -18,6 +18,7 @@ import {
 import FeedbackForm from './FeedbackForm';
 import UserMenu from './UserMenu';
 import { PROTECTED_ROUTES } from './Constants';
+import { BRAND } from '../config/brand';
 
 interface NavLink {
   to: string;
@@ -69,7 +70,7 @@ const Navigation: React.FC = () => {
     {
       to: PROTECTED_ROUTES.MARKET,
       icon: Radar,
-      label: 'Track Market',
+      label: 'Workspace',
       primary: true,
     },
     {
@@ -122,8 +123,8 @@ const Navigation: React.FC = () => {
           {/* Logo */}
           <div className="flex items-center">
             <a href="/" className="flex items-center">
-              <img src="/logo-small.png" alt="Insightly Logo" className="w-5 h-5 mr-2" />
-              <span className="text-2xl font-bold text-gray-900">insightly</span>
+              <MessageSquare className="w-6 h-6 mr-2 text-teal-800" aria-hidden="true" />
+              <span className="text-2xl font-bold text-gray-900">{BRAND.name}</span>
             </a>
           </div>
 

@@ -27,3 +27,80 @@
 @media(max-width:1100px){.lab-opportunity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.voicely-global-search{max-width:240px}}
 @media(max-width:800px){.lab-dashboard-grid{grid-template-columns:1fr}.voicely-global-search{display:none}}
 @media(max-width:600px){.lab-opportunity-grid{grid-template-columns:1fr}.lab-app-strip>div{width:100%}.lab-app-strip select{max-width:100%}.lab-app-strip label{flex:1}.lab-dialog-body{padding:18px}.lab-dialog>header{padding:16px}.lab-detail-title{font-size:22px}}
+
+/* Sites visual rhythm, with real-data layouts and readable sample caveats. */
+.voicely-workspace{font-size:14px;line-height:1.6}
+.voicely-main{padding:34px 38px 56px}
+.voicely-main>div:first-child{margin-bottom:26px;align-items:flex-start}
+.voicely-main h1{font-size:29px;line-height:1.25}
+.voicely-panel-title{font-size:17px;line-height:1.45}
+.voicely-button{padding:10px 15px;border-radius:8px;font-size:12px;font-weight:600;line-height:1.4;min-height:38px}
+.voicely-button:hover:not(:disabled){background:#f1f4ed}
+.voicely-button.primary:hover:not(:disabled){background:#1e3d2d}
+.voicely-button[aria-label]:has(>svg:only-child){width:36px;height:36px;min-height:36px;padding:8px;flex-shrink:0}
+.voicely-global-search{min-width:260px;justify-content:flex-start}
+.voicely-sidebar nav{gap:6px}
+.voicely-sidebar nav button{padding:11px 12px}
+.lab-app-strip{padding:18px 0;margin-bottom:4px;gap:20px}
+.lab-app-strip strong{font-size:16px;font-weight:600}
+.lab-app-strip .voicely-muted{font-size:11px}
+.voicely-metrics{gap:15px;padding:22px 0 24px}
+.voicely-metrics>div{min-width:0;padding-right:12px}
+.voicely-metrics>div+div{border-left:1px solid var(--vl-line);padding-left:20px}
+.voicely-metrics strong{font-size:27px;line-height:1.2;margin:10px 0 8px}
+.voicely-metrics p,.voicely-metrics small{font-size:11px}
+.lab-dashboard-grid{gap:22px;margin:25px 0 28px;align-items:stretch}
+.lab-priority{padding:26px;border-left:0;background:#edf3e5}
+.lab-priority h2{font-size:24px;line-height:1.35;margin:16px 0 12px}
+.lab-signal{padding:20px 0 16px}
+.lab-opportunity{padding:22px}
+.lab-opportunity h3{font-size:15px;line-height:1.5;margin-top:16px}
+.lab-opportunity footer{border-top:1px solid var(--vl-line);margin-top:auto;padding-top:15px}
+.lab-opportunity>p{padding-bottom:20px}
+.lab-badge{font-size:10px;font-weight:600}
+.lab-opportunity:nth-child(3n+2) .lab-badge{background:#f0ebf7;color:#70558d}
+.lab-opportunity:nth-child(3n+3) .lab-badge{background:#f7ede3;color:#885d39}
+.lab-table th{padding:13px 16px;font-size:11px}
+.lab-table td{padding:15px 16px;font-size:12px;vertical-align:top}
+.lab-table td:first-child{font-weight:500;min-width:150px}
+.lab-table td:nth-child(4){max-width:190px;color:var(--vl-muted);font-size:11px}
+.lab-comparison-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.lab-compare{padding:23px;background:#fff;border:1px solid var(--vl-line);border-radius:8px}
+.lab-compare h2{font-size:17px;line-height:1.4;overflow-wrap:anywhere}
+.lab-compare>.voicely-muted{font-size:11px;min-height:38px}
+.lab-compare .voicely-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:8px 0 12px;border-bottom:0;padding:16px 0}
+.lab-compare .voicely-metrics>div{padding:0;border:0}
+.lab-compare .voicely-metrics strong{font-size:25px}
+.lab-compare .voicely-metrics small{display:block;font-size:10px;line-height:1.5}
+.lab-comparison-topic{border-top:1px solid var(--vl-line);padding:14px 0}
+.lab-comparison-topic .voicely-toolbar{margin-top:0;flex-wrap:nowrap;align-items:flex-start;font-size:12px}
+.lab-comparison-topic .voicely-toolbar>span:first-child{overflow-wrap:anywhere;min-width:0}
+.lab-comparison-topic .voicely-toolbar>span:last-child{font-weight:600;white-space:nowrap}
+.lab-bar{height:6px;margin-top:12px;background:#eff2e9}
+.lab-compare:nth-child(2) .lab-bar{background:#f0edf5}
+.lab-compare:nth-child(2) .lab-bar>div{background:#a08cbb}
+.lab-compare-takeaway{padding:22px 0;border-top:2px solid #c7d7b7}
+.lab-compare-takeaway>.voicely-panel-title{margin-top:0}
+.lab-compare-takeaway>p{max-width:850px;font-size:13px;line-height:1.7}
+.voicely-plan{padding:24px 0 28px}
+.voicely-plan h3{font-size:17px}
+.voicely-plan-fields textarea{font-size:13px;min-height:92px}
+.lab-dialog{width:min(620px,100%);background:#fff}
+.lab-dialog>header{padding:22px 26px;background:#fff}
+.lab-dialog-body{padding:26px;font-size:13px}
+.lab-dialog-body .voicely-panel-title{font-size:15px;margin-top:25px}
+.lab-quote{font-size:13px;line-height:1.75;background:#f5f7f1}
+.voicely-nav-backdrop,.voicely-drawer-close{display:none}
+@media(max-width:1100px){.voicely-main{padding:28px 25px 48px}.lab-opportunity-grid{grid-template-columns:1fr}.lab-opportunity h3{margin-top:12px}.lab-opportunity footer{margin-top:0}.voicely-global-search{min-width:0}}
+@media(max-width:960px){.lab-dashboard-grid:not(.lab-comparison-grid){grid-template-columns:1fr}.lab-compare{padding:18px}.lab-compare .voicely-metrics{gap:8px}.lab-compare .voicely-metrics strong{font-size:22px}}
+@media(max-width:700px){
+  .voicely-main{padding:26px 18px 40px}.voicely-main h1{font-size:25px}.voicely-main>div:first-child{margin-bottom:20px}
+  .voicely-sidebar{position:fixed;inset:0 auto 0 0;height:100dvh;width:226px;z-index:60;padding:30px 18px 20px}
+  .voicely-sidebar nav{grid-template-columns:1fr}.voicely-nav-backdrop{display:block;position:fixed;inset:0;background:#20302466;z-index:50}
+  .voicely-drawer-close{display:flex;align-self:flex-end;align-items:center;justify-content:center;width:36px;height:36px;margin-bottom:12px;border:1px solid var(--vl-line);border-radius:8px;background:#fff}
+  .voicely-metrics{gap:18px 10px}.voicely-metrics>div{padding:0 10px}.voicely-metrics>div+div{padding-left:12px}.voicely-metrics>div:nth-child(odd){border-left:0;padding-left:0}
+  .lab-comparison-grid{grid-template-columns:1fr;gap:16px}.lab-compare{padding:20px}.lab-compare>.voicely-muted{min-height:0}
+  .lab-compare .voicely-metrics>div{padding:0}.lab-priority{padding:22px}.lab-priority h2{font-size:22px}
+  .lab-dialog-body{padding:22px 18px}.lab-dialog>header{padding:20px 18px}
+  .lab-compare-controls{align-items:flex-end}.lab-compare-controls label{width:100%}
+}

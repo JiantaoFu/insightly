@@ -165,6 +165,10 @@ const path = require('node:path');
     await page.getByLabel('Findings & notes').waitFor();
     assert.equal(await page.getByLabel('Findings & notes').inputValue(), 'Interview scheduled.');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await analyze();
+    await page.getByRole('button', { name: /Backup App.*Fixture studio/ }).click();
+    await page.getByRole('button', { name: 'Generate analysis', exact: true }).click();
+    await page.getByRole('heading', { name: 'Backup App: 90-day opportunity', exact: true }).first().waitFor();
     for (const width of [390, 768, 1355]) {
       await page.setViewportSize({ width, height: 892 });
       for (const name of ['Overview', 'Review explorer', 'Opportunities', 'Compare apps', 'Decision board', 'Watchlist', 'Plans & usage']) {
@@ -172,6 +176,8 @@ const path = require('node:path');
         if (!await button.isVisible()) await page.getByRole('button', { name: 'Open navigation' }).click();
         await button.click();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflows at ${width}px`);
+        const clipped = await page.locator('button:visible').evaluateAll(buttons => buttons.filter(button => button.scrollWidth > button.clientWidth + 2 || button.scrollHeight > button.clientHeight + 2).map(button => button.textContent));
+        assert.deepEqual(clipped, [], `${name} has clipped buttons at ${width}px`);
         await page.screenshot({ path: path.join(process.env.QA_OUTPUT_DIR || require('node:os').tmpdir(), `parity-${name.replace(/[^a-z]/gi, '-').toLowerCase()}-${width}.png`) });
       }
     }

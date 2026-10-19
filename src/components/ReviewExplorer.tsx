@@ -5,8 +5,8 @@ import { filterReviews, reviewsCsv, type ReviewFilters } from '../utils/reviewEx
 import { downloadFile } from '../utils/download';
 import { storeAppKey } from '../utils/marketResearchFlow';
 
-export default function ReviewExplorer({ apps, initialTopic = '' }: { apps: WatchApp[]; initialTopic?: string }) {
-  const [filters, setFilters] = useState<ReviewFilters>({ appId: 'all', platform: 'all', days: 0, query: '', intent: 'all', topic: initialTopic || 'all', rating: 'all' });
+export default function ReviewExplorer({ apps, initialTopic = '', initialIntent = 'all' }: { apps: WatchApp[]; initialTopic?: string; initialIntent?: string }) {
+  const [filters, setFilters] = useState<ReviewFilters>({ appId: 'all', platform: 'all', days: 0, query: '', intent: initialIntent, topic: initialTopic || 'all', rating: 'all' });
   const topics = [...new Map(apps.flatMap(app => app.reviews.flatMap(review => (getReviewAnalysis(review)?.labels || []).map(label => [label.topic.id, label.topic.name] as const)))).entries()];
   const [page, setPage] = useState(0);
   const rows = useMemo(() => filterReviews(apps, filters), [apps, filters]);

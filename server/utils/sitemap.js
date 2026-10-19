@@ -42,6 +42,10 @@ export const STATIC_ROUTES = [
   { path: '/blog/competitor-research-afternoon', changefreq: 'monthly', priority: '0.7', lastmod: '2026-08-06' },
 ];
 
+// App-only routes served with noindex (netlify/edge-lib NOINDEX_PAGES). They
+// must never be in the sitemap: "Submitted URL marked noindex" in GSC.
+export const NOINDEX_PATHS = new Set(['/login', '/account', '/chat', '/competitor-insights', '/payment-success', '/payment-cancel']);
+
 /** ms epoch / ISO string / null -> finite ms or null. */
 export function toMillis(ts) {
   if (ts === null || ts === undefined || ts === '') return null;
@@ -98,6 +102,7 @@ export function buildSitemapXml({ origin, appReports = [], competitorReports = [
     if (priority) url.ele('priority').txt(priority);
   };
   for (const route of staticRoutes) {
+    if (NOINDEX_PATHS.has(route.path)) continue;
     add(`${origin}${route.path}`, staticLastmod(route, { appReports }), route.changefreq, route.priority);
   }
   for (const r of appReports) {

@@ -203,3 +203,16 @@ describe('sitemap', () => {
     expect(recordExpirationHours({ RECORD_EXPIRATION_HOURS: 'x' })).to.equal(24 * 7 * 365);
   });
 });
+
+describe('sitemap: noindex routes are never listed', () => {
+  it('drops /login (and other noindex app routes) even if passed as static routes', async () => {
+    const { NOINDEX_PATHS } = await import('../utils/sitemap.js');
+    const { NOINDEX_PAGES } = await import('../../netlify/edge-lib/prerender-core.js');
+    expect([...NOINDEX_PATHS].sort()).to.deep.equal(Object.keys(NOINDEX_PAGES).sort());
+    const xml = buildSitemapXml({ origin: ORIGIN, staticRoutes: [...STATIC_ROUTES, { path: '/login' }, { path: '/account' }] });
+    const l = locs(xml);
+    expect(l).to.not.include(`${ORIGIN}/login`);
+    expect(l).to.not.include(`${ORIGIN}/account`);
+    expect(l).to.include(`${ORIGIN}/`);
+  });
+});

@@ -314,7 +314,7 @@ async function renderInsights(origin: Response, html: string) {
 export default async (request: Request, context: Context) => {
   if (request.method !== "GET" && request.method !== "HEAD") return;
   const url = new URL(request.url);
-  // One URL per page: 301 trailing slash / upper-case share id / utm_* etc.
+  // One URL per page: 301 trailing slash / upper-case share id / /index.html (query kept; no loops).
   const preferred = normalizeUrl(request.url);
   if (preferred) {
     return new Response(null, {
@@ -397,10 +397,14 @@ export default async (request: Request, context: Context) => {
 export const config: Config = {
   path: [
     "/", "/for-teams", "/app", "/app-insights", "/shared-app-report/*", "/shared-competitor-report/*", "/share/*",
-    "/blog", "/blog/*", "/privacy", "/terms", "/refund",
+    "/blog", "/blog/*", "/privacy", "/terms", "/refund", "/extension", "/index.html",
+    // bare section roots: netlify.toml's /shared-app-report/* also matches these and served
+    // a 200 home shell (soft 404 / duplicate); the edge answers them 404 + noindex
+    "/shared-app-report", "/shared-competitor-report",
     "/login", "/account", "/chat", "/competitor-insights", "/payment-success", "/payment-cancel",
     // trailing-slash variants (Netlify matches paths exactly) so they get the 301
-    "/for-teams/", "/app/", "/app-insights/", "/blog/", "/privacy/", "/terms/", "/refund/",
+    "/for-teams/", "/app/", "/app-insights/", "/blog/", "/privacy/", "/terms/", "/refund/", "/extension/", "/login/",
+    "/shared-app-report/", "/shared-competitor-report/",
   ],
   cache: "manual",
 };

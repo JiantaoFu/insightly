@@ -506,7 +506,14 @@ export const FALLBACK_CDN_CACHE = 'no-store';
 // Tracking params Google may pick up from shared links. Dropping them with a
 // 301 (rather than relying on the canonical alone) collapses the variants
 // before they are counted as "Duplicate without user-selected canonical".
-const TRACKING_PARAM_RE = /^(utm_[a-z_]+|fbclid|gclid|msclkid|mc_cid|mc_eid|ref_src)$/i;
+//
+// NOT redirected any more: Netlify carries the request's query string over to
+// an edge-function 301 Location, so stripping params produced a self-redirect
+// loop (live 2026-10-19: /?utm_source=x -> 301 -> /?utm_source=x ...), which
+// Search Console reports as a crawl error. Every prerendered page already
+// emits a query-free self canonical, which is what consolidates these
+// variants. TRACKING_PARAM_RE is kept for callers/tests that need it.
+export const TRACKING_PARAM_RE = /^(utm_[a-z_]+|fbclid|gclid|msclkid|mc_cid|mc_eid|ref_src)$/i;
 const REPORT_SECTION_RE = /^\/(shared-app-report|shared-competitor-report|share)\/([^/]+)$/;
 
 /**
@@ -514,21 +521,18 @@ const REPORT_SECTION_RE = /^\/(shared-app-report|shared-competitor-report|share)
  * the request URL already is it. Rules (301):
  *  - trailing slash removed (except "/"): /for-teams/ -> /for-teams
  *  - share ids lower-cased (md5 hex; the backend only knows lower case)
- *  - tracking query params (utm_*, fbclid, gclid, ...) removed; other params kept
+ *  - /index.html -> /
+ * The query string is preserved untouched (see TRACKING_PARAM_RE note), and a
+ * request whose path is already preferred never redirects -> no loops.
  */
 export function normalizeUrl(href) {
   const url = new URL(href);
   let path = url.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/index.html') path = '/';
   const m = path.match(REPORT_SECTION_RE);
   if (m && isShareId(m[2])) path = `/${m[1]}/${m[2].toLowerCase()}`;
-  const params = new URLSearchParams(url.search);
-  let changed = false;
-  for (const key of [...params.keys()]) {
-    if (TRACKING_PARAM_RE.test(key)) { params.delete(key); changed = true; }
-  }
-  if (path === url.pathname && !changed) return null;
-  const qs = params.toString();
-  return `${url.origin}${path}${qs ? `?${qs}` : ''}`;
+  if (path === url.pathname) return null;
+  return `${url.origin}${path}${url.search}`;
 }
 
 // -------------------------------------------------- static/SPA pages ----
@@ -545,6 +549,10 @@ export const STATIC_PAGES = {
   '/terms': {
     title: 'Terms of Service | Insightly',
     description: 'The terms governing your use of Insightly: accounts, credits, subscriptions, acceptable use, and liability.',
+  },
+  '/extension': {
+    title: 'Insightly Browser Extension | Insightly',
+    description: 'Analyze App Store & Google Play reviews without leaving the store page with the Insightly browser extension.',
   },
   '/refund': {
     title: 'Refund Policy | Insightly',

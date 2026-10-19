@@ -201,7 +201,7 @@ test('edge function wiring: header sent, reasons set, fallbacks not cached (stat
 import * as core2 from './prerender-core.js';
 import { BLOG_POSTS } from './blog-posts.js';
 
-test('normalizeUrl: 301 targets for trailing slash, upper-case ids, tracking params', () => {
+test('normalizeUrl: 301 targets for trailing slash, upper-case ids, /index.html', () => {
   const n = core2.normalizeUrl;
   const id = '43a8e5966f03ea57575c8a55f4eb7397';
   assert.equal(n(`https://insightly.top/shared-app-report/${id}`), null);
@@ -210,8 +210,16 @@ test('normalizeUrl: 301 targets for trailing slash, upper-case ids, tracking par
   assert.equal(n(`https://insightly.top/shared-app-report/${id}/`), `https://insightly.top/shared-app-report/${id}`);
   assert.equal(n(`https://insightly.top/shared-app-report/${id.toUpperCase()}`), `https://insightly.top/shared-app-report/${id}`);
   assert.equal(n(`https://insightly.top/shared-competitor-report/${id.toUpperCase()}/`), `https://insightly.top/shared-competitor-report/${id}`);
-  assert.equal(n(`https://insightly.top/share/${id}?utm_source=x&utm_medium=y`), `https://insightly.top/share/${id}`);
-  assert.equal(n('https://insightly.top/?ref=ph&fbclid=abc'), 'https://insightly.top/?ref=ph');
+  // tracking params are NOT redirected (Netlify re-appends the query -> loop); canonical handles them
+  assert.equal(n(`https://insightly.top/share/${id}?utm_source=x&utm_medium=y`), null);
+  assert.equal(n('https://insightly.top/?utm_source=x'), null);
+  assert.equal(n('https://insightly.top/for-teams?gclid=abc'), null);
+  assert.equal(n('https://insightly.top/blog/?utm_source=x'), 'https://insightly.top/blog?utm_source=x');
+  assert.equal(n('https://insightly.top/index.html'), 'https://insightly.top/');
+  // never a self-redirect: the target is always already normal
+  for (const u of ['https://insightly.top/blog/?utm_source=x', 'https://insightly.top/index.html?a=1', `https://insightly.top/share/${id.toUpperCase()}/?fbclid=z`]) {
+    assert.equal(n(n(u)), null, u);
+  }
   assert.equal(n('https://insightly.top/for-teams/'), 'https://insightly.top/for-teams');
   // non-md5 legacy ids are left alone (they 410 as before)
   assert.equal(n('https://insightly.top/share/SomeThing'), null);

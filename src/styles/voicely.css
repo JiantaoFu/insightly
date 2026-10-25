@@ -118,3 +118,12 @@
   .lab-dialog-body{padding:22px 18px}.lab-dialog>header{padding:20px 18px}
   .lab-compare-controls{align-items:flex-end}.lab-compare-controls label{width:100%}
 }
+.problem-card { height: 100%; }
+.problem-category { font-size: 11px; color: #667468; line-height: 1.6; }
+.problem-card h3 { font-size: 17px; line-height: 1.45; margin: 12px 0; overflow-wrap: anywhere; }
+.problem-excerpt { font-size: 13px; line-height: 1.7; color: #52645c; margin: 16px 0 24px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.problem-card footer { margin-top: auto; }
+.problem-card footer p { margin-bottom: 12px; }
+.problem-direction { padding: 20px 0; border-bottom: 1px solid #dde4dc; }
+.problem-direction h4 { font-weight: 600; }
+.problem-direction p { margin: 12px 0; }

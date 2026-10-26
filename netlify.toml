@@ -17,6 +17,15 @@
 # backend cannot serve a report. Its paths and
 # `cache: "manual"` are declared in the function's own `config` export.
 
+# Browsers and crawlers request /favicon.ico regardless of the <link> tags;
+# it used to fall through to the /* 404. Serve the SVG icon (copied to
+# public/ so it has a stable, unhashed URL) instead.
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/favicon.svg"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/sitemap.xml"
   to = "https://insightly-5iyw.onrender.com/sitemap.xml"

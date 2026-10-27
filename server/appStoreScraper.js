@@ -79,20 +79,33 @@ export async function getAppReviews(appId, country, options = {}) {
 
     while (allReviews.length < maxReviews && page < 10) {
       try {
-        // Apple review RSS is flaky (2026-10-01, 2026-10-09): sometimes returns an empty
-        // feed even when reviews exist, due to sticky routing to a bad backend instance.
-        // Retry empty page-1 with different country codes to hit different instances.
+        // Apple review RSS is flaky (2026-10-01, 2026-10-09, 2026-10-27): sometimes returns
+        // an empty feed even when reviews exist, due to sticky routing to a bad backend
+        // instance. On 2026-10-27 the Render egress hit empty feeds for us+gb+ca at once
+        // while a direct check from another network got 50, so a single country pass is
+        // not enough. Hardening (2026-10-27): every page retries with different country
+        // codes (was page-1 only, which truncated totals like 100 vs 450 when a later
+        // page hit the bad instance), and page 1 gets a second full pass after 5s if
+        // the first pass is entirely empty. Healthy case costs nothing extra: the first
+        // successful request short-circuits.
         let reviews = [];
-        const countries = page === 1 ? [country, 'gb', 'ca'] : [country];
-        for (let attempt = 0; attempt < countries.length; attempt++) {
-          reviews = await store.reviews({
-            id: appId,
-            page: page,
-            country: countries[attempt]
-          });
-          if (reviews.length > 0 || attempt === countries.length - 1) break;
-          console.log(`[getAppReviews] page ${page} empty via ${countries[attempt]}, retry with ${countries[attempt + 1]} after 2s`);
-          await new Promise(r => setTimeout(r, 2000));
+        const countries = [...new Set([country, 'gb', 'ca'].filter(Boolean))];
+        const passes = page === 1 ? 2 : 1;
+        for (let pass = 0; pass < passes && reviews.length === 0; pass++) {
+          if (pass > 0) {
+            console.log(`[getAppReviews] page ${page} empty via all countries, second pass after 5s`);
+            await new Promise(r => setTimeout(r, 5000));
+          }
+          for (let attempt = 0; attempt < countries.length; attempt++) {
+            reviews = await store.reviews({
+              id: appId,
+              page: page,
+              country: countries[attempt]
+            });
+            if (reviews.length > 0 || attempt === countries.length - 1) break;
+            console.log(`[getAppReviews] page ${page} empty via ${countries[attempt]}, retry with ${countries[attempt + 1]} after 2s`);
+            await new Promise(r => setTimeout(r, 2000));
+          }
         }
 
         if (reviews.length === 0) {

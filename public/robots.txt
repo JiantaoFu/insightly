@@ -7,3 +7,5 @@ Sitemap: https://insightly.top/sitemap.xml
 # Directories to exclude
 Disallow: /private/
 Disallow: /admin/
+# OAuth endpoints (302 to Google), not content
+Disallow: /auth/

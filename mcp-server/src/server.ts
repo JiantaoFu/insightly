@@ -1,21 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { InsightlyClient } from "./client.js";
-import { QuotaManager } from "./quota.js";
+import { Caller, QuotaManager, freeDailyLimit } from "./quota.js";
 import { analyzeAppReviews, compareCompetitors, findApp } from "./tools.js";
-
-export interface CallerContext { callerId: string; apiKey?: string }
 
 export function createServer(
   client = new InsightlyClient(),
   quota = new QuotaManager(),
-  caller: () => CallerContext = () => ({ callerId: "stdio", apiKey: process.env.INSIGHTLY_API_KEY }),
+  caller: () => Caller = () => ({ subject: "stdio", dailyLimit: freeDailyLimit(), tier: "local" }),
 ) {
   const server = new McpServer({ name: "insightly", version: "0.1.0" });
 
   const wrap = <A>(fn: (a: A) => Promise<unknown>) => async (args: A) => {
-    const ctx = caller();
-    const q = quota.check(ctx.callerId, ctx.apiKey);
+    const q = await quota.check(caller());
     if (!q.allowed) return { isError: true, content: [{ type: "text" as const, text: q.reason ?? "Quota exceeded" }] };
     try {
       const result = await fn(args);

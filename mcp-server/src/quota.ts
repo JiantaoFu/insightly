@@ -1,48 +1,37 @@
-// API-key / free-quota STUB. Not wired to any billing or backend.
-//
-// Design (see README "API keys & quota"):
-//  - Anonymous callers: FREE_DAILY_CALLS per caller id (IP for HTTP, "stdio" locally).
-//  - Keyed callers: INSIGHTLY_MCP_KEYS="key1:200,key2:1000" -> per-key daily limits.
-//    Later: replace the env map with a lookup against an `api_keys` table / Google OAuth
-//    user + credits, so paid calls can trigger fresh analyses (/api/analyze) — out of scope now.
-//  - Counters are in-memory and reset at UTC midnight. Swap for Redis/Supabase when deployed
-//    with >1 instance.
-//  - Upstream Insightly also enforces its own 20/day/IP limit on /api/quick-lookup; a hosted
-//    deployment shares one egress IP, so it will need a server-side allowance (backend change, later).
+import type { McpStore } from "./store/types.js";
+import { MemoryStore } from "./store/memory.js";
 
-export interface QuotaDecision { allowed: boolean; remaining: number; limit: number; tier: "anonymous" | "key" | "unlimited"; reason?: string }
+export const FREE_DAILY_DEFAULT = 25;
 
+/** Who is calling and what their daily allowance is. */
+export interface Caller {
+  subject: string;           // 'user:<uuid>' | 'key:<uuid>' | 'anon:<ip>' | 'stdio'
+  dailyLimit: number;
+  tier: "anonymous" | "user" | "key" | "local";
+}
+export interface QuotaDecision { allowed: boolean; remaining: number; limit: number; tier: Caller["tier"]; reason?: string }
+
+/** Per-subject daily quota (UTC day) on top of an McpStore (Supabase in prod, memory in tests/stdio). */
 export class QuotaManager {
-  private counts = new Map<string, number>();
-  private keys: Map<string, number>;
   constructor(
-    public freeDailyCalls = Number(process.env.INSIGHTLY_MCP_FREE_DAILY ?? 25),
-    keySpec = process.env.INSIGHTLY_MCP_KEYS ?? "",
+    private store: McpStore = new MemoryStore(),
     public enabled = process.env.INSIGHTLY_MCP_QUOTA !== "off",
     private now: () => Date = () => new Date(),
-  ) {
-    this.keys = new Map(
-      keySpec.split(",").map((s) => s.trim()).filter(Boolean).map((s) => {
-        const [k, n] = s.split(":");
-        return [k, Number(n) || 1000] as [string, number];
-      }),
-    );
-  }
+  ) {}
 
-  check(callerId: string, apiKey?: string): QuotaDecision {
-    if (!this.enabled) return { allowed: true, remaining: Infinity, limit: Infinity, tier: "unlimited" };
+  async check(c: Caller): Promise<QuotaDecision> {
+    if (!this.enabled) return { allowed: true, remaining: Infinity, limit: Infinity, tier: c.tier };
     const day = this.now().toISOString().slice(0, 10);
-    let limit = this.freeDailyCalls, tier: QuotaDecision["tier"] = "anonymous", id = `anon:${callerId}`;
-    if (apiKey) {
-      const l = this.keys.get(apiKey);
-      if (l === undefined) return { allowed: false, remaining: 0, limit: 0, tier: "key", reason: "Unknown API key" };
-      limit = l; tier = "key"; id = `key:${apiKey}`;
-    }
-    const bucket = `${day}:${id}`;
-    const used = this.counts.get(bucket) ?? 0;
-    if (used >= limit) return { allowed: false, remaining: 0, limit, tier, reason: "Daily free quota reached. Try tomorrow or get a key at https://insightly.top" };
-    this.counts.set(bucket, used + 1);
-    for (const k of this.counts.keys()) if (!k.startsWith(day)) this.counts.delete(k);
-    return { allowed: true, remaining: limit - used - 1, limit, tier };
+    const r = await this.store.consumeQuota(c.subject, day, c.dailyLimit);
+    if (!r.allowed) return {
+      allowed: false, remaining: 0, limit: c.dailyLimit, tier: c.tier,
+      reason: `Daily quota of ${c.dailyLimit} calls reached (resets 00:00 UTC). More at https://insightly.top`,
+    };
+    return { allowed: true, remaining: Math.max(0, c.dailyLimit - r.used), limit: c.dailyLimit, tier: c.tier };
   }
+}
+
+export function freeDailyLimit(): number {
+  const n = Number(process.env.INSIGHTLY_MCP_FREE_DAILY);
+  return Number.isFinite(n) && n >= 0 && process.env.INSIGHTLY_MCP_FREE_DAILY !== undefined ? n : FREE_DAILY_DEFAULT;
 }

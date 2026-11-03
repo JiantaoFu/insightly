@@ -4,7 +4,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { InsightlyClient, FetchLike } from "../src/client.js";
 import { extractAppIdent, sameApp, summarizeAppReport, listItems } from "../src/parse.js";
-import { QuotaManager } from "../src/quota.js";
+import { Caller, QuotaManager, freeDailyLimit } from "../src/quota.js";
+import { MemoryStore } from "../src/store/memory.js";
 import { createServer } from "../src/server.js";
 
 const REPORT = `# Summary of Key Insights
@@ -67,29 +68,35 @@ test("summarizeAppReport extracts sections, top-level items only", () => {
   assert.deepEqual(listItems(undefined), []);
 });
 
-test("quota: anonymous limit, keys, unknown key, disabled", () => {
-  const q = new QuotaManager(2, "k1:3", true);
-  assert.ok(q.check("ip").allowed);
-  assert.ok(q.check("ip").allowed);
-  assert.equal(q.check("ip").allowed, false);
-  assert.ok(q.check("other").allowed);
-  for (let i = 0; i < 3; i++) assert.ok(q.check("ip", "k1").allowed);
-  assert.equal(q.check("ip", "k1").allowed, false);
-  assert.equal(q.check("ip", "bad").reason, "Unknown API key");
-  assert.ok(new QuotaManager(0, "", false).check("x").allowed);
+const anon = (id: string, n = 2): Caller => ({ subject: `anon:${id}`, dailyLimit: n, tier: "anonymous" });
+
+test("quota: per-subject daily limit, disabled mode", async () => {
+  const q = new QuotaManager(new MemoryStore(), true);
+  assert.ok((await q.check(anon("ip"))).allowed);
+  const d = await q.check(anon("ip"));
+  assert.ok(d.allowed); assert.equal(d.remaining, 0);
+  assert.equal((await q.check(anon("ip"))).allowed, false);
+  assert.ok((await q.check(anon("other"))).allowed);
+  assert.equal((await q.check(anon("zero", 0))).allowed, false);
+  assert.ok((await new QuotaManager(new MemoryStore(), false).check(anon("x", 0))).allowed);
 });
 
-test("quota resets on a new UTC day", () => {
+test("quota resets on a new UTC day", async () => {
   let now = new Date("2026-11-03T10:00:00Z");
-  const q = new QuotaManager(1, "", true, () => now);
-  assert.ok(q.check("a").allowed);
-  assert.equal(q.check("a").allowed, false);
+  const q = new QuotaManager(new MemoryStore(), true, () => now);
+  assert.ok((await q.check(anon("a", 1))).allowed);
+  assert.equal((await q.check(anon("a", 1))).allowed, false);
   now = new Date("2026-11-04T00:00:01Z");
-  assert.ok(q.check("a").allowed);
+  assert.ok((await q.check(anon("a", 1))).allowed);
 });
 
-async function connect(fetchImpl: FetchLike, quota = new QuotaManager(100, "", true)) {
-  const server = createServer(new InsightlyClient("https://insightly.top", fetchImpl), quota, () => ({ callerId: "t" }));
+test("free default is 25/day", () => {
+  delete process.env.INSIGHTLY_MCP_FREE_DAILY;
+  assert.equal(freeDailyLimit(), 25);
+});
+
+async function connect(fetchImpl: FetchLike, limit = 100) {
+  const server = createServer(new InsightlyClient("https://insightly.top", fetchImpl), new QuotaManager(new MemoryStore(), true), () => anon("t", limit));
   const [a, b] = InMemoryTransport.createLinkedPair();
   await server.connect(a);
   const client = new Client({ name: "test", version: "0" });
@@ -147,7 +154,7 @@ test("compare_competitors falls back to side-by-side", async () => {
 });
 
 test("quota exhaustion returns isError", async () => {
-  const c = await connect(mockFetch(), new QuotaManager(1, "", true));
+  const c = await connect(mockFetch(), 1);
   await c.callTool({ name: "find_app", arguments: { query: "a" } });
   const r: any = await c.callTool({ name: "find_app", arguments: { query: "a" } });
   assert.equal(r.isError, true);

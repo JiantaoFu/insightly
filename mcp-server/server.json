@@ -1,0 +1,11 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.JiantaoFu/insightly",
+  "description": "What users complain about, praise and request in any iOS/Android app, plus competitor comparisons, from Insightly's cached review reports.",
+  "version": "0.1.0",
+  "repository": { "url": "https://github.com/JiantaoFu/insightly", "source": "github", "subfolder": "mcp-server" },
+  "packages": [
+    { "registryType": "npm", "identifier": "@insightly/mcp-server", "version": "0.1.0", "transport": { "type": "stdio" } }
+  ],
+  "_comment": "DRAFT ONLY - not published. Package name/scope must exist on npm and package.json needs a matching \"mcpName\" before `mcp-publisher publish`."
+}

@@ -1,0 +1,35 @@
+name: MCP server
+
+on:
+  pull_request:
+    paths:
+      - 'mcp-server/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/mcp-server.yml'
+  push:
+    branches: [main, feat/mcp-server]
+    paths:
+      - 'mcp-server/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/mcp-server.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mcp-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mcp-server/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm audit --audit-level=high

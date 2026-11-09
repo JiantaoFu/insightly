@@ -9,9 +9,15 @@ import {
   getAppDetails,
   getAppReviews,
   processAppStoreUrl,
-  extractAppStoreId
+  extractAppStoreId,
+  extractCountryCode as extractAppStoreCountry
 } from './appStoreScraper.js';
-import { processGooglePlayUrl } from './googlePlayScraper.js';
+import {
+  processGooglePlayUrl,
+  fetchAppDetails as fetchGooglePlayDetails,
+  extractGooglePlayId,
+  extractCountryCode as extractGooglePlayCountry
+} from './googlePlayScraper.js';
 import { promptConfig } from './promptConfig.js';
 import rateLimit from 'express-rate-limit';
 import { LLM_PROVIDERS } from './llmProviders.js';
@@ -23,6 +29,7 @@ import { generateSitemap, initializeSitemap, getSitemapMeta } from './sitemap.js
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { embeddingService } from './services/EmbeddingService.js'
 import { getPanelStatus, cooldownStatus, markRunStarted, clientIpFromRequest, startAiVisibilityJob, getAiVisibilityJob } from './services/aiVisibility.js';
+import { GEO_APP_CACHE_DAYS, isFreshRecord, planAppRun, buildGeoRecord, loadGeoRecord, saveGeoRecord } from './services/appGeo.js';
 import { availableFunctions, functionDeclarations } from './functions.js';
 import { calculateCosineSimilarity } from './utils.js';
 import JSZip from 'jszip';
@@ -2054,6 +2061,177 @@ app.get('/api/ai-visibility/runs/:runId', (req, res) => {
     return res.json({ status: 'error', error: job.error });
   }
   return res.json({ status: 'done', result: job.result });
+});
+
+// --- AI Visibility inside the app report -----------------------------------
+// The report page knows which app it is showing (hashUrl = the report's
+// share id), so unlike the standalone tool the visitor never types the
+// app name/category/description: the server resolves them from the stored
+// analysis metadata. The latest result per app is persisted (see
+// services/appGeo.js) and served while fresh (GEO_APP_CACHE_DAYS), so
+// repeat visits don't burn free-tier model quota.
+
+// hashUrl -> runId for app runs currently executing, so a second POST
+// for the same app joins the in-flight run instead of starting a twin.
+const geoAppInFlight = new Map();
+
+// Best-effort store category ("genre") for an analyzed app. The
+// analysis_reports row stores no category, so resolve it live from the
+// store listing — the same scraper calls the analysis itself used — and
+// let the caller cache it in the GEO record for future runs. Any failure
+// (or a slow store) resolves to null: the stored description alone still
+// drives question generation.
+async function resolveGeoCategory(row) {
+  const url = row?.app_url || '';
+  const attempt = async () => {
+    if (url.includes('apps.apple.com')) {
+      const details = await getAppDetails(extractAppStoreId(url), extractAppStoreCountry(url));
+      return details?.genre || null;
+    }
+    if (url.includes('play.google.com')) {
+      const details = await fetchGooglePlayDetails(
+        extractGooglePlayId(url),
+        extractGooglePlayCountry(url)
+      );
+      return details?.genre || null;
+    }
+    return null;
+  };
+  try {
+    return await Promise.race([
+      attempt(),
+      new Promise((resolve) => setTimeout(() => resolve(null), 10_000)),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+app.get('/api/ai-visibility/apps/:hashUrl', async (req, res) => {
+  const { hashUrl } = req.params;
+  if (!isValidShareId(hashUrl)) {
+    return res.status(400).json({ error: 'Invalid app id.' });
+  }
+  let record = null;
+  try {
+    record = await loadGeoRecord(hashUrl);
+  } catch (e) {
+    console.error('Failed to load GEO record:', hashUrl, e?.message || e);
+    return res.status(503).json({ error: 'AI visibility data is temporarily unavailable.' });
+  }
+  if (!record?.latest) {
+    return res.json({ hasResult: false, cacheDays: GEO_APP_CACHE_DAYS });
+  }
+  return res.json({
+    hasResult: true,
+    result: record.latest,
+    history: record.history || [],
+    app: record.app || null,
+    generatedAt: record.latest.generatedAt,
+    fresh: isFreshRecord(record),
+    cacheDays: GEO_APP_CACHE_DAYS,
+  });
+});
+
+app.post('/api/ai-visibility/apps/:hashUrl/run', async (req, res) => {
+  const { hashUrl } = req.params;
+  if (!isValidShareId(hashUrl)) {
+    return res.status(400).json({ error: 'Invalid app id.' });
+  }
+
+  // The app must have an analysis report — its stored row is also where
+  // name/description come from (the client never supplies them).
+  let row = null;
+  try {
+    const { data, error } = await supabase
+      .from('analysis_reports')
+      .select('app_title, description, platform, app_url')
+      .eq('hash_url', hashUrl)
+      .maybeSingle();
+    if (error) throw error;
+    row = data;
+  } catch (e) {
+    console.error('GEO app lookup failed:', hashUrl, e?.message || e);
+    return res.status(503).json({ error: 'AI visibility is temporarily unavailable.' });
+  }
+  if (!row) {
+    return res.status(404).json({ error: 'No analysis report found for this app.' });
+  }
+
+  let record = null;
+  try {
+    record = await loadGeoRecord(hashUrl);
+  } catch {
+    record = null; // unreadable record must not block a fresh run
+  }
+
+  const force = req.body?.force === true;
+  const plan = planAppRun({ record, force });
+  if (plan.action === 'cached') {
+    return res.json({
+      status: 'cached',
+      result: plan.result,
+      generatedAt: plan.result.generatedAt,
+      cacheDays: GEO_APP_CACHE_DAYS,
+    });
+  }
+
+  // A run for this app is already going: hand back its id so the client
+  // polls the same job instead of doubling the quota burn.
+  const inFlightId = geoAppInFlight.get(hashUrl);
+  if (inFlightId) {
+    const existing = getAiVisibilityJob(inFlightId);
+    if (existing && existing.status === 'running') {
+      return res.status(202).json({ runId: existing.id, status: 'running' });
+    }
+    geoAppInFlight.delete(hashUrl);
+  }
+
+  // Same per-IP spacing as the standalone tool — force bypasses the
+  // 7-day freshness cache, never the cooldown.
+  const ip = clientIpFromRequest(req);
+  const cooldown = cooldownStatus(ip);
+  if (!cooldown.ok) {
+    return res.status(429).json({
+      error: 'Runs are spaced ~30s apart to protect free model quotas.',
+      retryAfterSeconds: cooldown.retryAfterSeconds,
+    });
+  }
+  markRunStarted(ip);
+
+  const name = String(row.app_title || '').trim();
+  if (!name) {
+    return res.status(422).json({ error: 'This report has no app name to test.' });
+  }
+  const description = String(row.description || '');
+  // Category: reuse the one cached by a previous run when present; only
+  // the first run for an app pays the live store lookup.
+  const category = record?.app?.category || (await resolveGeoCategory(row)) || '';
+
+  const job = startAiVisibilityJob(
+    { name, category, description },
+    {
+      onDone: async (result) => {
+        geoAppInFlight.delete(hashUrl);
+        try {
+          const updated = buildGeoRecord(record, result, {
+            hashUrl,
+            name,
+            category: category || null,
+            platform: row.platform || null,
+          });
+          await saveGeoRecord(hashUrl, updated);
+        } catch (e) {
+          console.error('Failed to persist GEO result:', hashUrl, e?.message || e);
+        }
+      },
+      onError: () => {
+        geoAppInFlight.delete(hashUrl);
+      },
+    }
+  );
+  geoAppInFlight.set(hashUrl, job.id);
+  return res.status(202).json({ runId: job.id, status: 'running' });
 });
 
 // Sitemap endpoint

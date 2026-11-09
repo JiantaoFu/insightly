@@ -7,6 +7,7 @@ import Navigation from './Navigation';
 import remarkGfm from 'remark-gfm';
 import { ShareComponent } from './ShareButton';
 import ReviewPreview from './ReviewPreview';
+import AiVisibilitySection from './AiVisibilitySection';
 import { SERVER_URL } from './Constants';
 import { updateMetadata } from '../utils/metadata';
 import { takePrerenderData } from '../utils/prerenderData';
@@ -349,6 +350,13 @@ const SharedReportView: React.FC<SharedReportViewProps> = ({ reportType }) => {
           <p>No report available</p>
         )}
       </div>
+
+      {/* AI Visibility: what AI assistants know about this app, and whether
+          they recommend it. Server-side state is keyed by the report's
+          share id; the section fetches it independently of the report. */}
+      {reportType === 'app' && shareId && appData && (
+        <AiVisibilitySection hashUrl={shareId} appName={appData.title || 'this app'} />
+      )}
 
       {/* Bottom conversion CTA */}
       <div className="mt-12 mb-8 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-center text-white shadow-lg">

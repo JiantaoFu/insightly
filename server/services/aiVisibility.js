@@ -527,7 +527,10 @@ function pruneJobs() {
 // the runId immediately and the client polls GET .../runs/:runId. The run
 // promise always resolves into the job record — it never rejects into the
 // void (that would be an unhandled rejection and lose the error).
-export function startAiVisibilityJob(params) {
+// Optional hooks ({ onDone(result), onError(message) }) let callers react
+// to completion — the per-app report integration uses onDone to persist
+// the result. Hook failures are logged, never propagated.
+export function startAiVisibilityJob(params, hooks = {}) {
   pruneJobs();
   const id = randomUUID();
   const job = { id, status: 'running', createdAt: Date.now(), result: null, error: null };
@@ -536,10 +539,22 @@ export function startAiVisibilityJob(params) {
     .then((result) => {
       job.status = 'done';
       job.result = result;
+      if (typeof hooks.onDone === 'function') {
+        Promise.resolve()
+          .then(() => hooks.onDone(result))
+          .catch((hookErr) =>
+            console.error('aiVisibility onDone hook failed:', hookErr?.message || hookErr)
+          );
+      }
     })
     .catch((e) => {
       job.status = 'error';
       job.error = String((e && e.message) || e).slice(0, 300);
+      if (typeof hooks.onError === 'function') {
+        Promise.resolve()
+          .then(() => hooks.onError(job.error))
+          .catch(() => undefined);
+      }
     });
   return job;
 }

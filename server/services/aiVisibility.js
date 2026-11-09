@@ -10,9 +10,13 @@
 // answer whether the app was mentioned, at what position, and which
 // products were recommended instead.
 //
-// Model panel:
+// Model panel (quotas are deliberately spread across independent free
+// providers, so one provider's cap cannot take down the whole panel):
 //   - Gemini via the shared LLM_PROVIDERS helper (same resolved model as
 //     production, incl. its fallback logic). Needs GEMINI_API_KEY.
+//   - Groq free tier (GROQ_API_KEY; model overridable with GEO_GROQ_MODEL).
+//   - GitHub Models free tier (GITHUB_MODELS_API_KEY; model overridable
+//     with GEO_GITHUB_MODEL).
 //   - OpenRouter free models (OPENROUTER_API_KEY; list overridable with
 //     GEO_OPENROUTER_MODELS, comma-separated). OpenRouter's free catalog
 //     rotates, hence the env override.
@@ -30,8 +34,13 @@ import { LLM_PROVIDERS } from '../llmProviders.js';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_OPENROUTER_MODELS =
   'nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
+const GITHUB_MODELS_URL = 'https://models.github.ai/inference/chat/completions';
+const DEFAULT_GITHUB_MODEL = 'openai/gpt-4.1-mini';
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_TOKENS = 1200;
+const GITHUB_MAX_TOKENS = 1000;
 // Gap required between run starts per client IP. It only exists to keep
 // free-tier model quotas from being burned by rapid repeats — runs take
 // ~77s, so anything much longer than the spacing the quotas need makes a
@@ -65,7 +74,19 @@ function openRouterLabel(modelId) {
   return `${short} (OpenRouter, free)`;
 }
 
-// Panel entries: { id, label, provider: 'gemini'|'openrouter', model, configured }
+function groqModelId() {
+  return String(process.env.GEO_GROQ_MODEL || DEFAULT_GROQ_MODEL).trim() || DEFAULT_GROQ_MODEL;
+}
+
+function githubModelId() {
+  return (
+    String(process.env.GEO_GITHUB_MODEL || DEFAULT_GITHUB_MODEL).trim() || DEFAULT_GITHUB_MODEL
+  );
+}
+
+// Panel entries: { id, label, provider, model, keyEnv, configured }.
+// keyEnv is internal only (used for the "not configured" error message);
+// getPanelStatus never exposes it.
 export function getPanel() {
   const panel = [
     {
@@ -73,7 +94,24 @@ export function getPanel() {
       label: `Gemini ${geminiModelId().replace(/^gemini-/, '')}`,
       provider: 'gemini',
       model: geminiModelId(),
+      keyEnv: 'GEMINI_API_KEY',
       configured: Boolean(process.env.GEMINI_API_KEY),
+    },
+    {
+      id: groqModelId(),
+      label: 'Llama 3.3 70B (Groq, free)',
+      provider: 'groq',
+      model: groqModelId(),
+      keyEnv: 'GROQ_API_KEY',
+      configured: Boolean(process.env.GROQ_API_KEY),
+    },
+    {
+      id: githubModelId(),
+      label: 'GPT-4.1 mini (GitHub Models, free)',
+      provider: 'github',
+      model: githubModelId(),
+      keyEnv: 'GITHUB_MODELS_API_KEY',
+      configured: Boolean(process.env.GITHUB_MODELS_API_KEY),
     },
   ];
   for (const model of openRouterModelIds()) {
@@ -82,6 +120,7 @@ export function getPanel() {
       label: openRouterLabel(model),
       provider: 'openrouter',
       model,
+      keyEnv: 'OPENROUTER_API_KEY',
       configured: Boolean(process.env.OPENROUTER_API_KEY),
     });
   }
@@ -114,36 +153,81 @@ async function geminiText(prompt) {
   );
 }
 
-async function openRouterText(model, prompt) {
+// Shared caller for the OpenAI-compatible chat-completions providers
+// (OpenRouter, Groq, GitHub Models all speak this shape).
+async function chatCompletionsText({ url, apiKey, model, prompt, maxTokens, headers, providerName }) {
   const response = await axios.post(
-    OPENROUTER_URL,
+    url,
     {
       model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
-      max_tokens: MAX_TOKENS,
+      max_tokens: maxTokens,
     },
     {
       timeout: CALL_TIMEOUT_MS,
       headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://insightly.top',
-        'X-Title': 'Insightly AI Visibility',
+        ...headers,
       },
     }
   );
   const content = response.data?.choices?.[0]?.message?.content;
   if (typeof content !== 'string' || !content.trim()) {
-    throw new Error('OpenRouter returned an empty response');
+    throw new Error(`${providerName} returned an empty response`);
   }
   return content;
 }
 
+async function openRouterText(model, prompt) {
+  return chatCompletionsText({
+    url: OPENROUTER_URL,
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model,
+    prompt,
+    maxTokens: MAX_TOKENS,
+    headers: {
+      'HTTP-Referer': 'https://insightly.top',
+      'X-Title': 'Insightly AI Visibility',
+    },
+    providerName: 'OpenRouter',
+  });
+}
+
+async function groqText(model, prompt) {
+  return chatCompletionsText({
+    url: GROQ_URL,
+    apiKey: process.env.GROQ_API_KEY,
+    model,
+    prompt,
+    maxTokens: MAX_TOKENS,
+    providerName: 'Groq',
+  });
+}
+
+async function githubModelsText(model, prompt) {
+  return chatCompletionsText({
+    url: GITHUB_MODELS_URL,
+    apiKey: process.env.GITHUB_MODELS_API_KEY,
+    model,
+    prompt,
+    maxTokens: GITHUB_MAX_TOKENS,
+    providerName: 'GitHub Models',
+  });
+}
+
 function callModel(entry, prompt) {
-  return entry.provider === 'gemini'
-    ? geminiText(prompt)
-    : openRouterText(entry.model, prompt);
+  switch (entry.provider) {
+    case 'gemini':
+      return geminiText(prompt);
+    case 'groq':
+      return groqText(entry.model, prompt);
+    case 'github':
+      return githubModelsText(entry.model, prompt);
+    default:
+      return openRouterText(entry.model, prompt);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -307,10 +391,7 @@ function isMentioned(name, text) {
 
 async function runModel(entry, name, questions) {
   if (!entry.configured) {
-    const error =
-      entry.provider === 'gemini'
-        ? 'GEMINI_API_KEY is not configured'
-        : 'OPENROUTER_API_KEY is not configured';
+    const error = `${entry.keyEnv} is not configured`;
     return {
       id: entry.id,
       label: entry.label,

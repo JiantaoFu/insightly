@@ -5,11 +5,12 @@ import Navigation from '../components/Navigation';
 import Footer from '../components/Footer';
 import { updateMetadata } from '../utils/metadata';
 
-// AI Visibility (GEO-style) test UI. Backed by POST /api/ai-visibility:
-// each model in the panel answers a cognition question ("What is <app>?")
-// and 3 non-branded recommendation questions; we show whether the app was
-// mentioned, where, and what was recommended instead. Runs are stateless
-// and can take 1–2 minutes (several free-tier model calls).
+// AI Visibility (GEO-style) test UI. POST /api/ai-visibility starts an
+// async job on the backend (a full run takes ~70s — too long for one
+// proxied request), and this page polls GET /api/ai-visibility/runs/:id
+// until it finishes. Each model in the panel answers a cognition question
+// ("What is <app>?") and 3 non-branded recommendation questions; we show
+// whether the app was mentioned, where, and what was recommended instead.
 
 interface PanelModel {
   id: string;
@@ -67,6 +68,14 @@ const AiVisibilityPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
   const timerRef = useRef<number | null>(null);
+  const pollRef = useRef<number | null>(null);
+
+  // Stop polling if the user navigates away mid-run.
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     updateMetadata(
@@ -116,6 +125,8 @@ const AiVisibilityPage: React.FC = () => {
     setRunning(true);
     setError(null);
     setResult(null);
+    const POLL_INTERVAL_MS = 3000;
+    const POLL_TIMEOUT_MS = 5 * 60 * 1000;
     try {
       const resp = await fetch('/api/ai-visibility', {
         method: 'POST',
@@ -124,12 +135,61 @@ const AiVisibilityPage: React.FC = () => {
       });
       const data = await resp.json().catch(() => null);
       if (!resp.ok) {
+        // Includes the 429 cooldown message from the server.
         throw new Error((data && data.error) || `Request failed (${resp.status})`);
       }
-      setResult(data as RunResult);
+      const runId = data && data.runId;
+      if (!runId) throw new Error('The server did not return a run id. Please try again.');
+
+      // Poll the job until it completes. The run lives on the server, so a
+      // single failed poll (network blip) is not fatal — only the 5-minute
+      // deadline, a 404 (job gone), or a server-reported error ends it.
+      const startedAt = Date.now();
+      await new Promise<void>((resolve, reject) => {
+        const tick = async () => {
+          if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+            if (pollRef.current) window.clearInterval(pollRef.current);
+            pollRef.current = null;
+            reject(
+              new Error(
+                'This run is taking unusually long (over 5 minutes) and was stopped. Please try again in a couple of minutes.'
+              )
+            );
+            return;
+          }
+          try {
+            const poll = await fetch(`/api/ai-visibility/runs/${runId}`);
+            const pdata = await poll.json().catch(() => null);
+            if (poll.status === 404) {
+              if (pollRef.current) window.clearInterval(pollRef.current);
+              pollRef.current = null;
+              reject(new Error((pdata && pdata.error) || 'This run expired before it finished. Please run it again.'));
+              return;
+            }
+            if (!poll.ok || !pdata) return; // transient: keep polling
+            if (pdata.status === 'done' && pdata.result) {
+              if (pollRef.current) window.clearInterval(pollRef.current);
+              pollRef.current = null;
+              setResult(pdata.result as RunResult);
+              resolve();
+            } else if (pdata.status === 'error') {
+              if (pollRef.current) window.clearInterval(pollRef.current);
+              pollRef.current = null;
+              reject(new Error(pdata.error || 'The run failed on the server.'));
+            }
+            // status 'running' → wait for the next tick
+          } catch {
+            // network blip during a poll: keep polling until the deadline
+          }
+        };
+        pollRef.current = window.setInterval(tick, POLL_INTERVAL_MS);
+        void tick();
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     } finally {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      pollRef.current = null;
       setRunning(false);
     }
   };

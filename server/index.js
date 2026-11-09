@@ -22,7 +22,7 @@ import { supabase } from './supabaseClient.js';
 import { generateSitemap, initializeSitemap, getSitemapMeta } from './sitemap.js';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { embeddingService } from './services/EmbeddingService.js'
-import { runAiVisibility, getPanelStatus, cooldownStatus, markRunStarted } from './services/aiVisibility.js';
+import { getPanelStatus, cooldownStatus, markRunStarted, clientIpFromRequest, startAiVisibilityJob, getAiVisibilityJob } from './services/aiVisibility.js';
 import { availableFunctions, functionDeclarations } from './functions.js';
 import { calculateCosineSimilarity } from './utils.js';
 import JSZip from 'jszip';
@@ -2004,13 +2004,15 @@ app.get('/api/health/llm', async (req, res) => {
 });
 
 // AI Visibility (GEO-style) test: which models know an app, and do they
-// recommend it for non-branded category questions? Stateless in v1; a
-// per-IP cooldown in the service protects the free-tier model quotas.
+// recommend it for non-branded category questions? A full run takes ~70s —
+// longer than the site CDN's proxy waits — so POST starts an in-memory
+// async job and returns 202 immediately; the client polls the run until
+// done. A per-IP cooldown in the service protects the free-tier quotas.
 app.get('/api/ai-visibility/models', (req, res) => {
   res.json({ models: getPanelStatus() });
 });
 
-app.post('/api/ai-visibility', async (req, res) => {
+app.post('/api/ai-visibility', (req, res) => {
   const clean = (v, max) =>
     typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max) : '';
   const name = clean(req.body?.name, 80);
@@ -2022,7 +2024,9 @@ app.post('/api/ai-visibility', async (req, res) => {
   if (!category && !description) {
     return res.status(400).json({ error: 'category or description is required' });
   }
-  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  // Key the cooldown on the real client (first x-forwarded-for entry — the
+  // CDN proxy's own egress IP would otherwise be shared by every visitor).
+  const ip = clientIpFromRequest(req);
   const cooldown = cooldownStatus(ip);
   if (!cooldown.ok) {
     return res.status(429).json({
@@ -2031,14 +2035,25 @@ app.post('/api/ai-visibility', async (req, res) => {
     });
   }
   markRunStarted(ip);
-  try {
-    const result = await runAiVisibility({ name, category, description });
-    res.json(result);
-  } catch (e) {
-    const status = e && e.status === 400 ? 400 : 500;
-    console.error('AI Visibility run failed:', e);
-    res.status(status).json({ error: String((e && e.message) || e).slice(0, 300) });
+  const job = startAiVisibilityJob({ name, category, description });
+  res.status(202).json({ runId: job.id, status: 'running' });
+});
+
+app.get('/api/ai-visibility/runs/:runId', (req, res) => {
+  const job = getAiVisibilityJob(req.params.runId);
+  if (!job) {
+    return res.status(404).json({ error: 'Run not found (it may have expired).' });
   }
+  if (job.status === 'running') {
+    return res.json({
+      status: 'running',
+      elapsedSeconds: Math.floor((Date.now() - job.createdAt) / 1000),
+    });
+  }
+  if (job.status === 'error') {
+    return res.json({ status: 'error', error: job.error });
+  }
+  return res.json({ status: 'done', result: job.result });
 });
 
 // Sitemap endpoint

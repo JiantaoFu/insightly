@@ -17,11 +17,14 @@
 //     GEO_OPENROUTER_MODELS, comma-separated). OpenRouter's free catalog
 //     rotates, hence the env override.
 //
-// No persistence in v1: runs are stateless. A per-IP cooldown protects the
-// free-tier quotas. Per-model / per-answer failures are captured in the
-// result and never fail the whole run.
+// No persistence: runs execute as in-memory async jobs (a full run takes
+// ~70s, longer than the site's CDN proxy waits for a synchronous response,
+// so the API starts a job and the client polls for the result). A per-IP
+// cooldown protects the free-tier quotas. Per-model / per-answer failures
+// are captured in the result and never fail the whole run.
 
 import axios from 'axios';
+import { randomUUID } from 'crypto';
 import { LLM_PROVIDERS } from '../llmProviders.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -373,6 +376,66 @@ export function markRunStarted(ip) {
       if (ts < cutoff) lastRunByIp.delete(key);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Client IP (for the cooldown)
+// ---------------------------------------------------------------------------
+
+// Behind the site CDN the request reaches us via a proxy, so req.ip is the
+// proxy's egress address — shared by every site visitor. The CDN sets
+// x-forwarded-for with the real client first; key the cooldown on that.
+export function clientIpFromRequest(req) {
+  const xff = req?.headers?.['x-forwarded-for'];
+  const first = Array.isArray(xff) ? xff[0] : typeof xff === 'string' ? xff.split(',')[0] : '';
+  const candidate = String(first || '').trim();
+  if (candidate) return candidate.slice(0, 64);
+  return req?.ip || req?.socket?.remoteAddress || 'unknown';
+}
+
+// ---------------------------------------------------------------------------
+// Async jobs (in-memory; result kept 30 minutes for the polling client)
+// ---------------------------------------------------------------------------
+
+const JOB_TTL_MS = 30 * 60 * 1000;
+const jobs = new Map();
+
+function pruneJobs() {
+  const cutoff = Date.now() - JOB_TTL_MS;
+  for (const [id, job] of jobs) {
+    if (job.createdAt < cutoff) jobs.delete(id);
+  }
+}
+
+// Fire-and-forget wrapper around runAiVisibility: the POST handler returns
+// the runId immediately and the client polls GET .../runs/:runId. The run
+// promise always resolves into the job record — it never rejects into the
+// void (that would be an unhandled rejection and lose the error).
+export function startAiVisibilityJob(params) {
+  pruneJobs();
+  const id = randomUUID();
+  const job = { id, status: 'running', createdAt: Date.now(), result: null, error: null };
+  jobs.set(id, job);
+  runAiVisibility(params)
+    .then((result) => {
+      job.status = 'done';
+      job.result = result;
+    })
+    .catch((e) => {
+      job.status = 'error';
+      job.error = String((e && e.message) || e).slice(0, 300);
+    });
+  return job;
+}
+
+export function getAiVisibilityJob(id) {
+  const job = jobs.get(id);
+  if (!job) return null;
+  if (Date.now() - job.createdAt > JOB_TTL_MS) {
+    jobs.delete(id);
+    return null;
+  }
+  return job;
 }
 
 // ---------------------------------------------------------------------------

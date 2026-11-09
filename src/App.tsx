@@ -31,6 +31,7 @@ const MainAnalysis = lazyPage(() => import('./components/MainAnalysis'));
 const PaymentSuccess = lazyPage(() => import('./pages/PaymentSuccess'));
 const PaymentCancel = lazyPage(() => import('./pages/PaymentCancel'));
 const AccountPage = lazyPage(() => import('./pages/AccountPage'));
+const AiVisibilityPage = lazyPage(() => import('./pages/AiVisibilityPage'));
 // ChatBox has a named (not default) export, so wrap the dynamic import.
 const ChatBox = lazyPage(() => import('./components/ChatBox').then(m => ({ default: m.ChatBox })));
 
@@ -42,6 +43,7 @@ const PRELOAD: [string, { preload: () => Promise<unknown> }[]][] = [
   ['/share/:shareId', [AppReportView]],
   ['/shared-competitor-report/:shareId', [CompetitorReportView]],
   ['/app-insights', [AppInsightsPage]],
+  ['/ai-visibility', [AiVisibilityPage]],
   ['/competitor-insights', [CompetitorAnalysis, AuthInterstitial]],
   ['/chat', [ChatBox, AuthInterstitial]],
   ['/payment-success', [PaymentSuccess]],
@@ -131,6 +133,7 @@ const App: React.FC = () => {
               <Route path="/share/:shareId" element={<AppReportView/>} />
               <Route path="/shared-competitor-report/:shareId" element={<CompetitorReportView/>} />
               <Route path="/app-insights" element={<AppInsightsPage />} />
+              <Route path="/ai-visibility" element={<AiVisibilityPage />} />
               <Route path="/competitor-insights" element={
                 <ProtectedRoute>
                   <CompetitorAnalysis />

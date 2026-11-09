@@ -22,6 +22,7 @@ import { supabase } from './supabaseClient.js';
 import { generateSitemap, initializeSitemap, getSitemapMeta } from './sitemap.js';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { embeddingService } from './services/EmbeddingService.js'
+import { runAiVisibility, getPanelStatus, cooldownStatus, markRunStarted } from './services/aiVisibility.js';
 import { availableFunctions, functionDeclarations } from './functions.js';
 import { calculateCosineSimilarity } from './utils.js';
 import JSZip from 'jszip';
@@ -1999,6 +2000,44 @@ app.get('/api/health/llm', async (req, res) => {
     llmHealthCache.at = now;
     llmHealthCache.result = result;
     res.json(result);
+  }
+});
+
+// AI Visibility (GEO-style) test: which models know an app, and do they
+// recommend it for non-branded category questions? Stateless in v1; a
+// per-IP cooldown in the service protects the free-tier model quotas.
+app.get('/api/ai-visibility/models', (req, res) => {
+  res.json({ models: getPanelStatus() });
+});
+
+app.post('/api/ai-visibility', async (req, res) => {
+  const clean = (v, max) =>
+    typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max) : '';
+  const name = clean(req.body?.name, 80);
+  const category = clean(req.body?.category, 60);
+  const description = clean(req.body?.description, 600);
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+  if (!category && !description) {
+    return res.status(400).json({ error: 'category or description is required' });
+  }
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const cooldown = cooldownStatus(ip);
+  if (!cooldown.ok) {
+    return res.status(429).json({
+      error: `Please wait ${cooldown.retryAfterSeconds}s between AI Visibility runs (free-tier model quotas).`,
+      retryAfterSeconds: cooldown.retryAfterSeconds,
+    });
+  }
+  markRunStarted(ip);
+  try {
+    const result = await runAiVisibility({ name, category, description });
+    res.json(result);
+  } catch (e) {
+    const status = e && e.status === 400 ? 400 : 500;
+    console.error('AI Visibility run failed:', e);
+    res.status(status).json({ error: String((e && e.message) || e).slice(0, 300) });
   }
 });
 

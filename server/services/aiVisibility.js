@@ -15,8 +15,15 @@
 //   - Gemini via the shared LLM_PROVIDERS helper (same resolved model as
 //     production, incl. its fallback logic). Needs GEMINI_API_KEY.
 //   - Groq free tier (GROQ_API_KEY; model overridable with GEO_GROQ_MODEL).
-//   - GitHub Models free tier (GITHUB_MODELS_API_KEY; model overridable
-//     with GEO_GITHUB_MODEL).
+//     Default is openai/gpt-oss-120b: Groq retired llama-3.3-70b-versatile
+//     for free/developer tiers on 2026-08-16 (requests return 404
+//     model_not_found) and names gpt-oss-120b as its replacement.
+//   - GitHub Models (GITHUB_MODELS_API_KEY; model overridable with
+//     GEO_GITHUB_MODEL). NOTE: GitHub retired the service entirely on
+//     2026-07-30 — models.github.ai now answers every path with a bare
+//     200 "OK" and no JSON payload, so this slot can only ever report the
+//     retirement error produced in githubModelsText below. It is kept so
+//     the panel reports that fact instead of a misleading empty result.
 //   - OpenRouter free models (OPENROUTER_API_KEY; list overridable with
 //     GEO_OPENROUTER_MODELS, comma-separated). OpenRouter's free catalog
 //     rotates, hence the env override.
@@ -35,7 +42,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_OPENROUTER_MODELS =
   'nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
+const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
 const GITHUB_MODELS_URL = 'https://models.github.ai/inference/chat/completions';
 const DEFAULT_GITHUB_MODEL = 'openai/gpt-4.1-mini';
 const CALL_TIMEOUT_MS = 60_000;
@@ -78,6 +85,13 @@ function groqModelId() {
   return String(process.env.GEO_GROQ_MODEL || DEFAULT_GROQ_MODEL).trim() || DEFAULT_GROQ_MODEL;
 }
 
+function groqLabel(modelId) {
+  if (modelId.includes('gpt-oss-120b')) return 'GPT-OSS 120B (Groq, free)';
+  if (modelId.includes('gpt-oss-20b')) return 'GPT-OSS 20B (Groq, free)';
+  if (modelId.includes('llama-3.3')) return 'Llama 3.3 70B (Groq, free)';
+  return `${modelId} (Groq, free)`;
+}
+
 function githubModelId() {
   return (
     String(process.env.GEO_GITHUB_MODEL || DEFAULT_GITHUB_MODEL).trim() || DEFAULT_GITHUB_MODEL
@@ -99,7 +113,7 @@ export function getPanel() {
     },
     {
       id: groqModelId(),
-      label: 'Llama 3.3 70B (Groq, free)',
+      label: groqLabel(groqModelId()),
       provider: 'groq',
       model: groqModelId(),
       keyEnv: 'GROQ_API_KEY',
@@ -153,9 +167,51 @@ async function geminiText(prompt) {
   );
 }
 
+// Extract the assistant text from a chat-completions payload. Handles the
+// two documented content shapes: a plain string, and an array of content
+// parts (text parts are concatenated). Throws distinct errors so a payload
+// that is not a chat completion at all (e.g. a retired endpoint answering
+// 200 with a plain-text body) is not misreported as an "empty response".
+export function extractChatText(data, providerName) {
+  const choice =
+    data && typeof data === 'object' && Array.isArray(data.choices) ? data.choices[0] : undefined;
+  if (!choice) {
+    throw new Error(`${providerName} returned a non-API response (no choices in payload)`);
+  }
+  const content = choice.message?.content;
+  if (typeof content === 'string' && content.trim()) return content;
+  if (Array.isArray(content)) {
+    const text = content
+      .map((part) =>
+        typeof part === 'string'
+          ? part
+          : part && part.type === 'text' && typeof part.text === 'string'
+            ? part.text
+            : ''
+      )
+      .join('');
+    if (text.trim()) return text;
+  }
+  if (choice.finish_reason === 'length') {
+    throw new Error(
+      `${providerName} response hit the token limit before producing an answer (finish_reason=length)`
+    );
+  }
+  throw new Error(`${providerName} returned an empty response`);
+}
+
 // Shared caller for the OpenAI-compatible chat-completions providers
 // (OpenRouter, Groq, GitHub Models all speak this shape).
-async function chatCompletionsText({ url, apiKey, model, prompt, maxTokens, headers, providerName }) {
+async function chatCompletionsText({
+  url,
+  apiKey,
+  model,
+  prompt,
+  maxTokens,
+  headers,
+  providerName,
+  extraBody,
+}) {
   const response = await axios.post(
     url,
     {
@@ -163,6 +219,7 @@ async function chatCompletionsText({ url, apiKey, model, prompt, maxTokens, head
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: maxTokens,
+      ...extraBody,
     },
     {
       timeout: CALL_TIMEOUT_MS,
@@ -173,11 +230,7 @@ async function chatCompletionsText({ url, apiKey, model, prompt, maxTokens, head
       },
     }
   );
-  const content = response.data?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string' || !content.trim()) {
-    throw new Error(`${providerName} returned an empty response`);
-  }
-  return content;
+  return extractChatText(response.data, providerName);
 }
 
 async function openRouterText(model, prompt) {
@@ -203,18 +256,37 @@ async function groqText(model, prompt) {
     prompt,
     maxTokens: MAX_TOKENS,
     providerName: 'Groq',
+    // GPT-OSS models are reasoning models: at Groq's default 'medium'
+    // effort the reasoning can consume the whole max_tokens budget and
+    // leave an empty answer. 'low' keeps plenty of room for the answer
+    // itself. Only GPT-OSS models accept reasoning_effort on Groq —
+    // sending it to other models is a 400 — so it stays conditional.
+    extraBody: model.includes('gpt-oss') ? { reasoning_effort: 'low' } : undefined,
   });
 }
 
 async function githubModelsText(model, prompt) {
-  return chatCompletionsText({
-    url: GITHUB_MODELS_URL,
-    apiKey: process.env.GITHUB_MODELS_API_KEY,
-    model,
-    prompt,
-    maxTokens: GITHUB_MAX_TOKENS,
-    providerName: 'GitHub Models',
-  });
+  try {
+    return await chatCompletionsText({
+      url: GITHUB_MODELS_URL,
+      apiKey: process.env.GITHUB_MODELS_API_KEY,
+      model,
+      prompt,
+      maxTokens: GITHUB_MAX_TOKENS,
+      providerName: 'GitHub Models',
+    });
+  } catch (e) {
+    // GitHub retired GitHub Models on 2026-07-30: models.github.ai now
+    // answers every path with a bare 200 "OK" and no JSON payload, which
+    // extractChatText reports as a non-API response. Translate that into
+    // the actual cause instead of a misleading "empty response".
+    if (e && /non-API response/.test(e.message)) {
+      throw new Error(
+        'GitHub Models was retired on 2026-07-30 — models.github.ai no longer serves chat completions (endpoint returned a non-API response)'
+      );
+    }
+    throw e;
+  }
 }
 
 function callModel(entry, prompt) {

@@ -18,12 +18,6 @@
 //     Default is openai/gpt-oss-120b: Groq retired llama-3.3-70b-versatile
 //     for free/developer tiers on 2026-08-16 (requests return 404
 //     model_not_found) and names gpt-oss-120b as its replacement.
-//   - GitHub Models (GITHUB_MODELS_API_KEY; model overridable with
-//     GEO_GITHUB_MODEL). NOTE: GitHub retired the service entirely on
-//     2026-07-30 — models.github.ai now answers every path with a bare
-//     200 "OK" and no JSON payload, so this slot can only ever report the
-//     retirement error produced in githubModelsText below. It is kept so
-//     the panel reports that fact instead of a misleading empty result.
 //   - OpenRouter free models (OPENROUTER_API_KEY; list overridable with
 //     GEO_OPENROUTER_MODELS, comma-separated). OpenRouter's free catalog
 //     rotates, hence the env override.
@@ -43,11 +37,8 @@ const DEFAULT_OPENROUTER_MODELS =
   'nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
-const GITHUB_MODELS_URL = 'https://models.github.ai/inference/chat/completions';
-const DEFAULT_GITHUB_MODEL = 'openai/gpt-4.1-mini';
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_TOKENS = 1200;
-const GITHUB_MAX_TOKENS = 1000;
 // Gap required between run starts per client IP. It only exists to keep
 // free-tier model quotas from being burned by rapid repeats — runs take
 // ~77s, so anything much longer than the spacing the quotas need makes a
@@ -92,12 +83,6 @@ function groqLabel(modelId) {
   return `${modelId} (Groq, free)`;
 }
 
-function githubModelId() {
-  return (
-    String(process.env.GEO_GITHUB_MODEL || DEFAULT_GITHUB_MODEL).trim() || DEFAULT_GITHUB_MODEL
-  );
-}
-
 // Panel entries: { id, label, provider, model, keyEnv, configured }.
 // keyEnv is internal only (used for the "not configured" error message);
 // getPanelStatus never exposes it.
@@ -118,14 +103,6 @@ export function getPanel() {
       model: groqModelId(),
       keyEnv: 'GROQ_API_KEY',
       configured: Boolean(process.env.GROQ_API_KEY),
-    },
-    {
-      id: githubModelId(),
-      label: 'GPT-4.1 mini (GitHub Models, free)',
-      provider: 'github',
-      model: githubModelId(),
-      keyEnv: 'GITHUB_MODELS_API_KEY',
-      configured: Boolean(process.env.GITHUB_MODELS_API_KEY),
     },
   ];
   for (const model of openRouterModelIds()) {
@@ -201,7 +178,7 @@ export function extractChatText(data, providerName) {
 }
 
 // Shared caller for the OpenAI-compatible chat-completions providers
-// (OpenRouter, Groq, GitHub Models all speak this shape).
+// (OpenRouter and Groq both speak this shape).
 async function chatCompletionsText({
   url,
   apiKey,
@@ -265,38 +242,12 @@ async function groqText(model, prompt) {
   });
 }
 
-async function githubModelsText(model, prompt) {
-  try {
-    return await chatCompletionsText({
-      url: GITHUB_MODELS_URL,
-      apiKey: process.env.GITHUB_MODELS_API_KEY,
-      model,
-      prompt,
-      maxTokens: GITHUB_MAX_TOKENS,
-      providerName: 'GitHub Models',
-    });
-  } catch (e) {
-    // GitHub retired GitHub Models on 2026-07-30: models.github.ai now
-    // answers every path with a bare 200 "OK" and no JSON payload, which
-    // extractChatText reports as a non-API response. Translate that into
-    // the actual cause instead of a misleading "empty response".
-    if (e && /non-API response/.test(e.message)) {
-      throw new Error(
-        'GitHub Models was retired on 2026-07-30 — models.github.ai no longer serves chat completions (endpoint returned a non-API response)'
-      );
-    }
-    throw e;
-  }
-}
-
 function callModel(entry, prompt) {
   switch (entry.provider) {
     case 'gemini':
       return geminiText(prompt);
     case 'groq':
       return groqText(entry.model, prompt);
-    case 'github':
-      return githubModelsText(entry.model, prompt);
     default:
       return openRouterText(entry.model, prompt);
   }

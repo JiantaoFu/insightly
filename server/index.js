@@ -2030,7 +2030,7 @@ app.post('/api/ai-visibility', (req, res) => {
   const cooldown = cooldownStatus(ip);
   if (!cooldown.ok) {
     return res.status(429).json({
-      error: `Please wait ${cooldown.retryAfterSeconds}s between AI Visibility runs (free-tier model quotas).`,
+      error: 'Runs are spaced ~30s apart to protect free model quotas.',
       retryAfterSeconds: cooldown.retryAfterSeconds,
     });
   }

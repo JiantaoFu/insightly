@@ -32,7 +32,15 @@ const DEFAULT_OPENROUTER_MODELS =
   'nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free';
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_TOKENS = 1200;
-const COOLDOWN_MS = 2 * 60 * 1000;
+// Gap required between run starts per client IP. It only exists to keep
+// free-tier model quotas from being burned by rapid repeats — runs take
+// ~77s, so anything much longer than the spacing the quotas need makes a
+// second run feel broken. Overridable via GEO_COOLDOWN_SECONDS.
+const COOLDOWN_SECONDS = (() => {
+  const parsed = Number(process.env.GEO_COOLDOWN_SECONDS);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 30;
+})();
+const COOLDOWN_MS = COOLDOWN_SECONDS * 1000;
 const RAW_CAP = 10_000;
 
 // ---------------------------------------------------------------------------
@@ -313,23 +321,25 @@ async function runModel(entry, name, questions) {
 
   const cognitionPrompt = `What is ${name}? Describe what it does, who it is for, its pricing, and its main competitors.`;
 
-  let cognition;
-  try {
-    const raw = String(await callModel(entry, cognitionPrompt)).slice(0, RAW_CAP);
-    let judged = { summary: null, pricingClaim: null, competitors: [] };
+  const cognitionPromise = (async () => {
     try {
-      judged = await judgeCognition(name, raw);
-    } catch {
-      // Judge is best-effort; raw answer still stands on its own.
+      const raw = String(await callModel(entry, cognitionPrompt)).slice(0, RAW_CAP);
+      let judged = { summary: null, pricingClaim: null, competitors: [] };
+      try {
+        judged = await judgeCognition(name, raw);
+      } catch {
+        // Judge is best-effort; raw answer still stands on its own.
+      }
+      return { raw, ...judged };
+    } catch (e) {
+      return { error: String((e && e.message) || e).slice(0, 300) };
     }
-    cognition = { raw, ...judged };
-  } catch (e) {
-    cognition = { error: String((e && e.message) || e).slice(0, 300) };
-  }
+  })();
 
-  // The 3 recommendation questions are independent: run them concurrently
-  // so a slow free-tier model cannot multiply the total run time by 3.
-  const answers = await Promise.all(
+  // The 3 recommendation questions are independent of each other and of
+  // the cognition flow: run them all concurrently so a slow free-tier
+  // model cannot multiply the total run time.
+  const answersPromise = Promise.all(
     questions.map(async (question) => {
       try {
         const raw = String(await callModel(entry, question)).slice(0, RAW_CAP);
@@ -349,6 +359,8 @@ async function runModel(entry, name, questions) {
       }
     })
   );
+
+  const [cognition, answers] = await Promise.all([cognitionPromise, answersPromise]);
 
   return { id: entry.id, label: entry.label, cognition, answers };
 }
